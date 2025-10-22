@@ -51,6 +51,7 @@ HUAWEI_BGP_PATH_REGEX = (
     r"pref-val (?P<preference_value>\d+), (?:(?P<is_valid>valid), )?"
     r"(?P<path_type>(?:external|internal|local)), (?:(?P<is_best>best), )?"
     r"(?:(?P<is_preferred>select), )?pre (?P<route_preference>\d+).*?"
+    r"(?:, validation (?P<rpki_state>(?:valid|invalid|not-found)))?.*?"
 )
 
 

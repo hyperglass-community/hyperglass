@@ -14,9 +14,17 @@ from hyperglass.models.data import BGPRouteTable
 # Local
 from ..main import HyperglassModel
 
+RPKI_STATE_MAP = {
+    "invalid": 0,
+    "valid": 1,
+    "not-found": 2,
+}
+
 WINNING_WEIGHT = "high"
 
 HuaweiPathType = t.Literal["external", "internal", "local"]
+
+HuaweiRPKIState = t.Literal["valid", "invalid", "not-found"]
 
 
 class _HuaweiBase(HyperglassModel):
@@ -49,6 +57,7 @@ class HuaweiRoutePath(_HuaweiBase):
     is_best: bool
     is_preferred: bool
     route_preference: int
+    rpki_state: t.Optional[HuaweiRPKIState]
 
 
 class HuaweiBGPTable(_HuaweiBase):
@@ -93,6 +102,7 @@ class HuaweiBGPTable(_HuaweiBase):
         routes = []
         for route in self.bgp_path_entries:
             as_path = self._get_as_path(as_path=route.as_path)
+            rpki_state = RPKI_STATE_MAP.get(route.rpki_state, 3)
             communities = []
             if route.communities:
                 communities += self._get_communities(route.communities)
@@ -121,7 +131,7 @@ class HuaweiBGPTable(_HuaweiBase):
                     "source_as": source_as,
                     "source_rid": route.peer_rid,
                     "peer_rid": route.peer_address,
-                    "rpki_state": 3,
+                    "rpki_state": rpki_state,
                 }
             )
 
