@@ -15,6 +15,7 @@ __all__ = (
     "Huawei_BGPRoute",
     "Huawei_Ping",
     "Huawei_Traceroute",
+    "Huawei_BGPRouteTable",
 )
 
 NAME = "Huawei VRP"
@@ -37,6 +38,7 @@ Huawei_BGPRoute = BuiltinDirective(
     ],
     field=Text(description="IP Address, Prefix, or Hostname"),
     plugins=["bgp_route_huawei"],
+    table_output="__hyperglass_huawei_bgp_route_table__",
     platforms=PLATFORMS,
 )
 
@@ -106,6 +108,27 @@ Huawei_Traceroute = BuiltinDirective(
             condition="::/0",
             action="permit",
             command="tracert -q 2 -f 1 -a {source6} {target}",
+        ),
+    ],
+    field=Text(description="IP Address, Prefix, or Hostname"),
+    platforms=PLATFORMS,
+)
+
+# Table Output Directives
+
+Huawei_BGPRouteTable = BuiltinDirective(
+    id="__hyperglass_huawei_bgp_route_table__",
+    name="BGP Route",
+    rules=[
+        RuleWithIPv4(
+            condition="0.0.0.0/0",
+            action="permit",
+            command="display bgp routing-table {target} | no-more",
+        ),
+        RuleWithIPv6(
+            condition="::/0",
+            action="permit",
+            command="display bgp ipv6 routing-table {target} | no-more",
         ),
     ],
     field=Text(description="IP Address, Prefix, or Hostname"),
