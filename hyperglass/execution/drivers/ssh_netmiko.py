@@ -31,6 +31,13 @@ netmiko_device_globals = {
 
 netmiko_device_send_args = {}
 
+# RouterOS 7.x redraws its interactive prompt in a way that defeats Netmiko's
+# prompt-based output capture: on v7.21 `send_command` returns only the prompt
+# (no data), and on some earlier 7.x releases it returns duplicated output (see
+# thatmattlove/hyperglass#310). The timing-based read (`send_command_timing`)
+# captures the output reliably on these platforms.
+netmiko_timing_read_platforms = ("mikrotik_routeros", "mikrotik_switchos")
+
 
 class NetmikoConnection(SSHConnection):
     """Handle a device connection via Netmiko."""
@@ -88,8 +95,13 @@ class NetmikoConnection(SSHConnection):
 
             responses = ()
 
+            use_timing_read = self.device.platform in netmiko_timing_read_platforms
+
             for query in self.query:
-                raw = nm_connect_direct.send_command(query, **send_args)
+                if use_timing_read:
+                    raw = nm_connect_direct.send_command_timing(query, **send_args)
+                else:
+                    raw = nm_connect_direct.send_command(query, **send_args)
                 responses += (raw,)
 
             nm_connect_direct.disconnect()
