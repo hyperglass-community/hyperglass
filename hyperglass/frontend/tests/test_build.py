@@ -1,13 +1,14 @@
 """Tests for the packaged UI build workspace."""
 
 # Standard Library
+import asyncio
 from pathlib import Path
 
 # Third Party
 import pytest
 
 # Project
-from hyperglass.frontend import _prepare_ui_build_dir, generate_favicons
+from hyperglass.frontend import _prepare_ui_build_dir, build_frontend, generate_favicons
 
 
 def test_prepare_ui_build_dir_reuses_packaged_dependencies(
@@ -43,3 +44,61 @@ def test_generate_favicons_from_svg(tmp_path: Path) -> None:
     assert len(formats) == 21
     assert (output / "favicon-64x64.ico").exists()
     assert (output / "favicon-196x196.png").exists()
+
+
+def test_failed_build_does_not_record_build_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed build must not make a stale export appear current."""
+    package_ui = tmp_path / "package-ui"
+    package_ui.mkdir()
+    (package_ui / "package.json").write_text("{}")
+    (package_ui / "node_modules").mkdir()
+    monkeypatch.setattr("hyperglass.frontend.PACKAGE_UI_DIR", package_ui)
+
+    app_path = tmp_path / "app"
+    (app_path / "static" / "ui").mkdir(parents=True)
+    (app_path / "static" / "images" / "favicons").mkdir(parents=True)
+    dot_env_file = app_path / ".ui" / ".env"
+    dot_env_file.parent.mkdir()
+    dot_env_file.write_text("HYPERGLASS_BUILD_ID=old-build")
+
+    class Logo:
+        favicon = package_ui / "favicon.svg"
+
+    class Web:
+        logo = Logo()
+        opengraph = type("OpenGraph", (), {"image": package_ui / "opengraph.png"})()
+        theme = type("Theme", (), {"colors": type("Colors", (), {"black": "#000000"})()})()
+
+    class Params:
+        web = Web()
+
+        def export_json(self, by_alias: bool) -> str:
+            return "{}"
+
+        def export_dict(self) -> dict:
+            return {}
+
+    async def fail_build(*args, **kwargs):
+        raise RuntimeError("build failed")
+
+    async def skip_node_initial(*args, **kwargs):
+        return ""
+
+    monkeypatch.setattr("hyperglass.frontend.build_ui", fail_build)
+    monkeypatch.setattr("hyperglass.frontend.node_initial", skip_node_initial)
+    monkeypatch.setattr("hyperglass.frontend.generate_favicons", lambda *args: ())
+
+    with pytest.raises(RuntimeError, match="build failed"):
+        asyncio.run(
+            build_frontend(
+                dev_mode=False,
+                dev_url="http://localhost/",
+                prod_url="/api/",
+                params=Params(),
+                app_path=app_path,
+            )
+        )
+
+    assert "HYPERGLASS_BUILD_ID" not in dot_env_file.read_text()

@@ -482,8 +482,6 @@ async def build_frontend(  # noqa: C901
             log.debug("UI parameters unchanged since last build, skipping UI build...")
             return True
 
-    env_config.update({"HYPERGLASS_BUILD_ID": build_id})
-
     dot_env_file.write_text("\n".join(f"{k}={v}" for k, v in env_config.items()))
     log.bind(path=str(dot_env_file)).debug("Wrote UI environment file")
 
@@ -516,5 +514,9 @@ async def build_frontend(  # noqa: C901
         images_dir,
         params.web.theme.colors.black,
     )
+
+    env_config.update({"HYPERGLASS_BUILD_ID": build_id})
+    dot_env_file.write_text("\n".join(f"{k}={v}" for k, v in env_config.items()))
+    log.bind(path=str(dot_env_file)).debug("Recorded successful UI build")
 
     return True
