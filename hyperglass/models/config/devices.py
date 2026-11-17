@@ -1,13 +1,15 @@
 """Validate router configuration variables."""
 
 # Standard Library
+import os
 import re
+import difflib
 import typing as t
 from pathlib import Path
 from ipaddress import IPv4Address, IPv6Address
 
 # Third Party
-from pydantic import FilePath, ValidationInfo, field_validator
+from pydantic import Field, FilePath, ValidationInfo, field_validator
 from netmiko.ssh_dispatcher import CLASS_MAPPER  # type: ignore
 
 # Project
@@ -19,6 +21,7 @@ from hyperglass.constants import (
     DRIVER_MAP,
     SCRAPE_HELPERS,
     LINUX_PLATFORMS,
+    NETMIKO_DEVICE_TYPES,
     SUPPORTED_STRUCTURED_OUTPUT,
 )
 from hyperglass.exceptions.private import ConfigError, UnsupportedDevice
@@ -28,7 +31,7 @@ from ..main import MultiModel, HyperglassModel, HyperglassModelWithId
 from ..util import check_legacy_fields
 from .proxy import Proxy
 from ..fields import SupportedDriver
-from ..directive import Directives
+from ..directive import Directive, Directives, version_tuple
 from .credential import Credential
 from .http_client import HttpConfiguration
 
@@ -49,6 +52,27 @@ class DirectiveOptions(HyperglassModel, extra="ignore"):
     builtins: t.Union[bool, t.List[str]] = True
 
 
+def directive_attr_keys(directives: t.Iterable[Directive], *, vrf: bool) -> t.Set[str]:
+    """Return the device attributes the device's commands reference.
+
+    A VRF device runs a rule's VRF commands where the rule has them, as `Construct` does,
+    so only those commands count (#95). `target`, `mask`, `vrf` and directive variables are
+    filled in at query time, not from `attrs`.
+    """
+    return {
+        key
+        for directive in directives
+        for rule in directive.rules
+        for command in (
+            rule.vrf_commands
+            if vrf and rule.vrf_commands
+            else rule.commands + rule.fallback_commands
+        )
+        for key in get_fmt_keys(command)
+        if key not in ("target", "mask", "vrf") and key not in directive.variables
+    }
+
+
 class Device(HyperglassModelWithId, extra="allow"):
     """Validation model for per-router config in devices.yaml."""
 
@@ -62,12 +86,23 @@ class Device(HyperglassModelWithId, extra="allow"):
     proxy: t.Optional[Proxy] = None
     display_name: t.Optional[str] = None
     port: int = 22
-    http: HttpConfiguration = HttpConfiguration()
+    http: t.Optional[HttpConfiguration] = None
     platform: str
+    # Software version, such as `15.9(3)M6`. Directives use it to pick commands older
+    # releases accept.
+    os_version: t.Optional[str] = None
     structured_output: t.Optional[bool] = None
+    # Run built-in queries in this VRF. Built-ins without a VRF form are not offered.
+    vrf: t.Optional[str] = Field(None, pattern=r"^[A-Za-z0-9_.:-]{1,64}$")
     directives: Directives = Directives()
     driver: t.Optional[SupportedDriver] = None
     driver_config: t.Dict[str, t.Any] = {}
+    # Set to false when a login policy rejects the driver's paging and terminal
+    # width commands. Directives must then disable paging themselves.
+    disable_paging: bool = True
+    # Retries when the device drops a new SSH session before login, for example a
+    # session rate limit. Unset uses the platform default: 3 on cisco_xr, else 0.
+    connect_retries: t.Optional[int] = Field(None, ge=0, le=10)
     attrs: t.Dict[str, str] = {}
 
     def __init__(self, **kw) -> None:
@@ -75,8 +110,37 @@ class Device(HyperglassModelWithId, extra="allow"):
         kw = check_legacy_fields(model="Device", data=kw)
         if "id" not in kw:
             kw = self._with_id(kw)
+        platform = kw.get("platform")
+        if platform in SCRAPE_HELPERS:
+            platform = SCRAPE_HELPERS[platform]
+        # Netmiko's generic driver sends no paging command. TNSR CLI has no `terminal length`.
+        if platform == "tnsr" and "disable_paging" not in kw:
+            kw["disable_paging"] = False
         super().__init__(**kw)
+        self._warn_unknown_keys()
         self._validate_directive_attrs()
+
+    def _warn_unknown_keys(self) -> None:
+        """Warn about keys the model does not know, which are otherwise silently ignored (#107)."""
+        known = list(
+            {
+                key: None
+                for name, field in type(self).model_fields.items()
+                for key in (name, field.alias)
+                if key is not None
+            }
+        )
+        for key in self.model_extra or {}:
+            suggestion = sorted(
+                difflib.get_close_matches(key, known, n=2, cutoff=0.6),
+                key=lambda match: -len(os.path.commonprefix((key, match))),
+            )
+            log.bind(device=self.name, key=key, suggestion=suggestion or None).warning(
+                "Device {!r} has unknown key {!r}, which is ignored{}",
+                self.name,
+                key,
+                f"; did you mean {' or '.join(repr(s) for s in suggestion)}?" if suggestion else "",
+            )
 
     @property
     def _target(self):
@@ -146,16 +210,10 @@ class Device(HyperglassModelWithId, extra="allow"):
         """
         if self.platform in LINUX_PLATFORMS:
             return "linux_ssh"
-        return self.platform
+        return NETMIKO_DEVICE_TYPES.get(self.platform, self.platform)
 
     def _validate_directive_attrs(self) -> None:
-        # Set of all keys except for built-in key `target`.
-        keys = {
-            key
-            for group in [get_fmt_keys(command) for command in self.directive_commands]
-            for key in group
-            if key != "target"
-        }
+        keys = directive_attr_keys(self.directives, vrf=getattr(self, "vrf", None) is not None)
 
         attrs = {k: v for k, v in self.attrs.items() if k in keys}
 
@@ -220,16 +278,6 @@ class Device(HyperglassModelWithId, extra="allow"):
                     device=info.data["name"],
                 )
 
-        if value is None:
-            if info.data.get("http") is not None:
-                value = "http"
-            else:
-                # Ensure device platform is defined.
-                raise ConfigError(
-                    "Device '{device}' is missing a 'platform' (Network Operating System) property",
-                    device=info.data["name"],
-                )
-
         if value in SCRAPE_HELPERS.keys():
             # Rewrite platform to helper value if needed.
             value = SCRAPE_HELPERS[value]
@@ -242,22 +290,18 @@ class Device(HyperglassModelWithId, extra="allow"):
 
     @field_validator("structured_output", mode="before")
     def validate_structured_output(cls, value: bool, info: ValidationInfo) -> bool:
-        """Validate structured output is supported on the device & set a default."""
+        """Validate structured output is supported on the device; default to text."""
 
         if value is True:
             if info.data.get("platform") not in SUPPORTED_STRUCTURED_OUTPUT:
                 raise ConfigError(
-                    "The 'structured_output' field is set to 'true' on device '{}' with "
-                    + "platform '{}', which does not support structured output",
-                    info.data.get("name"),
-                    info.data.get("platform"),
+                    "The 'structured_output' field is set to 'true' on device '{d}' with "
+                    "platform '{p}', which does not support structured output",
+                    d=info.data.get("name"),
+                    p=info.data.get("platform"),
                 )
             return value
-        if value is None and info.data.get("platform") in SUPPORTED_STRUCTURED_OUTPUT:
-            value = True
-        else:
-            value = False
-        return value
+        return False
 
     @field_validator("directives", mode="before")
     def validate_directives(
@@ -289,7 +333,18 @@ class Device(HyperglassModelWithId, extra="allow"):
         # Directives matching provided IDs.
         device_directives = directives.filter(*directive_ids)
         # Matching built-in directives for this device's platform.
-        builtins = directives.device_builtins(platform=platform, table_output=structured_output)
+        builtins = directives.device_builtins(
+            platform=platform,
+            table_output=structured_output,
+            vrf=info.data.get("vrf") is not None,
+        )
+
+        if info.data.get("vrf") is not None and directive_options.builtins and not len(builtins):
+            raise ConfigError(
+                "Device '{device}' sets vrf, but platform '{platform}' has no VRF-capable built-in directives",
+                device=info.data["name"],
+                platform=platform,
+            )
 
         if directive_options.builtins is True:
             # Add all builtins.
@@ -299,6 +354,20 @@ class Device(HyperglassModelWithId, extra="allow"):
             device_directives += builtins.matching(*directive_options.builtins)
 
         return device_directives
+
+    @field_validator("os_version", mode="before")
+    def validate_os_version(cls, value: t.Any) -> t.Optional[str]:
+        """Accept an unquoted YAML number such as `15.9` and require a leading version number."""
+        if value is None:
+            return None
+        value = str(value)
+        try:
+            version_tuple(value)
+        except ValueError as err:
+            raise ValueError(
+                f"os_version {value!r} must start with a version number, such as '15.9(3)M6'"
+            ) from err
+        return value
 
     @field_validator("driver")
     def validate_driver(cls: "Device", value: t.Optional[str], info: ValidationInfo) -> str:
@@ -357,9 +426,9 @@ class Devices(MultiModel, model=Device, unique_by="id"):
                         "group": group,
                         "id": device.id,
                         "name": device.name,
-                        "avatar": f"/images/{device.avatar.name}"
-                        if device.avatar is not None
-                        else None,
+                        "avatar": (
+                            f"/images/{device.avatar.name}" if device.avatar is not None else None
+                        ),
                         "description": device.description,
                         "directives": [d.frontend() for d in device.directives],
                     }
