@@ -13,6 +13,7 @@ import yaml
 
 
 def check(node, timeout=180, management_only=False):
+    """Wait for a node to answer its readiness checks."""
     lab = Path(__file__).resolve().parents[1]
     devices = yaml.safe_load((lab / "configs/ultraglass/devices.yaml").read_text())["devices"]
     # Both Huawei nodes run VRP 8.180, so their locations carry the platform name (#103).

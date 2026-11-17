@@ -3,7 +3,7 @@
 set -eu
 DISK=${1:?Usage: build-routeros6.sh /path/to/chr.vmdk}
 REVISION=85445edfdf366b3d5f04942a10bb5a7d22df61a7
-BUILD=$(mktemp -d /tmp/opencode/ultraglass-routeros6-build.XXXXXX)
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/hyperglass-routeros6-build.XXXXXX")
 git -C "$BUILD" init --quiet
 git -C "$BUILD" remote add origin https://github.com/srl-labs/vrnetlab.git
 git -C "$BUILD" fetch --quiet --depth 1 origin "$REVISION"

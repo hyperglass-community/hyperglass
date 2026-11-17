@@ -30,28 +30,33 @@ class FakeRedis:
         self.data = dict(data)
 
     def exists(self, *names: str) -> int:
+        """Count stored keys."""
         return sum(1 for name in names if name in self.data)
 
     def get(self, name: str) -> t.Any:
+        """Read a stored value."""
         return self.data.get(name)
 
     def set(self, name: str, value: t.Any, nx: bool = False, ex: int = None) -> t.Optional[bool]:
+        """Store a value with optional uniqueness."""
         if nx and name in self.data:
             return None
         self.data[name] = value
         return True
 
     def delete(self, *names: str) -> None:
+        """Remove stored keys."""
         for name in names:
             self.data.pop(name, None)
 
     def scan_iter(self, match: str, count: int = None) -> t.Generator[str, None, None]:
+        """Yield matching keys."""
         yield from [key for key in list(self.data) if fnmatch(key, match)]
 
 
 def cache_with(*keys: str) -> RedisManager:
     """Build a cache manager containing `keys`."""
-    return RedisManager(instance=FakeRedis(**{key: b"" for key in keys}), namespace=NAMESPACE)
+    return RedisManager(instance=FakeRedis(**dict.fromkeys(keys, b"")), namespace=NAMESPACE)
 
 
 def state_with(cache: RedisManager) -> HyperglassState:
@@ -153,7 +158,7 @@ def test_property_read_rebuilds_lost_state(monkeypatch):
     state = state_with(cache)
 
     def initialize():
-        cache.instance.data.update({key: b"" for key in STATE_KEYS})
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, b""))
         cache.set("devices", ["recovered"])
 
     monkeypatch.setattr(recovery, "_initialize", initialize)

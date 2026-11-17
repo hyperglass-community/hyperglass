@@ -8,6 +8,7 @@ These tests hit the running lab's Ultraglass API. Bring the lab up first:
 Tests for a device that is not running are skipped, so `./lab-up.sh frr`
 followed by `pytest tests/ -k frr` works.
 """
+
 import json
 import os
 import subprocess
@@ -51,7 +52,9 @@ def running_devices():
     out = subprocess.run(
         ["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True
     ).stdout
-    up = {n.replace("clab-ultraglass-", "") for n in out.split() if n.startswith("clab-ultraglass-")}
+    up = {
+        n.replace("clab-ultraglass-", "") for n in out.split() if n.startswith("clab-ultraglass-")
+    }
     # Location lab-frr and lab-frr-vrf map to container clab-ultraglass-frr.
     return {d for d in known if node(d) in up}
 

@@ -56,8 +56,8 @@ def _rotate_if_needed(path: Path, max_size: int, backup_count: int = 1) -> None:
                 if backup.exists():
                     backup.rename(path.with_name(f"{path.name}.{number + 1}"))
             path.rename(path.with_name(path.name + ".1"))
-    except Exception:  # noqa: BLE001 - rotation is best-effort
-        pass
+    except Exception as error:  # noqa: BLE001 - rotation is best-effort
+        log.debug("Sample rotation failed: {}", error)
 
 
 def _normalize_raw(raw: t.Any) -> t.Union[t.List[str], str, None]:
@@ -78,14 +78,14 @@ def _normalize_parsed(parsed: t.Any) -> t.Any:
     if callable(export):
         try:
             return export()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001
+            log.debug("Sample dictionary export failed: {}", error)
     export_json = getattr(parsed, "export_json", None)
     if callable(export_json):
         try:
             return json.loads(export_json())
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001
+            log.debug("Sample JSON export failed: {}", error)
     if isinstance(parsed, (dict, list, str, int, float, bool)):
         return parsed
     return str(parsed)

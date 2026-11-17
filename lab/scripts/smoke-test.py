@@ -41,17 +41,32 @@ TARGETS = {
 
 
 def directives():
+    """Read directive IDs from the test service."""
     raw = subprocess.run(
-        ["docker", "exec", "clab-ultraglass-redis", "redis-cli", "-n", REDIS_DB, "--no-raw",
-         "get", "hyperglass.state.ui_params"],
-        capture_output=True, text=True, check=True,
+        [
+            "docker",
+            "exec",
+            "clab-ultraglass-redis",
+            "redis-cli",
+            "-n",
+            REDIS_DB,
+            "--no-raw",
+            "get",
+            "hyperglass.state.ui_params",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     return sorted(set(re.findall(r"__hyperglass_[a-z0-9_]+?__", raw)))
 
 
 def query(device, directive, target):
+    """Run a query against the test service."""
     body = json.dumps({"queryLocation": device, "queryTarget": target, "queryType": directive})
-    req = urllib.request.Request(f"{API}/query", body.encode(), {"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        f"{API}/query", body.encode(), {"Content-Type": "application/json"}
+    )
     started = time.monotonic()
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
@@ -76,7 +91,8 @@ def query(device, directive, target):
     return data.get("level"), shape, runtime, output
 
 
-def main():
+def main():  # noqa: C901 - report all platform test outcomes
+    """Run the selected platform checks."""
     global API, REDIS_DB
     args = sys.argv[1:]
     if args[:1] == ["--text"]:
@@ -92,7 +108,7 @@ def main():
                 continue
             if not directive.startswith(f"__hyperglass_{platform}_"):
                 continue
-            kind = directive[len(f"__hyperglass_{platform}_"):-2].removesuffix("_table")
+            kind = directive[len(f"__hyperglass_{platform}_") : -2].removesuffix("_table")
             targets = TARGETS.get(kind, [])
             if device in ("lab-xrd", "lab-iosv", "lab-nexus") and kind in ("ping", "traceroute"):
                 targets = ["1.1.1.1", "2606:4700::1111"]
@@ -107,7 +123,10 @@ def main():
         if device == "lab-iosv":
             for target in ("1.1.1.1", "2606:4700::1111"):
                 level, shape, runtime, _ = query(device, "lab-iosv-traceroute", target)
-                print(f"{device:14} {'traceroute':14} {target:18} {str(level):8} {runtime:6.1f}s  {shape}")
+                print(
+                    f"{device:14} {'traceroute':14} {target:18} "
+                    f"{str(level):8} {runtime:6.1f}s  {shape}"
+                )
 
 
 if __name__ == "__main__":

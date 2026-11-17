@@ -25,6 +25,7 @@ RPKI_STATE_MAP = {
 
 
 def remove_prefix(text: str, prefix: str) -> str:
+    """Remove a matching prefix."""
     if text.startswith(prefix):
         return text[len(prefix) :]
     return text
@@ -45,6 +46,8 @@ class MikrotikBase(HyperglassModel, extra="ignore"):
 
 
 class MikrotikPaths(MikrotikBase):
+    """Count paths by selection state."""
+
     available: int = 0
     best: int = 0
     select: int = 0
@@ -76,31 +79,38 @@ class MikrotikRouteEntry(MikrotikBase):
 
     @property
     def next_hop(self) -> str:
+        """Return the route gateway."""
         return self.gateway
 
     @property
     def age(self) -> int:
+        """Mark unavailable route age."""
         # MikroTik output does not provide route age, returning -1 to indicate unavailable.
         return -1
 
     @property
     def weight(self) -> int:
+        """Return the route distance."""
         return self.distance
 
     @property
     def med(self) -> int:
+        """Return the route metric."""
         return self.metric
 
     @property
     def active(self) -> bool:
+        """Return the route selection state."""
         return self.is_active
 
     @property
     def all_communities(self) -> t.List[str]:
+        """Combine all community formats."""
         return self.communities + self.large_communities + self.ext_communities
 
     @property
     def source_as(self) -> int:
+        """Return the origin ASN."""
         return self.as_path[-1] if self.as_path else 0
 
     @property
@@ -117,13 +127,14 @@ class MikrotikRouteEntry(MikrotikBase):
         # Remove bgp-IP- or bgp-IPv6- prefix
         if self.belongs_to.startswith("bgp-IP-"):
             return self.belongs_to[7:]  # len("bgp-IP-") = 7
-        elif self.belongs_to.startswith("bgp-IPv6-"):
+        if self.belongs_to.startswith("bgp-IPv6-"):
             return self.belongs_to[9:]  # len("bgp-IPv6-") = 9
 
         return ""
 
     @property
     def peer_rid(self) -> str:
+        """Return the peer gateway."""
         return self.gateway
 
 
@@ -147,7 +158,7 @@ def _extract_paths(lines: t.List[str]) -> MikrotikPaths:
     return MikrotikPaths(available=available, best=best, select=best)
 
 
-def _process_kv(route: dict, key: str, val: str):
+def _process_kv(route: dict, key: str, val: str):  # noqa: C901 - vendor field dispatch
     """Process a key-value pair and update the route dictionary."""
     # Normalize quoted values
     if val.startswith('"') and val.endswith('"'):
@@ -326,6 +337,7 @@ class MikrotikBGPTable(MikrotikBase):
 
     @classmethod
     def parse_text(cls, text: str) -> "MikrotikBGPTable":
+        """Parse a RouterOS BGP table."""
         _log = log.bind(parser="MikrotikBGPTable")
         inst = cls()
 
@@ -343,6 +355,7 @@ class MikrotikBGPTable(MikrotikBase):
         return inst
 
     def bgp_table(self) -> BGPRouteTable:
+        """Convert routes to the shared model."""
         routes = []
         for route in self.routes:
             route_data = {
@@ -381,7 +394,9 @@ class MikrotikTracerouteTable(MikrotikBase):
     packet_size: int = 60
 
     @classmethod
-    def parse_text(cls, text: str, target: str, source: str) -> "MikrotikTracerouteTable":
+    def parse_text(  # noqa: C901 - vendor traceroute state machine
+        cls, text: str, target: str, source: str
+    ) -> "MikrotikTracerouteTable":
         """Parse a cleaned MikroTik traceroute table.
 
         The input is expected to be a single, clean traceroute table that has already
