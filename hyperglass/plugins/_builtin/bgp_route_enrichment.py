@@ -84,7 +84,8 @@ class ZBgpRouteEnrichment(OutputPlugin):
             enriched_asn_count = len(output.asn_organizations)
             enriched_nexthop_count = sum(1 for r in output.routes if r.next_hop_org)
             _log.info(
-                f"Enriched {enriched_asn_count} unique ASNs and {enriched_nexthop_count} next-hops with organization data"
+                f"Enriched {enriched_asn_count} unique ASNs and "
+                f"{enriched_nexthop_count} next-hops with organization data"
             )
 
         except Exception as e:

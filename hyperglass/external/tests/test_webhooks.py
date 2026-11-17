@@ -47,7 +47,8 @@ def test_generic_webhook_uses_url_port():
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
-            received.append((self.path, json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            received.append((self.path, json.loads(body)))
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"{}")

@@ -107,13 +107,13 @@ def parse_as_path(value: t.Union[str, t.Sequence[t.Union[int, str]]]) -> t.List[
 
     as_path = []
     confed_depth = 0
-    for token in re.findall(r"[()]|[^\s(),\[\]{}]+", value):
-        if token == "(":
+    for segment in re.findall(r"[()]|[^\s(),\[\]{}]+", value):
+        if segment == "(":
             confed_depth += 1
-        elif token == ")":
+        elif segment == ")":
             confed_depth = max(confed_depth - 1, 0)
         elif confed_depth == 0:
-            asn = parse_asn(token)
+            asn = parse_asn(segment)
             if asn is not None:
                 as_path.append(asn)
     return as_path

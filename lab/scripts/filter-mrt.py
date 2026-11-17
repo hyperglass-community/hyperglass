@@ -7,6 +7,7 @@ is the explicit prefixes below plus every prefix originated by an ORIGIN_AS.
 
     scripts/filter-mrt.py data/bview data/testset-bview
 """
+
 import ipaddress
 import struct
 import sys
@@ -44,8 +45,9 @@ def origin_as(attrs):
 
 
 def wanted(subtype, body):
+    """Select records for the test route set."""
     plen = body[4]
-    raw = body[5:5 + (plen + 7) // 8].ljust(RIB_SUBTYPES[subtype], b"\0")
+    raw = body[5 : 5 + (plen + 7) // 8].ljust(RIB_SUBTYPES[subtype], b"\0")
     net = ipaddress.ip_network((raw, plen))
     if net in PREFIXES:
         return True
@@ -57,13 +59,14 @@ def wanted(subtype, body):
         if subtype in ADDPATH_SUBTYPES:
             i += 4
         alen = struct.unpack_from("!H", body, i)[0]
-        if origin_as(body[i + 2:i + 2 + alen]) in ORIGIN_AS:
+        if origin_as(body[i + 2 : i + 2 + alen]) in ORIGIN_AS:
             return True
         i += 2 + alen
     return False
 
 
 def main(src, dst):
+    """Write the selected MRT records."""
     kept = 0
     with open(src, "rb") as fin, open(dst, "wb") as fout:
         while header := fin.read(12):

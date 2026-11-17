@@ -91,11 +91,8 @@ async def execute(query: "Query") -> Union["OutputDataModel", str]:
             if not output.strip():
                 raise ResponseEmpty(query=query)
 
-        elif isinstance(output, Dict):
-            # If the output an empty dict, responses have data, produce an
-            # error.
-            if not output:
-                raise ResponseEmpty(query=query)
+        elif isinstance(output, Dict) and not output:
+            raise ResponseEmpty(query=query)
 
     except Exception as error:
         if samples.enable:

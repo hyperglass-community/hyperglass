@@ -3,7 +3,7 @@
 set -eu
 
 PLATFORM=${1:?Usage: build-platform.sh sonic|exos|voss}
-CACHE=${PLATFORM_IMAGE_DIR:-/tmp/opencode/ultraglass-tier3-images}
+CACHE=${PLATFORM_IMAGE_DIR:-${TMPDIR:-/tmp}/hyperglass-platform-images}
 REVISION=85445edfdf366b3d5f04942a10bb5a7d22df61a7
 case "$PLATFORM" in
     sonic)
@@ -75,7 +75,7 @@ PY
 isolated /usr/bin/qemu-img check -f qcow2 --output=json "/images/$DISK" > "$CACHE/$PLATFORM-check.json"
 (cd "$CACHE" && sha256sum "$FILE" "$DISK") > "$CACHE/$PLATFORM-sha256.txt"
 
-BUILD=$(mktemp -d "${TMPDIR:-/tmp/opencode}/ultraglass-$PLATFORM.XXXXXX")
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/hyperglass-$PLATFORM.XXXXXX")
 git -C "$BUILD" init --quiet
 git -C "$BUILD" remote add origin https://github.com/srl-labs/vrnetlab.git
 git -C "$BUILD" fetch --quiet --depth 1 origin "$REVISION"

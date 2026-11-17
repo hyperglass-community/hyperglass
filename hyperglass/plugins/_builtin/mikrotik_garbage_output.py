@@ -34,7 +34,9 @@ class MikrotikGarbageOutput(OutputPlugin):
     # Only apply to MikroTik platforms, not all devices
     common: bool = False
 
-    def _clean_traceroute_output(self, raw_output: str) -> str:
+    def _clean_traceroute_output(  # noqa: C901 - terminal cleanup states
+        self, raw_output: str
+    ) -> str:
         """Clean MikroTik traceroute output specifically.
 
         Important: Traceroute hops are sequential - each line represents a unique hop position.
@@ -178,14 +180,18 @@ class MikrotikGarbageOutput(OutputPlugin):
         # Prepend header line if we have one
         header_to_use = (
             header_line
-            or "ADDRESS                          LOSS SENT    LAST     AVG    BEST   WORST STD-DEV STATUS"
+            or "ADDRESS                          LOSS SENT    LAST     AVG    BEST   "
+            "WORST STD-DEV STATUS"
         )
         cleaned = [header_to_use] + processed_lines
         return "\n".join(cleaned)
 
-    def process(self, *, output: OutputType, query: "Query") -> Series[str]:
+    def process(  # noqa: C901 - terminal cleanup states
+        self, *, output: OutputType, query: "Query"
+    ) -> Series[str]:
         """
         Clean raw output from a MikroTik device.
+
         This plugin removes command echoes, prompts, flag legends, and interactive help text.
         """
 

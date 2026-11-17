@@ -13,6 +13,8 @@ import vrnetlab
 
 
 class OS9VM(vrnetlab.VM):
+    """Configure the OS9 emulator's interfaces and console."""
+
     prompt = rb"(?m)^[\w.-]+(?:\([^)]+\))?[#>]"
 
     def __init__(self, args):
@@ -30,11 +32,13 @@ class OS9VM(vrnetlab.VM):
         self.qemu_args.extend(["-cdrom", "/os9.iso", "-boot", "d"])
 
     def gen_dummy_nics(self):
+        """Keep management first in PCI enumeration."""
         # Keep management first in the emulator's PCI interface enumeration.
         return [re.sub(r",bus=pci\.\d+,addr=0x[0-9a-f]+", "", arg)
                 for arg in super().gen_dummy_nics()]
 
     def command(self, command):
+        """Send a console command and check its response."""
         time.sleep(0.5)
         self.tn.write(command.encode() + b"\r")
         _, match, output = self.tn.expect([self.prompt], 120)
@@ -42,6 +46,7 @@ class OS9VM(vrnetlab.VM):
             raise RuntimeError(f"OS9 command failed: {command}\n{output.decode(errors='replace')}")
 
     def bootstrap_spin(self):
+        """Apply startup configuration once the console is ready."""
         if self.bootstrap_failed:
             return
         _, match, _ = self.tn.expect([self.prompt], 1)
@@ -78,6 +83,8 @@ class OS9VM(vrnetlab.VM):
 
 
 class OS9(vrnetlab.VR):
+    """Run one OS9 appliance."""
+
     def __init__(self, args):
         super().__init__(args.username, args.password)
         self.vms = [OS9VM(args)]
