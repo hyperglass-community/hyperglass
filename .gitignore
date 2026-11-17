@@ -3,6 +3,7 @@
 hyperglass/hyperglass/static
 TODO*
 .env
+.pnpm-store/
 
 # Local working notes
 /lab/PLATFORMS.md
