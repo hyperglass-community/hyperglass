@@ -13,7 +13,7 @@ case "$(basename "$IMAGE")" in
     *) echo "Expected vJunos-router-<version>.qcow2" >&2; exit 1 ;;
 esac
 
-BUILD=$(mktemp -d "${TMPDIR:-/tmp/opencode}/ultraglass-vjunos.XXXXXX")
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/hyperglass-vjunos.XXXXXX")
 git clone https://github.com/srl-labs/vrnetlab.git "$BUILD/vrnetlab"
 git -C "$BUILD/vrnetlab" checkout --detach "$REVISION"
 cp --reflink=auto "$IMAGE" "$BUILD/vrnetlab/juniper/vjunosrouter/"

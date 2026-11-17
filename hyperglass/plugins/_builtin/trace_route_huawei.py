@@ -40,12 +40,12 @@ def parse_huawei_traceroute(
     combined_output = "\n".join(out_list)
 
     # DEBUG: Log the raw output we're about to parse
-    _log.debug(f"=== HUAWEI TRACEROUTE PLUGIN RAW INPUT ===")
+    _log.debug("=== HUAWEI TRACEROUTE PLUGIN RAW INPUT ===")
     _log.debug(f"Target: {target}, Source: {source}")
     _log.debug(f"Output pieces: {len(out_list)}")
     _log.debug(f"Combined output length: {len(combined_output)}")
     _log.debug(f"First 500 chars: {repr(combined_output[:500])}")
-    _log.debug(f"=== END PLUGIN RAW INPUT ===")
+    _log.debug("=== END PLUGIN RAW INPUT ===")
 
     try:
         result = HuaweiTracerouteTable.parse_text(combined_output, target, source)
@@ -53,13 +53,13 @@ def parse_huawei_traceroute(
         _log.error(f"Failed to parse Huawei traceroute: {exc}")
         raise ParsingError(f"Failed to parse Huawei traceroute output: {exc}") from exc
 
-    _log.debug(f"=== FINAL STRUCTURED TRACEROUTE RESULT ===")
+    _log.debug("=== FINAL STRUCTURED TRACEROUTE RESULT ===")
     _log.debug(f"Successfully parsed {len(result.hops)} traceroute hops")
     _log.debug(f"Target: {target}, Source: {source}")
     for hop in result.hops:
         _log.debug(f"Hop {hop.hop_number}: {hop.ip_address or '*'} - RTT: {hop.rtt1 or 'timeout'}")
     _log.debug(f"Raw output length: {len(combined_output)} characters")
-    _log.debug(f"=== END STRUCTURED RESULT ===")
+    _log.debug("=== END STRUCTURED RESULT ===")
 
     return result
 
@@ -68,15 +68,17 @@ class HuaweiTracerouteTable(TracerouteResult):
     """Huawei traceroute table parser."""
 
     @classmethod
-    def parse_text(cls, text: str, target: str, source: str) -> TracerouteResult:
+    def parse_text(  # noqa: C901 - vendor traceroute state machine
+        cls, text: str, target: str, source: str
+    ) -> TracerouteResult:
         """Parse Huawei traceroute text output into structured data."""
         _log = log.bind(parser="HuaweiTracerouteTable")
 
-        _log.debug(f"=== RAW HUAWEI TRACEROUTE INPUT ===")
+        _log.debug("=== RAW HUAWEI TRACEROUTE INPUT ===")
         _log.debug(f"Target: {target}, Source: {source}")
         _log.debug(f"Raw text length: {len(text)} characters")
         _log.debug(f"Raw text:\n{repr(text)}")
-        _log.debug(f"=== END RAW INPUT ===")
+        _log.debug("=== END RAW INPUT ===")
 
         hops = []
         lines = text.strip().split("\n")

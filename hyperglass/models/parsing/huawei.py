@@ -6,7 +6,7 @@ import typing as t
 from ipaddress import ip_address, ip_network
 
 # Third Party
-from pydantic import ConfigDict, field_validator, model_validator
+from pydantic import ConfigDict
 
 # Project
 from hyperglass.log import log
@@ -156,7 +156,9 @@ def _extract_paths(line: str) -> HuaweiPaths:
     return HuaweiPaths(**paths_data)
 
 
-def _extract_route_entries(lines: t.List[str]) -> t.List[HuaweiRouteEntry]:
+def _extract_route_entries(  # noqa: C901 - vendor route-field state machine
+    lines: t.List[str],
+) -> t.List[HuaweiRouteEntry]:
     """Extract route entries from lines."""
     routes = []
 
@@ -233,7 +235,7 @@ def _extract_route_entries(lines: t.List[str]) -> t.List[HuaweiRouteEntry]:
                     route_data["duration"] = (
                         days * 24 * 60 * 60 + hours * 60 * 60 + minutes * 60 + seconds
                     )
-                except:
+                except (ValueError, OverflowError):
                     route_data["duration"] = 0
             elif info.startswith("Direct Out-interface:"):
                 route_data["direct_out_interface"] = remove_prefix(info, "Direct Out-interface: ")

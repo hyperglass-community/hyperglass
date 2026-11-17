@@ -7,6 +7,7 @@ import sys
 
 
 def patch(launcher):
+    """Patch saved-disk startup in the appliance launcher."""
     source = launcher.read_text()
     source = source.replace(
         'if not disk_image and re.search(".qcow2$", e):',
@@ -28,7 +29,8 @@ def patch(launcher):
     if saved not in source:
         source = source.replace(marker, saved + marker)
     payload = base64.b64encode(Path(__file__).with_name("repair-nics.sh").read_bytes()).decode()
-    recovery = f"""        if b"root@debian:/opt/svrp#" in full_output and not getattr(self, "lab_nics_repaired", False):
+    recovery = f"""        if (b"root@debian:/opt/svrp#" in full_output
+                and not getattr(self, "lab_nics_repaired", False)):
             self.lab_nics_repaired = True
             self.wait_write("echo {payload} | base64 -d | sh", wait=None)
             self.wait_write("reboot", wait="# ")

@@ -20,6 +20,7 @@ The lab core NATs IPv4 out to the host but has no IPv6 egress. IPv6 ping and
 traceroute cases use VRF targets inside the lab, and IOL, which answers with
 text even when the probes time out.
 """
+
 import time
 
 import pytest
@@ -74,7 +75,13 @@ MATRIX = {
     "lab-frr-vrf": [
         ("__hyperglass_frr_bgp_route_table__", "bgp_route_v4", VRF_V4, "structured", None),
         ("__hyperglass_frr_bgp_route_table__", "bgp_route_v6", VRF_V6, "structured", None),
-        ("__hyperglass_frr_bgp_aspath_table__", "bgp_aspath_no_match", VRF_NO_MATCH_ASPATH, "empty", None),
+        (
+            "__hyperglass_frr_bgp_aspath_table__",
+            "bgp_aspath_no_match",
+            VRF_NO_MATCH_ASPATH,
+            "empty",
+            None,
+        ),
     ],
     "lab-bird": [
         ("__hyperglass_bird_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
@@ -88,7 +95,13 @@ MATRIX = {
         ("__hyperglass_openbgpd_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_openbgpd_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_openbgpd_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
-        ("__hyperglass_openbgpd_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
+        (
+            "__hyperglass_openbgpd_bgp_community_table__",
+            "bgp_community",
+            COMMUNITY,
+            "structured",
+            None,
+        ),
         ("__hyperglass_openbgpd_ping__", "ping_v4", V4, "text", None),
         ("__hyperglass_openbgpd_traceroute__", "traceroute_v4", V4, "structured", None),
     ],
@@ -96,7 +109,13 @@ MATRIX = {
         ("__hyperglass_mikrotik_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_mikrotik_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_mikrotik_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
-        ("__hyperglass_mikrotik_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
+        (
+            "__hyperglass_mikrotik_bgp_community_table__",
+            "bgp_community",
+            COMMUNITY,
+            "structured",
+            None,
+        ),
         ("__hyperglass_mikrotik_ping__", "ping_v4", V4, "text", None),
         ("__hyperglass_mikrotik_traceroute__", "traceroute_v4", V4, "structured", None),
     ],
@@ -112,7 +131,13 @@ MATRIX = {
         ("__hyperglass_arista_eos_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_arista_eos_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_arista_eos_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
-        ("__hyperglass_arista_eos_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
+        (
+            "__hyperglass_arista_eos_bgp_community_table__",
+            "bgp_community",
+            COMMUNITY,
+            "structured",
+            None,
+        ),
         ("__hyperglass_arista_eos_ping__", "ping_v4", V4, "text", None),
         # The shared standard traceroute parser now gives Arista structured hops.
         ("__hyperglass_arista_eos_traceroute__", "traceroute_v4", V4, "structured", None),
@@ -120,10 +145,22 @@ MATRIX = {
     "lab-arista-vrf": [
         ("__hyperglass_arista_eos_bgp_route_table__", "bgp_route_v4", VRF_V4, "structured", None),
         ("__hyperglass_arista_eos_bgp_route_table__", "bgp_route_v6", VRF_V6, "structured", None),
-        ("__hyperglass_arista_eos_bgp_aspath_table__", "bgp_aspath_no_match", VRF_NO_MATCH_ASPATH, "no_table", None),
+        (
+            "__hyperglass_arista_eos_bgp_aspath_table__",
+            "bgp_aspath_no_match",
+            VRF_NO_MATCH_ASPATH,
+            "no_table",
+            None,
+        ),
         ("__hyperglass_arista_eos_ping__", "ping_v4", "192.0.2.100", "text", None),
         ("__hyperglass_arista_eos_ping__", "ping_v6", VRF_V6, "text", None),
-        ("__hyperglass_arista_eos_traceroute__", "traceroute_v4", "192.0.2.100", "structured", None),
+        (
+            "__hyperglass_arista_eos_traceroute__",
+            "traceroute_v4",
+            "192.0.2.100",
+            "structured",
+            None,
+        ),
         ("__hyperglass_arista_eos_traceroute__", "traceroute_v6", VRF_V6, "structured", None),
     ],
     # Huawei CE12800 V200R005C10SPC607B607, which runs VRP 8.180 (platform
@@ -135,7 +172,13 @@ MATRIX = {
         ("__hyperglass_huawei_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_huawei_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_huawei_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
-        ("__hyperglass_huawei_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
+        (
+            "__hyperglass_huawei_bgp_community_table__",
+            "bgp_community",
+            COMMUNITY,
+            "structured",
+            None,
+        ),
         ("__hyperglass_huawei_ping__", "ping_v4", V4, "text", None),
         ("__hyperglass_huawei_traceroute__", "traceroute_v4", V4, "structured", None),
     ],
@@ -145,7 +188,13 @@ MATRIX = {
         ("__hyperglass_huawei_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_huawei_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_huawei_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
-        ("__hyperglass_huawei_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
+        (
+            "__hyperglass_huawei_bgp_community_table__",
+            "bgp_community",
+            COMMUNITY,
+            "structured",
+            None,
+        ),
         ("__hyperglass_huawei_ping__", "ping_v4", V4, "text", None),
         ("__hyperglass_huawei_traceroute__", "traceroute_v4", V4, "structured", None),
     ],
@@ -154,7 +203,13 @@ MATRIX = {
         ("__hyperglass_cisco_ios_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_cisco_ios_bgp_route_table__", "bgp_route_v6", V6_PREFIX, "structured", None),
         ("__hyperglass_cisco_ios_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
-        ("__hyperglass_cisco_ios_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
+        (
+            "__hyperglass_cisco_ios_bgp_community_table__",
+            "bgp_community",
+            COMMUNITY,
+            "structured",
+            None,
+        ),
         ("__hyperglass_cisco_ios_ping__", "ping_v4", V4, "text", None),
         ("__hyperglass_cisco_ios_ping__", "ping_v6", V6, "text", None),
         ("__hyperglass_cisco_ios_traceroute__", "traceroute_v4", V4, "structured", None),
@@ -190,13 +245,17 @@ def _cases():
             if issue is not None:
                 marks = [pytest.mark.xfail(reason=f"issue #{issue}", strict=False)]
             yield pytest.param(
-                device, query_type, target, expect,
-                id=f"{device}-{label}", marks=marks,
+                device,
+                query_type,
+                target,
+                expect,
+                id=f"{device}-{label}",
+                marks=marks,
             )
 
 
 def _ready(level, output, expect):
-    """True once the device can actually answer, i.e. the table has loaded."""
+    """Check whether the device can answer with its loaded table."""
     if expect == "structured":
         return isinstance(output, dict) and bool(output.get("routes") or output.get("hops"))
     if expect == "empty":

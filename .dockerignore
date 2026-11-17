@@ -1,6 +1,8 @@
 hyperglass/hyperglass/static
 **/node_modules/
 **/node_modules/**
+**/.pnpm-store/
+**/.pnpm-store/**
 **/.next/
 **/.next/**
 **/out/

@@ -15,6 +15,7 @@ PREFIX = "clab-ultraglass-"
 
 
 def run(*args, check=True):
+    """Run a local command and optionally check its result."""
     result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if check and result.returncode:
         raise RuntimeError(f"{' '.join(args)}: {result.stderr or result.stdout}")
@@ -22,18 +23,21 @@ def run(*args, check=True):
 
 
 def inspect(name):
+    """Read a node's container state."""
     result = run("docker", "inspect", PREFIX + name, check=False)
     return json.loads(result.stdout)[0] if result.returncode == 0 else None
 
 
 def interface(node, name):
+    """Read a node's network interface state."""
     result = run(
         "docker", "exec", PREFIX + node, "ip", "-j", "link", "show", "dev", name, check=False
     )
     return json.loads(result.stdout)[0] if result.returncode == 0 else None
 
 
-def start(node, timeout=600):
+def start(node, timeout=600):  # noqa: C901 - platform startup and link-repair sequence
+    """Start a node and restore its configured links."""
     topology = yaml.safe_load((LAB / "ultraglass-lab.clab.yml").read_text())["topology"]
     if node not in topology["nodes"]:
         raise ValueError(f"Unknown lab node: {node}")
@@ -98,7 +102,8 @@ def start(node, timeout=600):
             if "from lab_bootstrap import bootstrap_spin" not in source:
                 source = source.replace(
                     'if __name__ == "__main__":',
-                    'from lab_bootstrap import bootstrap_spin\nROS_vm.bootstrap_spin = bootstrap_spin\n\nif __name__ == "__main__":',
+                    'from lab_bootstrap import bootstrap_spin\n'
+                    'ROS_vm.bootstrap_spin = bootstrap_spin\n\nif __name__ == "__main__":',
                 )
                 launcher.write_text(source)
                 run("docker", "cp", str(launcher), PREFIX + node + ":/launch.py")

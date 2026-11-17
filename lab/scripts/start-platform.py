@@ -16,7 +16,8 @@ helper.PREFIX = "clab-ultraglass-platforms-"
 run, inspect, interface = helper.run, helper.inspect, helper.interface
 
 
-def start(node):
+def start(node):  # noqa: C901 - platform startup and link-repair sequence
+    """Restart the optional platform and restore its links."""
     topology = yaml.safe_load((LAB / "data/platforms/active.clab.yml").read_text())["topology"]
     if set(topology["nodes"]) != {"probe", node}:
         raise RuntimeError("The saved companion deployment does not match the requested appliance")
@@ -40,7 +41,8 @@ def start(node):
             if "from lab_bootstrap import bootstrap_spin" not in source:
                 source = source.replace(
                     'if __name__ == "__main__":',
-                    'from lab_bootstrap import bootstrap_spin\nROS_vm.bootstrap_spin = bootstrap_spin\n\nif __name__ == "__main__":',
+                    'from lab_bootstrap import bootstrap_spin\n'
+                    'ROS_vm.bootstrap_spin = bootstrap_spin\n\nif __name__ == "__main__":',
                 )
                 launcher.write_text(source)
                 run("docker", "cp", str(launcher), helper.PREFIX + name + ":/launch.py")

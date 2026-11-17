@@ -10,6 +10,7 @@ import vrnetlab
 
 
 def stable_mac(last_octet=None):
+    """Generate a stable management interface address."""
     identity = f"ultraglass:{os.environ['HOSTNAME']}:{last_octet}"
     suffix = hashlib.sha256(identity.encode()).digest()[:5]
     return "02:" + ":".join(f"{byte:02x}" for byte in suffix)
@@ -19,7 +20,8 @@ vrnetlab.gen_mac = stable_mac
 Path("/health").write_text("1 starting")
 
 
-def bootstrap_spin(self):
+def bootstrap_spin(self):  # noqa: C901 - appliance console startup states
+    """Advance the appliance login and setup sequence."""
     if not hasattr(self, "login_started"):
         self.login_started = time.monotonic()
         self.login_attempt = 0
