@@ -41,12 +41,12 @@ def parse_frr_traceroute(
     combined_output = "\n".join(out_list)
 
     # DEBUG: Log the raw output we're about to parse
-    _log.debug(f"=== FRR TRACEROUTE PLUGIN RAW INPUT ===")
+    _log.debug("=== FRR TRACEROUTE PLUGIN RAW INPUT ===")
     _log.debug(f"Target: {target}, Source: {source}")
     _log.debug(f"Output pieces: {len(out_list)}")
     _log.debug(f"Combined output length: {len(combined_output)}")
     _log.debug(f"First 500 chars: {repr(combined_output[:500])}")
-    _log.debug(f"=== END PLUGIN RAW INPUT ===")
+    _log.debug("=== END PLUGIN RAW INPUT ===")
 
     try:
         result = FrrTracerouteTable.parse_text(combined_output, target, source)
@@ -54,13 +54,13 @@ def parse_frr_traceroute(
         _log.error(f"Failed to parse FRR traceroute: {exc}")
         raise ParsingError(f"Failed to parse FRR traceroute output: {exc}") from exc
 
-    _log.debug(f"=== FINAL STRUCTURED TRACEROUTE RESULT ===")
+    _log.debug("=== FINAL STRUCTURED TRACEROUTE RESULT ===")
     _log.debug(f"Successfully parsed {len(result.hops)} traceroute hops")
     _log.debug(f"Target: {target}, Source: {source}")
     for hop in result.hops:
         _log.debug(f"Hop {hop.hop_number}: {hop.ip_address or '*'} - RTT: {hop.rtt1 or 'timeout'}")
     _log.debug(f"Raw output length: {len(combined_output)} characters")
-    _log.debug(f"=== END STRUCTURED RESULT ===")
+    _log.debug("=== END STRUCTURED RESULT ===")
 
     return result
 
@@ -69,15 +69,17 @@ class FrrTracerouteTable(TracerouteResult):
     """FRR traceroute table parser."""
 
     @classmethod
-    def parse_text(cls, text: str, target: str, source: str) -> TracerouteResult:
+    def parse_text(  # noqa: C901 - vendor traceroute state machine
+        cls, text: str, target: str, source: str
+    ) -> TracerouteResult:
         """Parse FRR traceroute text output into structured data."""
         _log = log.bind(parser="FrrTracerouteTable")
 
-        _log.debug(f"=== RAW FRR TRACEROUTE INPUT ===")
+        _log.debug("=== RAW FRR TRACEROUTE INPUT ===")
         _log.debug(f"Target: {target}, Source: {source}")
         _log.debug(f"Raw text length: {len(text)} characters")
         _log.debug(f"Raw text:\n{repr(text)}")
-        _log.debug(f"=== END RAW INPUT ===")
+        _log.debug("=== END RAW INPUT ===")
 
         hops = []
 
@@ -100,7 +102,7 @@ class FrrTracerouteTable(TracerouteResult):
             r"^\s*(\d+)\s+([\d\.:a-fA-F]+)\s+([\d.]+)\s+ms(?:\s+([\d.]+)\s+ms)?(?:\s+([\d.]+)\s+ms)?"
         )
 
-        # Pattern for partial timeout: " 7  port-channel4.core4.mrs1.he.net (184.105.81.30)  132.624 ms  132.589 ms *"
+        # Match a hostname, address, successful probes and a trailing timeout.
         partial_timeout_pattern = re.compile(
             r"^\s*(\d+)\s+(\S+)\s+\(([\d\.:a-fA-F]+)\)\s+(?:([\d.]+)\s+ms\s+)?(?:([\d.]+)\s+ms\s+)?\*"
         )
@@ -139,7 +141,8 @@ class FrrTracerouteTable(TracerouteResult):
                 rtt1 = float(partial_match.group(4)) if partial_match.group(4) else None
                 rtt2 = float(partial_match.group(5)) if partial_match.group(5) else None
                 _log.debug(
-                    f"Line {i:2}: PARTIAL TIMEOUT HOP - {hop_number}: {hostname} ({ip_address}) {rtt1} {rtt2} *"
+                    f"Line {i:2}: PARTIAL TIMEOUT HOP - {hop_number}: "
+                    f"{hostname} ({ip_address}) {rtt1} {rtt2} *"
                 )
 
             # Try to match hostname pattern
@@ -258,7 +261,8 @@ class FrrTracerouteTable(TracerouteResult):
         for hop in final_hops:
             hostname_display = hop.hostname or "no-hostname"
             _log.debug(
-                f"Final hop {hop.hop_number}: {hop.ip_address} ({hostname_display}) - RTTs: {hop.rtt1}/{hop.rtt2}/{hop.rtt3}"
+                f"Final hop {hop.hop_number}: {hop.ip_address} ({hostname_display}) "
+                f"- RTTs: {hop.rtt1}/{hop.rtt2}/{hop.rtt3}"
             )
 
         _log.info(f"Parsed {len(final_hops)} hops from FRR traceroute")

@@ -4,7 +4,7 @@ set -eu
 ISO="${1:?Usage: sh scripts/build-cisco-iol.sh /path/to/refplat-20260409-free.iso}"
 REVISION=85445edfdf366b3d5f04942a10bb5a7d22df61a7
 [ -f "$ISO" ] || { echo "Missing reference ISO: $ISO" >&2; exit 1; }
-BUILD=$(mktemp -d "${TMPDIR:-/tmp/opencode}/ultraglass-iol.XXXXXX")
+BUILD=$(mktemp -d "${TMPDIR:-/tmp}/hyperglass-iol.XXXXXX")
 git clone https://github.com/srl-labs/vrnetlab.git "$BUILD/vrnetlab"
 git -C "$BUILD/vrnetlab" checkout --detach "$REVISION"
 # The upstream 768 MB default cannot hold the lab's dual-stack full table.

@@ -8,6 +8,8 @@ mgmt:
   ipv6-subnet: fd00:250:ffff::/64
 
 topology:
+  defaults:
+    privileged: false
   nodes:
     probe:
       kind: linux

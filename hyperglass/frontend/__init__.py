@@ -448,9 +448,11 @@ def generate_favicons(source: Path, output_directory: Path) -> t.Tuple[t.Dict[st
     source_image = None
 
     if source_is_svg:
+        # Standard Library
+        from io import BytesIO
+
         # Third Party
         import cairosvg
-        from io import BytesIO
     else:
         source_image = Image.open(source).convert("RGBA")
 

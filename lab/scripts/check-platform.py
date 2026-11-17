@@ -24,6 +24,7 @@ PLATFORMS = {
 
 
 def check(node, timeout):
+    """Wait for an optional platform to become ready."""
     number, driver, username, password, command = PLATFORMS[node]
     container = "clab-ultraglass-platforms-" + node
     deadline = time.monotonic() + timeout

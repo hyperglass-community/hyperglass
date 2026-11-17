@@ -101,11 +101,10 @@ class TracerouteHop(HyperglassModel):
                 if self.org and self.org != "None":
                     return f"IXP ({self.org})"
                 return "IXP"
-            else:
-                # For ASNs, show just the number with org if available
-                if self.org and self.org != "None":
-                    return f"{self.asn} ({self.org})"
-                return self.asn
+            # For ASNs, show just the number with org if available
+            if self.org and self.org != "None":
+                return f"{self.asn} ({self.org})"
+            return self.asn
         return "Unknown"
 
 
@@ -134,7 +133,7 @@ class TracerouteResult(HyperglassModel):
         for hop in self.hops:
             if hop.asn and hop.asn != "None":
                 asns.add(hop.asn)
-        return sorted(list(asns))
+        return sorted(asns)
 
     @property
     def as_path_summary(self) -> str:

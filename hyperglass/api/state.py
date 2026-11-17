@@ -34,6 +34,7 @@ async def _get_state_with_retry(
             if not _is_retryable(attr) or attempt == max_retries:
                 raise
             await asyncio.sleep(retry_delay)
+    return None
 
 
 async def get_state(attr: t.Optional[str] = None):
