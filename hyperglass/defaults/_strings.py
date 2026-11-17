@@ -47,7 +47,7 @@ Sends 5 ICMP echo requests to the target.
     "traceroute": """
 Performs UDP Based traceroute to the target. \
 For information about how to interpret traceroute results, [click here]\
-(https://github.com/WilhelmZA/ultraglass/blob/main/docs/content/user-guide.mdx).
+(https://github.com/hyperglass-community/hyperglass/blob/main/docs/content/user-guide.mdx).
 """,
 }
 
@@ -82,5 +82,5 @@ Sends 5 ICMP echo requests to the target.
 Performs UDP Based traceroute to the target.
 
 For information about how to interpret traceroute results, [click here]\
-(https://github.com/WilhelmZA/ultraglass/blob/main/docs/content/user-guide.mdx).
+(https://github.com/hyperglass-community/hyperglass/blob/main/docs/content/user-guide.mdx).
 """

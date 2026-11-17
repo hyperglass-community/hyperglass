@@ -122,7 +122,7 @@ def _system_info():
 @cli.command(name="support-bundle")
 def _support_bundle(
     output: Path = typer.Option(
-        Path("ultraglass-support-bundle.json"), "--output", "-o", help="Output JSON file"
+        Path("hyperglass-support-bundle.json"), "--output", "-o", help="Output JSON file"
     ),
     log_directory: t.Optional[Path] = typer.Option(
         None, "--log-directory", help="Directory containing Hyperglass log files"

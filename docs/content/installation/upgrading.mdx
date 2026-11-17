@@ -1,0 +1,35 @@
+## Using Docker
+
+The application keeps the `hyperglass` service and configuration names. Set `RELEASE_TAG` to the published tag you select from the [releases page](https://github.com/hyperglass-community/hyperglass/releases). The migration release number is not yet selected; Ultraglass release numbers do not name community Hyperglass releases.
+
+```shell copy
+cd /opt/hyperglass
+docker compose down
+docker compose rm -f
+git fetch --tags
+git checkout "$RELEASE_TAG"
+docker compose build
+docker compose up
+```
+
+## Manual installation
+
+Update the checked-out release, reinstall the package in the virtual environment, then restart the service. Hyperglass rebuilds the UI at start when the version changes.
+
+```shell copy
+cd /opt/hyperglass
+git fetch --tags
+git checkout "$RELEASE_TAG"
+. .venv/bin/activate
+python -m pip install -e '.[ui]'
+systemctl restart hyperglass
+```
+
+## Changes inherited from Ultraglass 3.5 to 3.6
+
+A 3.5.0 configuration loads unchanged. No configuration key is removed. 3.6 adds these changes:
+
+- New built-in platforms: `aruba_aoscx`, `cumulus_linux`, `dell_force10`, `dell_os10`, `fortinet`, `hp_comware`, `ipinfusion_ocnos` and `paloalto_panos`. See [devices](/configuration/devices.mdx) for the `attrs` and VRF forms each platform uses.
+- The `hyperglass onboard` command creates and tests device entries, checks feature settings, and scaffolds custom directives. See [device onboarding](/configuration/onboarding.mdx).
+- Structured output stays opt-in. Set `structured_output: true` on each device that should return tables, including devices on the new platforms.
+- The unused upstream BGP community input plugin is removed. Built-in syntax checks and directive rules still validate community targets.

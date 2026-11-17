@@ -1,7 +1,13 @@
 # Project
+.pnpm-store
 hyperglass/hyperglass/static
 TODO*
 .env
+
+# Local working notes
+/lab/PLATFORMS.md
+/lab/ISSUE-TRIAGE.md
+/lab/REMEDIATION-*.md
 
 test.py
 .DS_Store
@@ -82,3 +88,6 @@ docs/_build/
 # PyBuilder
 target/
 assets/
+
+# uv generates this when syncing; dependencies are locked in requirements*.lock
+uv.lock
