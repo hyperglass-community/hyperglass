@@ -9,9 +9,14 @@ __author__ = "Matt Love"
 __copyright__ = f"Copyright {datetime.now().year} Matthew Love"
 __license__ = "BSD 3-Clause Clear License"
 
+# Compatibility metadata retained for existing API consumers.
+__upstream_version__ = "2.0.4"
+__upstream_url__ = "https://github.com/hyperglass-community/hyperglass"
+__fork_url__ = "https://github.com/WilhelmZA/ultraglass"
+
 METADATA = (__name__, __version__, __author__, __copyright__, __license__)
 
-MIN_PYTHON_VERSION = (3, 8)
+MIN_PYTHON_VERSION = (3, 11)
 
 MIN_NODE_VERSION = (22, 13)
 
@@ -19,7 +24,37 @@ TARGET_FORMAT_SPACE = ("huawei", "huawei_vrpv8")
 
 TARGET_JUNIPER_ASPATH = ("juniper", "juniper_junos")
 
-SUPPORTED_STRUCTURED_OUTPUT = ("frr", "juniper", "arista_eos")
+# Every structured parser is opt-in: a device without `structured_output` gets text.
+SUPPORTED_STRUCTURED_OUTPUT = (
+    "frr",
+    "juniper",
+    "arista_eos",
+    "huawei",
+    "huawei_vrpv8",
+    "mikrotik_routeros",
+    "mikrotik_switchos",
+    "cisco_ios",
+    "cisco_xr",
+    "cisco_nxos",
+    "nokia_sros",
+    "bird",
+    "openbgpd",
+    "vyos",
+    "vyos_1_3",
+    "tnsr",
+    "extreme_exos",
+    "extreme_vsp",
+    "sonic",
+    "aruba_aoscx",
+    "dell_os10",
+    "dell_force10",
+    "fortinet",
+    "paloalto_panos",
+    "cumulus_linux",
+    "hp_comware",
+    "ipinfusion_ocnos",
+    "arrcus_arcos",
+)
 
 CONFIG_EXTENSIONS = ("py", "yaml", "yml", "json", "toml")
 
@@ -28,6 +63,8 @@ STATUS_CODE_MAP = {"warning": 400, "error": 400, "danger": 500}
 DNS_OVER_HTTPS = {
     "google": "https://dns.google/resolve",
     "cloudflare": "https://cloudflare-dns.com/dns-query",
+    # Resolve on the Hyperglass server, for networks that block public DoH providers.
+    "server": "/api/dns",
 }
 
 PARSED_RESPONSE_FIELDS = (
@@ -73,17 +110,32 @@ SCRAPE_HELPERS = {
     "junos": "juniper",
     "mikrotik": "mikrotik_routeros",
     "tsnr": "tnsr",
+    "arcos": "arrcus_arcos",
 }
 
 DRIVER_MAP = {
     "bird": "netmiko",
     "frr": "netmiko",
     "openbgpd": "netmiko",
+    "sonic": "netmiko",
+    "vyos_1_3": "netmiko",
+    "tnsr": "netmiko",
+    "arrcus_arcos": "netmiko",
     "http": "hyperglass_http_client",
+}
+
+# Platforms with their own built-in directives that use another Netmiko device type.
+NETMIKO_DEVICE_TYPES = {
+    "vyos_1_3": "vyos",
+    # Netmiko has no TNSR driver. Its generic driver finds the `tnsr#` prompt per command and
+    # sends no paging command.
+    "tnsr": "generic",
 }
 
 LINUX_PLATFORMS = (
     "frr",
     "bird",
     "openbgpd",
+    "sonic",
+    "arrcus_arcos",
 )
