@@ -1,7 +1,5 @@
 """Hyperglass is a modern, customisable network looking glass.
 
-The internal `hyperglass` package namespace is retained for deployment compatibility.
-
 The Clear BSD License
 
 Copyright (c) 2023 Matthew Love

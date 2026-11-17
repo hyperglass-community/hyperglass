@@ -1,8 +1,7 @@
 """Coerce a Huawei route table in text format to a standard BGP Table structure."""
 
 # Standard Library
-import re
-from typing import TYPE_CHECKING, List, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 
 # Third Party
 from pydantic import PrivateAttr, ValidationError

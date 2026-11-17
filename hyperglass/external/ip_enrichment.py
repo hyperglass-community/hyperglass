@@ -56,12 +56,12 @@ class IPEnrichmentService:
         if asn:
             try:
                 self.asn_info[int(asn)] = {"name": asn_name or f"AS{asn}", "country": ""}
-            except Exception:
-                pass
+            except Exception as error:
+                log.debug("ASN cache update failed: {}", error)
             return IPInfo(ip, asn=asn, asn_name=asn_name, prefix=prefix)
         return IPInfo(ip, asn=0, asn_name="Unknown")
 
-    async def _query_bgp_tools_for_ip(
+    async def _query_bgp_tools_for_ip(  # noqa: C901 - preserve WHOIS format fallbacks
         self, ip_str: str
     ) -> t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]:
         """Query bgp.tools for a single IP.
@@ -73,7 +73,7 @@ class IPEnrichmentService:
             return self._ip_cache[ip_str]
 
         # Use TCP WHOIS on bgp.tools:43
-        def _whois_blocking(
+        def _whois_blocking(  # noqa: C901 - handle both WHOIS response formats
             single_ips: t.List[str],
         ) -> t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]]:
             out: t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]] = {}
@@ -96,7 +96,7 @@ class IPEnrichmentService:
                         pass
 
                     raw = b"".join(parts).decode("utf-8", errors="replace")
-                    # Parse lines like: "13335   | 1.1.1.1          | 1.1.1.0/24          | US | ARIN | ... | Cloudflare, Inc."
+                    # Parse pipe-separated ASN, address, prefix, country, registry and name.
                     for line in raw.splitlines():
                         line = line.strip()
                         if not line:
@@ -170,7 +170,7 @@ class IPEnrichmentService:
         self._ip_cache[ip_str] = (asn, org, prefix)
         return (asn, org, prefix)
 
-    async def _query_bgp_tools_bulk(
+    async def _query_bgp_tools_bulk(  # noqa: C901 - preserve WHOIS format fallbacks
         self, ips: t.List[str]
     ) -> t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]]:
         """Query bgp.tools for multiple IPs using a single connection.
@@ -178,7 +178,7 @@ class IPEnrichmentService:
         Returns a mapping ip -> (asn, asn_name, prefix).
         """
 
-        def _whois_bulk_blocking(
+        def _whois_bulk_blocking(  # noqa: C901 - handle both WHOIS response formats
             bulk_ips: t.List[str],
         ) -> t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]]:
             host = "bgp.tools"
@@ -315,7 +315,7 @@ class IPEnrichmentService:
 
         return results
 
-    async def lookup_ip(self, ip_str: str) -> IPInfo:
+    async def lookup_ip(self, ip_str: str) -> IPInfo:  # noqa: C901 - preserve lookup fallbacks
         """Lookup an IP address and return ASN or IXP information."""
         if Settings.debug:
             log.debug(f"Looking up IP {ip_str}")
@@ -346,12 +346,12 @@ class IPEnrichmentService:
                 if Settings.debug:
                     log.debug(f"Found IXP match for {ip_str}: {asn_name}")
                 return IPInfo(ip_str, is_ixp=True, ixp_name=asn_name)
-            elif asn:
+            if asn:
                 # Cache result
                 try:
                     self.asn_info[int(asn)] = {"name": asn_name or f"AS{asn}", "country": ""}
-                except Exception:
-                    pass
+                except Exception as error:
+                    log.debug("ASN cache update failed: {}", error)
                 if Settings.debug:
                     log.debug(f"BGP.tools lookup for {ip_str}: AS{asn} ({asn_name})")
                 return IPInfo(ip_str, asn=asn, asn_name=asn_name, prefix=prefix)
@@ -395,7 +395,9 @@ async def lookup_asn_country(asn: int) -> str:
     return await _service.lookup_asn_country(asn)
 
 
-async def lookup_asns_bulk(asns: t.List[t.Union[str, int]]) -> t.Dict[str, t.Dict[str, str]]:
+async def lookup_asns_bulk(  # noqa: C901 - preserve partial-result handling
+    asns: t.List[t.Union[str, int]],
+) -> t.Dict[str, t.Dict[str, str]]:
     """Bulk lookup ASN organization names and countries.
 
     Args:
@@ -447,8 +449,8 @@ async def lookup_asns_bulk(asns: t.List[t.Union[str, int]]) -> t.Dict[str, t.Dic
                         try:
                             _service.asn_info[int(asn)] = {"name": org, "country": ""}
                             log.debug("lookup_asns_bulk: updated asn_info[{}] = {}", asn, org)
-                        except Exception:
-                            pass
+                        except Exception as error:
+                            log.debug("ASN cache update failed: {}", error)
         except Exception as e:
             log.debug("lookup_asns_bulk: bgp.tools lookup failed: {}", e)
 
@@ -658,7 +660,7 @@ async def network_info(*targets: str) -> TargetData:
 
 
 def network_info_sync(*targets: str) -> TargetData:
-    """Synchronous wrapper for network_info."""
+    """Run network_info synchronously."""
     return asyncio.run(network_info(*targets))
 
 
