@@ -1,9 +1,11 @@
-# Isolated OS9 acceptance topology using the existing local FTOS image.
-name: ultraglass-dell
+# OS9 acceptance topology using an operator-supplied FTOS image.
+name: hyperglass-dell
 mgmt:
-  network: ultraglass-dell-mgmt
+  network: hyperglass-dell-mgmt
   ipv4-subnet: 192.168.249.0/24
 topology:
+  defaults:
+    privileged: false
   nodes:
     core:
       kind: linux

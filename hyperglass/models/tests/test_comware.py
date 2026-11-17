@@ -84,6 +84,24 @@ def test_documented_detail_keeps_all_paths(family, prefix):
     assert result.routes[1].source_rid == ("192.168.100.2" if family == 4 else "192.168.1.136")
 
 
+@pytest.mark.parametrize("family,original", [(4, "200"), (6, "100")])
+@pytest.mark.parametrize(
+    "path,origin",
+    [
+        ("65000 64496", 64496),
+        ("65000 65000 1.10", 65546),
+        ("64496", 64496),
+        ("(null)", 0),
+    ],
+)
+def test_origin_as_is_last_asn(family, original, path, origin):
+    text = (FIXTURES / f"route{family}.txt").read_text()
+    text = text.replace(f"AS-path         : {original}", f"AS-path         : {path}")
+    result = parse_comware(text)
+    assert result.routes[1].source_as == origin
+    assert result.routes[0].source_as == (0 if family == 4 else origin)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
