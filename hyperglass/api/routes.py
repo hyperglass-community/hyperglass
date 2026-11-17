@@ -1,14 +1,20 @@
 """API Routes."""
 
 # Standard Library
+import re
 import json
 import time
+import socket
+import ipaddress
+import asyncio
 import typing as t
+from uuid import uuid4
 from datetime import UTC, datetime
 
 # Third Party
 from litestar import Request, Response, get, post
 from litestar.di import Provide
+from litestar.middleware.rate_limit import RateLimitConfig
 from litestar.background_tasks import BackgroundTask
 
 # Project
@@ -19,13 +25,15 @@ from hyperglass.models.api import Query
 from hyperglass.models.data import OutputDataModel
 from hyperglass.util.typing import is_type
 from hyperglass.execution.main import execute
+from hyperglass.execution.drivers.ssh_netmiko import device_delay_factor, delay_factor_override
 from hyperglass.models.api.response import QueryResponse
 from hyperglass.models.config.params import Params, APIParams
 from hyperglass.models.config.devices import Devices, APIDevice
 
 # Local
 from .state import get_state, get_params, get_devices
-from .tasks import send_webhook
+from .tasks import enrich_query_output, send_webhook
+from .client_address import client_address
 from .fake_output import fake_output
 
 __all__ = (
@@ -34,7 +42,176 @@ __all__ = (
     "queries",
     "info",
     "query",
+    "aspath_enrich",
+    "query_enrichment",
+    "dns",
+    "myip",
 )
+
+# MikroTik occasionally answers a BGP query before its routing table has finished
+# assembling, returning an empty route table on the first attempt. For MikroTik
+# BGP queries only, retry a few times (with a delay) while the result is empty.
+_MIKROTIK_PLATFORMS = ("mikrotik_routeros", "mikrotik_switchos", "mikrotik")
+_MIKROTIK_BGP_MAX_ATTEMPTS = 4
+_MIKROTIK_BGP_RETRY_DELAY = 10  # seconds
+# An empty table is also what a too-low delay factor returns on a slow link, so
+# each retry reads at the next step above the device's own factor (#106).
+_MIKROTIK_DELAY_FACTOR_STEPS = (3, 6, 10)
+
+
+def _delay_factor_steps(start: float) -> t.List[float]:
+    """Return the delay factor for each attempt, starting at the device's own."""
+    steps = [start, *(step for step in _MIKROTIK_DELAY_FACTOR_STEPS if step > start)]
+    return [steps[min(attempt, len(steps) - 1)] for attempt in range(_MIKROTIK_BGP_MAX_ATTEMPTS)]
+
+
+def _is_empty_bgp_table(output: t.Any) -> bool:
+    """Return whether output is a structured BGP table containing no routes."""
+    if not is_type(output, OutputDataModel):
+        return False
+    try:
+        raw = json.loads(output.export_json())
+    except Exception:
+        return False
+    return isinstance(raw, dict) and raw.get("count", None) == 0 and not raw.get("routes")
+
+
+async def _execute_query(data: "Query") -> t.Any:
+    """Execute a query, retrying MikroTik BGP queries that return an empty table."""
+    directive_name = getattr(getattr(data, "directive", None), "name", "") or ""
+    is_bgp_query = "bgp_" in data.query_type or "bgp" in directive_name.lower()
+    is_mikrotik_bgp = data.device.platform in _MIKROTIK_PLATFORMS and is_bgp_query
+    max_attempts = _MIKROTIK_BGP_MAX_ATTEMPTS if is_mikrotik_bgp else 1
+    factors = _delay_factor_steps(device_delay_factor(data.device)) if is_mikrotik_bgp else []
+
+    _log = log.bind(directive=data.query_type, device=data.device.name)
+    if is_mikrotik_bgp:
+        _log.bind(max_attempts=max_attempts, retry_delay=_MIKROTIK_BGP_RETRY_DELAY).debug(
+            "MikroTik BGP empty-table retry enabled"
+        )
+
+    output = None
+    for attempt in range(1, max_attempts + 1):
+        if attempt > 1:
+            _log.bind(
+                attempt=attempt,
+                max_attempts=max_attempts,
+                global_delay_factor=factors[attempt - 1],
+            ).warning(
+                "MikroTik returned empty BGP table - retrying after {}s", _MIKROTIK_BGP_RETRY_DELAY
+            )
+            await asyncio.sleep(_MIKROTIK_BGP_RETRY_DELAY)
+
+        token = delay_factor_override.set(factors[attempt - 1] if attempt > 1 else None)
+        try:
+            output = await execute(data)
+        finally:
+            delay_factor_override.reset(token)
+
+        if not (is_mikrotik_bgp and _is_empty_bgp_table(output)):
+            if attempt > 1 and factors[attempt - 1] > factors[0]:
+                _log.warning(
+                    "{!r} returned no routes at global_delay_factor={} and returned routes at {}. "
+                    "Set driver_config: {{global_delay_factor: {}}} on this device in devices.yaml",
+                    data.device.name,
+                    factors[0],
+                    factors[attempt - 1],
+                    factors[attempt - 1],
+                )
+            break
+
+    if is_mikrotik_bgp and _is_empty_bgp_table(output):
+        _log.bind(global_delay_factor=factors[-1]).info(
+            "MikroTik returned no routes at the highest delay factor"
+        )
+
+    return output
+
+
+# Cap the number of ASNs accepted per enrichment request to bound outbound lookups.
+_MAX_ASPATH_ENRICH = 64
+
+
+@post("/api/aspath/enrich")
+async def aspath_enrich(data: dict) -> dict:
+    """Enrich a list of ASNs with organization names on demand.
+
+    Expected JSON payload: { "as_path": [123, 456, ...] }
+    """
+    as_path = data.get("as_path", []) if isinstance(data, dict) else []
+    # Accept only numeric ASNs and bound the request size.
+    asns = [str(a) for a in as_path if str(a).isdigit()][:_MAX_ASPATH_ENRICH]
+    if not asns:
+        return {"success": False, "error": "No valid as_path provided"}
+
+    from hyperglass.external.ip_enrichment import lookup_asns_bulk
+
+    try:
+        results = await lookup_asns_bulk(asns)
+    except Exception:
+        # Log server-side; don't leak internal error detail to the client.
+        log.bind(as_path=asns).error("AS path enrichment lookup failed")
+        return {"success": False, "error": "Enrichment lookup failed"}
+
+    return {"success": True, "asn_organizations": results}
+
+
+# DNS record types in the DNS-over-HTTPS JSON format the UI already reads.
+_DNS_TYPES = {"A": (socket.AF_INET, 1), "AAAA": (socket.AF_INET6, 28)}
+_HOSTNAME = re.compile(
+    r"(?=.{1,253}\.?$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}\.?"
+)
+_DNS_RATE_LIMIT = RateLimitConfig(rate_limit=("minute", 120), identifier_for_request=client_address)
+
+
+@get("/api/dns", middleware=[_DNS_RATE_LIMIT.middleware], include_in_schema=False)
+async def dns(name: str, type: str = "A") -> dict:
+    """Resolve a hostname on the server, returning DNS-over-HTTPS JSON."""
+    record_type = type.upper()
+    if record_type not in _DNS_TYPES or not _HOSTNAME.fullmatch(name):
+        return {"Status": 1, "Question": [{"name": name, "type": 0}], "Answer": []}
+
+    family, type_code = _DNS_TYPES[record_type]
+    question = [{"name": name, "type": type_code}]
+    try:
+        records = await asyncio.get_running_loop().getaddrinfo(
+            name, None, family=family, type=socket.SOCK_STREAM
+        )
+    except socket.gaierror as err:
+        not_found = err.errno in (socket.EAI_NONAME, getattr(socket, "EAI_NODATA", None))
+        return {"Status": 3 if not_found else 2, "Question": question, "Answer": []}
+
+    addresses = dict.fromkeys(record[4][0] for record in records)
+    answer = [{"name": name, "type": type_code, "TTL": 0, "data": a} for a in addresses]
+    return {"Status": 0, "Question": question, "Answer": answer}
+
+
+@get("/api/myip", include_in_schema=False)
+async def myip(request: Request, family: int = 4) -> dict:
+    """Return the requesting client's address, for the My IP button in `server` mode."""
+    try:
+        address = ipaddress.ip_address(client_address(request))
+    except ValueError:
+        return {"ip": None}
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return {"ip": str(address) if address.version == family else None}
+
+
+@get("/api/query/{query_id:str}/enrichment")
+async def query_enrichment(query_id: str) -> dict:
+    """Return the current output and enrichment status for a cached query."""
+    from hyperglass.state import use_state
+
+    cache = use_state("redis")
+    output = cache.get_map(query_id, "output")
+    if output is None:
+        return {"status": "not_found"}
+
+    return {
+        "status": cache.get_map(query_id, "enrichment_status") or "complete",
+        "output": output,
+    }
 
 
 @get("/api/devices/{id:str}", dependencies={"devices": Provide(get_devices)})
@@ -79,9 +256,24 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     _log.info("Starting query execution")
 
     cache_response = cache.get_map(cache_key, "output")
+    cached_enrichment_status = cache.get_map(cache_key, "enrichment_status")
+    if (
+        cache_response
+        and cached_enrichment_status is None
+        and _state.params.structured.is_async_enrichment_enabled(cache_response)
+    ):
+        _log.bind(cache_key=cache_key).debug(
+            "Discarding legacy cache entry without enrichment state"
+        )
+        cache.delete(cache_key)
+        cache_response = None
+
     json_output = False
     cached = False
     runtime = 65535
+    enrichment_status = "complete"
+    enrichment_output = None
+    enrichment_generation = None
 
     if cache_response:
         _log.bind(cache_key=cache_key).debug("Cache hit")
@@ -92,6 +284,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         cached = True
         runtime = 0
         timestamp = cache.get_map(cache_key, "timestamp")
+        enrichment_status = cached_enrichment_status or "complete"
 
     elif not cache_response:
         _log.bind(cache_key=cache_key).debug("Cache miss")
@@ -107,8 +300,8 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
                 structured=data.device.structured_output or False,
             )
         else:
-            # Pass request to execution module
-            output = await execute(data)
+            # Pass request to execution module (retries empty MikroTik BGP tables)
+            output = await _execute_query(data)
 
         endtime = time.time()
         elapsedtime = round(endtime - starttime, 4)
@@ -127,9 +320,18 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         else:
             raw_output = str(output)
 
-        cache.set_map_item(cache_key, "output", raw_output)
-        cache.set_map_item(cache_key, "timestamp", timestamp)
-        cache.expire(cache_key, expire_in=_state.params.cache.timeout)
+        if _state.params.structured.is_async_enrichment_enabled(output):
+            enrichment_status = "pending"
+            enrichment_output = output
+            enrichment_generation = uuid4().hex
+
+        with cache.pipeline() as pipeline:
+            pipeline.set_map_item(cache_key, "output", raw_output)
+            pipeline.set_map_item(cache_key, "timestamp", timestamp)
+            pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
+            if enrichment_generation is not None:
+                pipeline.set_map_item(cache_key, "enrichment_generation", enrichment_generation)
+            pipeline.expire(cache_key, expire_in=_state.params.cache.timeout)
 
         _log.bind(cache_timeout=_state.params.cache.timeout).debug("Response cached")
 
@@ -152,6 +354,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         "runtime": runtime,
         "timestamp": timestamp,
         "format": response_format,
+        "enrichment": enrichment_status,
         "random": data.random(),
         "level": "success",
         "keywords": [],
@@ -160,10 +363,30 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     return Response(
         response,
         background=BackgroundTask(
-            send_webhook,
+            _run_query_background_tasks,
+            enrichment_output=enrichment_output,
+            enrichment_generation=enrichment_generation,
+            cache=cache,
+            cache_key=cache_key,
             params=_state.params,
             data=data,
             request=request,
             timestamp=timestamp,
         ),
     )
+
+
+async def _run_query_background_tasks(
+    enrichment_output: t.Any,
+    enrichment_generation: t.Optional[str],
+    cache: t.Any,
+    cache_key: str,
+    params: Params,
+    data: Query,
+    request: Request,
+    timestamp: datetime,
+) -> None:
+    """Run optional enrichment and webhook work after sending the response."""
+    if enrichment_output is not None and enrichment_generation is not None:
+        await enrich_query_output(enrichment_output, cache, cache_key, enrichment_generation)
+    await send_webhook(params=params, data=data, request=request, timestamp=timestamp)

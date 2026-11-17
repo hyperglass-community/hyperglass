@@ -6,6 +6,7 @@ import logging
 # Third Party
 from litestar import Litestar
 from litestar.openapi import OpenAPIConfig
+from litestar.openapi.spec import Server
 from litestar.exceptions import HTTPException, ValidationException
 from litestar.static_files import create_static_files_router
 
@@ -16,7 +17,17 @@ from hyperglass.exceptions import HyperglassError
 
 # Local
 from .events import check_redis
-from .routes import info, query, device, devices, queries
+from .routes import (
+    dns,
+    info,
+    myip,
+    query,
+    device,
+    devices,
+    queries,
+    aspath_enrich,
+    query_enrichment,
+)
 from .middleware import COMPRESSION_CONFIG, create_cors_config
 from .error_handlers import app_handler, http_handler, default_handler, validation_handler
 
@@ -28,13 +39,26 @@ UI_DIR = STATE.settings.static_path / "ui"
 IMAGES_DIR = STATE.settings.static_path / "images"
 
 
+DOCS = STATE.params.docs
+
 OPEN_API = OpenAPIConfig(
-    title=STATE.params.docs.title.format(site_title=STATE.params.site_title),
+    title=DOCS.title.format(site_title=STATE.params.site_title),
     version=__version__,
-    description=STATE.params.docs.description,
-    path=STATE.params.docs.path,
+    description=DOCS.description,
+    path=DOCS.path,
     root_schema_site="elements",
+    servers=[Server(url=DOCS.server_url or "/")],
 )
+
+# Per-endpoint documentation from `docs.query`, `docs.devices`, `docs.queries` and `docs.info`.
+for _handler, _endpoint in (
+    (query, "query"),
+    (devices, "devices"),
+    (queries, "queries"),
+    (info, "info"),
+):
+    for _attr, _value in DOCS.endpoint_docs(_endpoint).items():
+        setattr(_handler, _attr, _value)
 
 HANDLERS = [
     device,
@@ -42,6 +66,10 @@ HANDLERS = [
     queries,
     info,
     query,
+    aspath_enrich,
+    query_enrichment,
+    dns,
+    myip,
 ]
 
 if not STATE.settings.disable_ui:
