@@ -7,7 +7,7 @@ from pathlib import Path
 from ipaddress import IPv4Address, IPv6Address
 
 # Third Party
-from pydantic import FilePath, ValidationInfo, field_validator
+from pydantic import Field, FilePath, ValidationInfo, field_validator
 from netmiko.ssh_dispatcher import CLASS_MAPPER  # type: ignore
 
 # Project
@@ -28,7 +28,7 @@ from ..main import MultiModel, HyperglassModel, HyperglassModelWithId
 from ..util import check_legacy_fields
 from .proxy import Proxy
 from ..fields import SupportedDriver
-from ..directive import Directives
+from ..directive import Directive, Directives, version_tuple
 from .credential import Credential
 from .http_client import HttpConfiguration
 
@@ -49,6 +49,27 @@ class DirectiveOptions(HyperglassModel, extra="ignore"):
     builtins: t.Union[bool, t.List[str]] = True
 
 
+def directive_attr_keys(directives: t.Iterable[Directive], *, vrf: bool) -> t.Set[str]:
+    """Return the device attributes the device's commands reference.
+
+    A VRF device runs a rule's VRF commands where the rule has them, as `Construct` does,
+    so only those commands count (#95). `target`, `mask`, `vrf` and directive variables are
+    filled in at query time, not from `attrs`.
+    """
+    return {
+        key
+        for directive in directives
+        for rule in directive.rules
+        for command in (
+            rule.vrf_commands
+            if vrf and rule.vrf_commands
+            else rule.commands + rule.fallback_commands
+        )
+        for key in get_fmt_keys(command)
+        if key not in ("target", "mask", "vrf") and key not in directive.variables
+    }
+
+
 class Device(HyperglassModelWithId, extra="allow"):
     """Validation model for per-router config in devices.yaml."""
 
@@ -64,10 +85,13 @@ class Device(HyperglassModelWithId, extra="allow"):
     port: int = 22
     http: HttpConfiguration = HttpConfiguration()
     platform: str
+    os_version: t.Optional[str] = None
     structured_output: t.Optional[bool] = None
     directives: Directives = Directives()
     driver: t.Optional[SupportedDriver] = None
     driver_config: t.Dict[str, t.Any] = {}
+    disable_paging: bool = True
+    connect_retries: t.Optional[int] = Field(None, ge=0, le=10)
     attrs: t.Dict[str, str] = {}
 
     def __init__(self, **kw) -> None:
@@ -149,13 +173,7 @@ class Device(HyperglassModelWithId, extra="allow"):
         return self.platform
 
     def _validate_directive_attrs(self) -> None:
-        # Set of all keys except for built-in key `target`.
-        keys = {
-            key
-            for group in [get_fmt_keys(command) for command in self.directive_commands]
-            for key in group
-            if key != "target"
-        }
+        keys = directive_attr_keys(self.directives, vrf=getattr(self, "vrf", None) is not None)
 
         attrs = {k: v for k, v in self.attrs.items() if k in keys}
 
@@ -299,6 +317,20 @@ class Device(HyperglassModelWithId, extra="allow"):
             device_directives += builtins.matching(*directive_options.builtins)
 
         return device_directives
+
+    @field_validator("os_version", mode="before")
+    def validate_os_version(cls, value: t.Any) -> t.Optional[str]:
+        """Require a leading version number, including unquoted YAML numbers."""
+        if value is None:
+            return None
+        value = str(value)
+        try:
+            version_tuple(value)
+        except ValueError as err:
+            raise ValueError(
+                f"os_version {value!r} must start with a version number, such as '15.9(3)M6'"
+            ) from err
+        return value
 
     @field_validator("driver")
     def validate_driver(cls: "Device", value: t.Optional[str], info: ValidationInfo) -> str:
