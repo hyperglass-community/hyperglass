@@ -19,7 +19,7 @@ if t.TYPE_CHECKING:
 
 
 class ZTracerouteIpEnrichment(OutputPlugin):
-    """Enrich structured traceroute output with IP enrichment ASN/organization data and reverse DNS."""
+    """Enrich traceroute output with ASN names and reverse DNS."""
 
     _hyperglass_builtin: bool = PrivateAttr(True)
     # Common plugins select by output model, not platform or directive ID.
@@ -97,7 +97,9 @@ class ZTracerouteIpEnrichment(OutputPlugin):
         """Run asynchronous traceroute enrichment for a parsed result."""
         await self._enrich_async(output)
 
-    def process(self, *, output: "OutputDataModel", query: "Query") -> "OutputDataModel":
+    def process(  # noqa: C901 - preserve optional enrichment fallback paths
+        self, *, output: "OutputDataModel", query: "Query"
+    ) -> "OutputDataModel":
         """Enrich structured traceroute data with IP enrichment and reverse DNS information."""
 
         if not isinstance(output, TracerouteResult):

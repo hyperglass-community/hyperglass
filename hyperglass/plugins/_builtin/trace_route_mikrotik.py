@@ -7,7 +7,7 @@ import typing as t
 from pydantic import PrivateAttr, ValidationError
 
 # Project
-from hyperglass.log import log, log as _log
+from hyperglass.log import log
 from hyperglass.settings import Settings
 from hyperglass.exceptions.private import ParsingError
 from hyperglass.models.parsing.mikrotik import MikrotikTracerouteTable
@@ -98,7 +98,9 @@ class TraceroutePluginMikrotik(OutputPlugin):
     platforms: t.Sequence[str] = ("mikrotik_routeros", "mikrotik_switchos", "mikrotik")
     directives: t.Sequence[str] = ("__hyperglass_mikrotik_traceroute__",)
 
-    def process(self, *, output: "OutputType", query: "Query") -> "OutputDataModel":
+    def process(  # noqa: C901 - preserve text and structured fallback paths
+        self, *, output: "OutputType", query: "Query"
+    ) -> "OutputDataModel":
         """Process the MikroTik traceroute output."""
         target = getattr(query, "target", "unknown")
         source = getattr(query, "source", "unknown")
