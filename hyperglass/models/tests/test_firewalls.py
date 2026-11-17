@@ -118,7 +118,7 @@ def test_fortinet_reference_paths():
     route = parse_fortinet((FIXTURES / "fortinet-route4.txt").read_text()).routes[0]
     assert route.prefix == "4.5.6.0/24" and route.as_path == []
     assert route.active and route.weight == 32768 and route.local_preference == 100
-    table = parse_fortinet((FIXTURES / "fortinet-multipath4.txt").read_text())
+    table = parse_fortinet((FIXTURES / "fortinet-multipath4-third-party.txt").read_text())
     assert table.count == 2 and [r.active for r in table.routes] == [False, True]
     assert [r.as_path for r in table.routes] == [[222], [111]]
     assert [r.weight for r in table.routes] == [0, 10]
@@ -155,7 +155,7 @@ def test_synthetic_ipv6_and_vrf():
 @pytest.mark.parametrize(
     "platform,file,plugin",
     [
-        ("fortinet", "fortinet-multipath4.txt", BGPRoutePluginFortinet),
+        ("fortinet", "fortinet-multipath4-third-party.txt", BGPRoutePluginFortinet),
         ("paloalto_panos", "panos-route4.txt", BGPRoutePluginPANOS),
     ],
 )
@@ -175,7 +175,7 @@ def test_parser_dispatch(platform, file, plugin, structured):
 @pytest.mark.parametrize(
     "platform,file,parser",
     [
-        ("fortinet", "fortinet-multipath4.txt", parse_fortinet),
+        ("fortinet", "fortinet-multipath4-third-party.txt", parse_fortinet),
         ("paloalto_panos", "panos-route4.txt", parse_panos),
     ],
 )

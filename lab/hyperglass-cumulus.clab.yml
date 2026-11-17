@@ -1,8 +1,8 @@
 # Optional small-table lab. Requires a locally supplied Cumulus VX image.
-name: ultraglass-cumulus
+name: hyperglass-cumulus
 
 mgmt:
-  network: ultraglass-cumulus-mgmt
+  network: hyperglass-cumulus-mgmt
   ipv4-subnet: 192.168.251.0/24
 
 topology:

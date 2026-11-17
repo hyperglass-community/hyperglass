@@ -15,7 +15,7 @@ from hyperglass.execution.drivers._construct import Construct
 from hyperglass.plugins._builtin.bgp_route_aoscx import BGPRoutePluginAOSCX, parse_aoscx
 from hyperglass.plugins._builtin.trace_route_standard import TraceroutePluginStandard
 
-FIXTURES = Path(__file__).parents[2] / "plugins/tests/fixtures/aoscx-reference"
+FIXTURES = Path(__file__).parents[2] / "plugins/tests/fixtures/aoscx-mirrored"
 
 
 def device(**kwargs):

@@ -1,9 +1,11 @@
 # Supply a locally built AOS-CX 10.14 image through AOSCX_IMAGE.
-name: ultraglass-aoscx
+name: hyperglass-aoscx
 mgmt:
-  network: ultraglass-aoscx-mgmt
+  network: hyperglass-aoscx-mgmt
   ipv4-subnet: 192.168.254.0/24
 topology:
+  defaults:
+    privileged: false
   nodes:
     core:
       kind: linux
