@@ -1,6 +1,4 @@
-"""Ultraglass is a modern, customisable network looking glass.
-
-The internal `hyperglass` package namespace is retained for deployment compatibility.
+"""Hyperglass is a modern, customisable network looking glass.
 
 The Clear BSD License
 
