@@ -49,9 +49,18 @@ def test_execution_boundary_rechecks_plugin_output():
         Construct(device, query)
 
 
-@pytest.mark.parametrize("platform", ("bird", "frr", "openbgpd", "vyos", "tnsr"))
+@pytest.mark.parametrize("platform", ("frr", "vyos", "tnsr"))
 @pytest.mark.parametrize("target", ("_13335$", "^(13335|65001)$", "_13335(_.+_)65001$"))
 def test_regular_expression_is_one_shell_argument(platform, target):
     device, query = query_for(platform, target)
     command = Construct(device, query).queries()[0]
     assert shlex.split(command) == ["vtysh", "-c", f"show bgp regexp {target}"]
+
+
+@pytest.mark.parametrize(
+    "platform,expected", (("bird", "[= * 13335 =]"), ("openbgpd", "13335"))
+)
+def test_vendor_translation_remains_one_shell_argument(platform, expected):
+    device, query = query_for(platform, "_13335$")
+    command = Construct(device, query).queries()[0]
+    assert shlex.split(command) == ["vtysh", "-c", f"show bgp regexp {expected}"]
