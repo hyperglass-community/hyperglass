@@ -1,6 +1,7 @@
 services:
     redis:
-        image: "redis:alpine"
+        # Keep the service name and Redis protocol settings for compatibility.
+        image: "valkey/valkey:8-alpine"
     hyperglass:
         depends_on:
             - redis
@@ -14,7 +15,7 @@ services:
             - HYPERGLASS_DISABLE_UI=${HYPERGLASS_DISABLE_UI-false}
             - HYPERGLASS_CONTAINER=${HYPERGLASS_CONTAINER-true}
             - HYPERGLASS_ORIGINAL_APP_PATH=${HYPERGLASS_APP_PATH}
-        build: .
+        image: ${HYPERGLASS_IMAGE-ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2}
         ports:
             # Set HYPERGLASS_BIND_ADDRESS=127.0.0.1 for a host reverse proxy.
             # HYPERGLASS_HOST remains 0.0.0.0 inside the container.
