@@ -1,5 +1,5 @@
-org_name: Ultraglass Lab
-site_title: Ultraglass Lab
+org_name: Hyperglass Lab
+site_title: Hyperglass Lab
 request_timeout: 300
 logging:
   directory: /etc/hyperglass/logs

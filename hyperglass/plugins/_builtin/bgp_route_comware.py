@@ -59,7 +59,7 @@ def _route(prefix: str, block: str) -> dict:
         "as_path": as_path,
         "communities": communities,
         "next_hop": str(ip_address(fields["original nexthop"])),
-        "source_as": as_path[0] if as_path else 0,
+        "source_as": as_path[-1] if as_path else 0,
         "source_rid": peer[2] if peer else "",
         "peer_rid": peer[1] if peer else "",
         "rpki_state": 3,

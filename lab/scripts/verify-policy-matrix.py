@@ -2,7 +2,7 @@
 # ruff: noqa: S101, S310 -- This script is an integration test against a lab URL.
 """Check AS-path and community results against one structured-output configuration (#22).
 
-Run it against an Ultraglass instance whose config sets the policy, RPKI backend and
+Run it against a Hyperglass instance whose config sets the policy, RPKI backend and
 enrichment mode named on the command line. The core must advertise the lab test routes:
 
     gobgp global rib add -a ipv4 1.0.0.0/24 nexthop 0.0.0.0 aspath "64999 13335" \
@@ -31,7 +31,7 @@ import yaml
 import hyperglass.defaults.directives
 from hyperglass.models.directive import BuiltinDirective
 
-DEVICES_FILE = Path(__file__).resolve().parents[1] / "configs" / "ultraglass" / "devices.yaml"
+DEVICES_FILE = Path(__file__).resolve().parents[1] / "configs" / "hyperglass" / "devices.yaml"
 
 TEST_PREFIXES = {"1.0.0.0/24", "2606:4700:4700::/48"}
 # Device output that carries no communities, so the policy has nothing to act on.

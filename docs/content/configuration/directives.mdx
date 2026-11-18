@@ -32,6 +32,10 @@ Each directive has the following options:
 
 A rule is a way of saying "if a query target matches the rule's conditions, run this command".
 
+<Callout type="warning">
+Custom directives do not receive the shell quoting applied to built-in directives. On shell-backed platforms, never interpolate unrestricted input from `condition: null` or `condition: "*"`. Use an IP rule or an anchored allowlist that excludes shell syntax. Field validation alone is not a command-safety boundary.
+</Callout>
+
 | Parameter   | Type            | Default Value | Description                                                                                    |
 | :---------- | :-------------- | :------------ | :--------------------------------------------------------------------------------------------- |
 | `condition` | String          |               | IP prefix in which the target must be contained, or a regular expression the target must match. `null` disables validation. |
@@ -99,7 +103,7 @@ In this example, a query of any IP address or prefix contained within 192.0.2.0/
 your-directive:
     name: BGP Communities
     rules:
-        - condition: "65000:[0-9]+"
+        - condition: '^65000:[0-9]+$'
           commands:
               - "show route table inet.0 community {target} detail"
               - "show route table inet6.0 community {target} detail"
@@ -124,7 +128,7 @@ To validate input by regex pattern, specify a regex pattern as the `condition`. 
 your-directive:
     name: DNS Query
     rules:
-        - condition: '^.+\.yourdomain\.com$'
+        - condition: '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.example\.net$'
           command: dig {target}
     field:
         description: Host name
@@ -142,10 +146,10 @@ your-directive:
         description: IP address or prefix
 ```
 
-In this example, any query would pass, regardless of query input. For instance, if a user selected this directive/query type and queried `your mom`, the real command sent to the device will be:
+This example disables target validation. Do not publish it on a shell-backed platform. For example, a target of `example text` produces:
 
-```none /your mom/
-show ip route your mom
+```none
+show ip route example text
 ```
 
 ## Fields

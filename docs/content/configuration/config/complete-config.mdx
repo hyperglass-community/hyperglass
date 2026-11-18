@@ -210,16 +210,16 @@ Customize error messages and user-facing text shown in the UI and API responses.
 | :-------- | :--- | :------ | :---------- |
 | `messages.no_input` | String | `{field} must be specified.` | Shown when required field is missing. `{field}` shows field name. |
 | `messages.target_not_allowed` | String | `{target} is not allowed.` | Shown when query target is denied by rules. `{target}` shows denied target. |
-| `messages.feature_not_enabled` | String | `{feature} is not enabled.` | Deprecated. Accepted but not displayed, and removed in 4.0. Setting it logs a warning at startup. |
+| `messages.feature_not_enabled` | String | `{feature} is not enabled.` | Deprecated. Accepted but not displayed. Setting it logs a warning at startup. No removal release is scheduled. |
 | `messages.invalid_input` | String | `{target} is not valid.` | Shown for invalid query target values. `{target}` shows invalid input. |
-| `messages.invalid_query` | String | `{target} is not a valid {query_type} target.` | Deprecated. Accepted but not displayed, and removed in 4.0. Setting it logs a warning at startup. |
-| `messages.invalid_field` | String | `{input} is an invalid {field}.` | Deprecated. Accepted but not displayed, and removed in 4.0. Setting it logs a warning at startup. |
+| `messages.invalid_query` | String | `{target} is not a valid {query_type} target.` | Deprecated. Accepted but not displayed. Setting it logs a warning at startup. No removal release is scheduled. |
+| `messages.invalid_field` | String | `{input} is an invalid {field}.` | Deprecated. Accepted but not displayed. Setting it logs a warning at startup. No removal release is scheduled. |
 | `messages.general` | String | `Something went wrong.` | Generic error message for unexpected errors. |
 | `messages.not_found` | String | `{type} '{name}' not found.` | Shown when configuration object doesn't exist. |
 | `messages.request_timeout` | String | `Request timed out.` | Shown when request exceeds timeout limit. |
 | `messages.connection_error` | String | `Error connecting to {device_name}: {error}` | Shown for device connection failures. |
 | `messages.authentication_error` | String | `Authentication error occurred.` | Shown for device authentication failures. |
-| `messages.no_response` | String | `No response.` | Deprecated. Accepted but not displayed, and removed in 4.0. Setting it logs a warning at startup. |
+| `messages.no_response` | String | `No response.` | Deprecated. Accepted but not displayed. Setting it logs a warning at startup. No removal release is scheduled. |
 | `messages.no_output` | String | `The query completed, but no matching results were found.` | Shown for successful queries with empty results. |
 | `messages.device_command_error` | String | `The query command failed on {device_name}.` | Shown when a device rejects a command or denies permission to run it. |
 
@@ -267,8 +267,8 @@ Controls how Hyperglass processes and displays structured data from network devi
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
-| `structured.enable_for_traceroute` | Boolean | unset | Set `false` to show raw router output for traceroute on every device. Structured output itself is on only for devices with `structured_output: true` in `devices.yaml`. This key cannot turn it on. |
-| `structured.enable_for_bgp_route` | Boolean | unset | Set `false` to show raw router output for BGP route queries on every device. Structured output itself is on only for devices with `structured_output: true` in `devices.yaml`. This key cannot turn it on. |
+| `structured.enable_for_traceroute` | Boolean | `true` | Set `false` to return text traceroute on every device. Otherwise the device's structured-output setting applies. FRR, Juniper and Arista default to structured output; additional platforms require opt-in. |
+| `structured.enable_for_bgp_route` | Boolean | `true` | Set `false` to return text BGP routes on every device. Otherwise the device's structured-output setting applies. FRR, Juniper and Arista default to structured output; additional platforms require opt-in. |
 
 #### Example: Structured Output Configuration
 ```yaml filename="config.yaml"
@@ -337,7 +337,7 @@ web:
 | `web.logo.light` | Path | Built-in logo | Logo image for light theme. The file must exist. |
 | `web.logo.dark` | Path | Built-in logo | Logo image for dark theme. The file must exist. |
 | `web.logo.favicon` | Path | Built-in icon | Favicon/icon image. The file must exist. |
-| `web.logo.width` | String | `50%` | Logo width as a percentage from `1` to `100`, for example `40%`. Include the `%` sign; the UI cannot use a bare number. Pixel values fail validation. |
+| `web.logo.width` | String or integer | `50%` | Logo width as a percentage from `1` to `100`. Both `40` and `40%` normalize to `40%`. Pixel values fail validation. |
 | `web.logo.height` | String | | Accepted as a percentage from `1` to `100`, but not used by the current UI. |
 
 #### Example: Custom Logo
@@ -495,14 +495,14 @@ web:
 
     # Company website
     - title: "Our Website"
-      url: "https://acmenetworks.com"
+      url: "https://example.net"
       show_icon: false
       side: "left"
       order: 0
 
     # Network status page
     - title: "Network Status"
-      url: "https://status.acmenetworks.com"
+      url: "https://status.example.net"
       side: "right"
       order: 2
 ```
@@ -883,7 +883,7 @@ messages:
   no_output: "The query completed, but no matching results were found."
   # The device rejected the command or denied permission. {device_name} is filled in.
   device_command_error: "The query command failed on {device_name}."
-  # Deprecated keys, accepted with a warning but never shown, removed in 4.0:
+  # Deprecated keys, accepted with a warning but never shown. No removal release is scheduled.
   # feature_not_enabled, invalid_query, invalid_field, no_response.
 
 # ---------------------------------------------------------------------------

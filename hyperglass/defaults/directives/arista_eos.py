@@ -185,7 +185,7 @@ AristaBGPCommunityTable = BuiltinDirective(
             action="permit",
             commands=[
                 # Only the address-family detail form carries communities, and
-                # `show ipv6 bgp community` matches no IPv6 routes (#66).
+                # `show ipv6 bgp community` matches no IPv6 routes.
                 "show bgp ipv4 unicast community {target} detail | json",
                 "show bgp ipv6 unicast community {target} detail | json",
             ],

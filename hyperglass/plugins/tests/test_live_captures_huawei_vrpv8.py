@@ -1,4 +1,4 @@
-"""Captured Huawei VRPv8 (VRP 8.180) responses for #103."""
+"""Captured Huawei VRPv8 (VRP 8.180) responses."""
 
 from pathlib import Path
 

@@ -6,5 +6,5 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 BUILD=$(mktemp -d "${TMPDIR:-/tmp}/hyperglass-os9-build.XXXXXX")
 cp "$ROOT/images/os9/Dockerfile" "$ROOT/images/os9/launch.py" "$BUILD/"
 cp --reflink=auto "$ISO" "$BUILD/os9.iso"
-docker build -t ultraglass-lab/dell_os9:9.13.0.0 "$BUILD"
+docker build -t hyperglass-lab/dell_os9:9.13.0.0 "$BUILD"
 echo "Build directory: $BUILD"

@@ -104,7 +104,7 @@ Huawei_Ping = BuiltinDirective(
             condition="::/0",
             action="permit",
             command="ping ipv6 -c 5 -a {source6} {target}",
-            # VRP 8 takes the IPv6 VPN instance keyword without a dash (#155).
+            # VRP 8 takes the IPv6 VPN instance keyword without a dash.
             vrf_command="ping ipv6 -c 5 vpn-instance {vrf} {target}",
         ),
     ],
@@ -127,7 +127,7 @@ Huawei_Traceroute = BuiltinDirective(
             action="permit",
             command="tracert ipv6 -w 500 -q 1 -f 1 -a {source6} {target}",
             # The CE12800 (VRP 8.180) has no source option on `tracert ipv6` and rejects
-            # `-a`, so it traces from its routed source address instead (#155).
+            # `-a`, so it traces from its routed source address instead.
             fallback_command="tracert ipv6 -w 500 -q 1 -f 1 {target}",
             vrf_command="tracert ipv6 -w 500 -q 1 -f 1 vpn-instance {vrf} {target}",
         ),

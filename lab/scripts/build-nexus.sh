@@ -11,5 +11,5 @@ git -C "$BUILD" remote add origin https://github.com/srl-labs/vrnetlab.git
 git -C "$BUILD" fetch --quiet --depth 1 origin "$REVISION"
 git -C "$BUILD" checkout --quiet --detach FETCH_HEAD
 cp --reflink=auto "$DISK" "$BUILD/cisco/n9kv/n9kv-9300-lite-10.4.8.M.qcow2"
-make -C "$BUILD/cisco/n9kv" REGISTRY=ultraglass-lab/ IMAGE=n9kv-9300-lite-10.4.8.M.qcow2 docker-build
+make -C "$BUILD/cisco/n9kv" REGISTRY=hyperglass-lab/ IMAGE=n9kv-9300-lite-10.4.8.M.qcow2 docker-build
 echo "Build directory: $BUILD"

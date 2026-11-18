@@ -1,13 +1,15 @@
 # Supply a locally built, licensed OcNOS 6.5+ image through OCNOS_IMAGE.
-name: ultraglass-ocnos
+name: hyperglass-ocnos
 mgmt:
-  network: ultraglass-ocnos-mgmt
+  network: hyperglass-ocnos-mgmt
   ipv4-subnet: 192.168.253.0/24
 topology:
+  defaults:
+    privileged: false
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.253.10
       binds:
         - configs/ocnos/gobgpd.toml:/etc/gobgp/gobgpd.toml:ro

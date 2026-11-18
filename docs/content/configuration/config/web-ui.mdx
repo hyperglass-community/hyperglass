@@ -25,7 +25,7 @@ By default, the browser resolves hostname targets using [DNS over HTTPS](https:/
 web:
     dns_provider:
         name: server
-    my_ip: external
+    my_ip: server
 ```
 
 This configuration resolves hostname targets through `/api/dns` and detects visitor addresses through `/api/myip`. These two features do not contact public DNS-over-HTTPS providers or myip.wtf. Font downloads and optional enrichment services have separate network requirements.

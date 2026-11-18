@@ -1,13 +1,15 @@
 # Optional VSR1000 lab. Supply COMWARE_IMAGE with a locally built vrnetlab image.
-name: ultraglass-comware
+name: hyperglass-comware
 mgmt:
-  network: ultraglass-comware-mgmt
+  network: hyperglass-comware-mgmt
   ipv4-subnet: 192.168.252.0/24
 topology:
+  defaults:
+    privileged: false
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.252.10
       binds:
         - configs/comware/gobgpd.toml:/etc/gobgp/gobgpd.toml:ro

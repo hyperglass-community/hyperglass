@@ -39,6 +39,14 @@ def _prefix_paths(prefix: str, paths: t.Union[t.Dict, t.List]) -> t.List:
     return paths
 
 
+def _load_response(response: str) -> t.Dict:
+    """Require an object before accessing FRR response fields."""
+    parsed = json.loads(response)
+    if not isinstance(parsed, dict):
+        raise ParsingError("Expected a JSON object in response data")
+    return parsed
+
+
 def parse_frr(output: t.Sequence[str], vrf: t.Optional[str] = None) -> "OutputDataModel":
     """Parse a FRR BGP JSON response.
 
@@ -52,7 +60,7 @@ def parse_frr(output: t.Sequence[str], vrf: t.Optional[str] = None) -> "OutputDa
 
     for response in output:
         try:
-            parsed: t.Dict = json.loads(response)
+            parsed = _load_response(response)
 
             _log.debug("Pre-parsed data", data=parsed)
 

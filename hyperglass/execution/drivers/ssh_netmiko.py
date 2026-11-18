@@ -170,7 +170,10 @@ def collect_commands(
     try:
         # These platforms require privileged mode for built-in diagnostics.
         if platform in ("arista_eos", "extreme_vsp", "ipinfusion_ocnos"):
-            connection.enable()
+            try:
+                connection.enable()
+            except ValueError as error:
+                raise NetMikoAuthenticationException("Enable authentication failed") from error
         responses = []
         for index, query in enumerate(queries):
             # RouterOS BGP scans can be silent for a minute before the first row.

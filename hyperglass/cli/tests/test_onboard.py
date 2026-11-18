@@ -168,12 +168,18 @@ def test_new_yaml_file_has_restricted_permissions(config):
 
 def test_runtime_does_not_replace_server_configuration(config):
     original = use_state("params")
+    server = use_state()
+    readiness = server.redis.get(("plugins", "ready"))
+    plugins = server.plugins("output")
     with runtime(plugins=True) as local:
         assert use_state() is local
         assert use_state("devices")[0].id == "test_frr"
         assert local.params.logging.session_log is False
         assert local.params.logging.samples.enable is False
+        assert local.plugins("output")
     assert use_state("params") is original
+    assert server.redis.get(("plugins", "ready")) == readiness
+    assert server.plugins("output") == plugins
 
 
 def test_cases_cover_offered_builtins_and_families(config):

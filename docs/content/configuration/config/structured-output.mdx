@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 ## Structured
 
-Devices that return structured or easily parsed data can display their response in a table, or as JSON through the REST API. Structured output is opt-in: set `structured_output: true` on each device. Hyperglass rejects `structured_output: true` on a platform that has no structured support.
+Devices that return structured or easily parsed data can display tables or JSON through the REST API. FRR, Juniper and Arista enable structured output by default. Additional supported platforms require `structured_output: true`. Set `structured_output: false` to force text. Unsupported platforms reject an explicit `true`.
 
 Structured BGP results are available for Arista EOS, BIRD, Cisco IOS, IOS-XR and NX-OS, NVIDIA Cumulus Linux, Extreme EXOS, FRRouting, Huawei VRP, Juniper Junos, MikroTik RouterOS and SwitchOS, OpenBGPD, SONiC and VyOS 1.4 and later. Aruba AOS-CX, Dell OS9 and SmartFabric OS10, FortiGate, HPE Comware 7, IP Infusion OcNOS and PAN-OS have structured results for BGP route queries only. Their AS path and community queries, where the platform offers them, return text. Structured traceroute covers all these platforms and also Nokia SR OS, TNSR, Extreme VOSS and VyOS 1.3. See [structured output in Platforms](/platforms.mdx#structured-output) for the source command and limitations of each platform.
 
@@ -17,7 +17,7 @@ For external validation, Hyperglass supports two backends:
 
 Hyperglass can also control which BGP communities are shown to the end user.
 
-For devices with structured traceroute support, Hyperglass can add ASN, organisation, prefix and IXP details using lookups from BGP.tools. It also adds reverse DNS names, from the server's resolver, to hops whose hostname the device did not print, with or without IP enrichment.
+For structured traceroute, Hyperglass can add ASN, organisation, prefix and IXP details using BGP.tools. It preserves router-provided hostnames without making supplemental reverse DNS requests. Disabled traceroute enrichment performs no additional lookups.
 
 | Parameter                                    | Type            | Default Value | Description |
 | :------------------------------------------- | :-------------- | :------------ | :---------- |
@@ -191,7 +191,7 @@ structured:
     **IP Enrichment Dependency**
 
     Without IP enrichment enabled:
-    - Traceroute hops show IP addresses, RTT values and reverse DNS names, but no ASN or organization
+    - Traceroute hops show addresses, RTT values and router-provided hostnames, but no supplemental ASN or organization data
     - BGP next-hop IPs will not show ASN/organization tooltips
     - No ASN organization names in copied BGP route text
     - AS path organization names load only when the user opens the AS path

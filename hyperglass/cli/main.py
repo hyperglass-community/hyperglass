@@ -131,7 +131,7 @@ def _support_bundle(
         200, "--log-lines", min=1, max=5000, help="Maximum recent lines to inspect per log"
     ),
 ) -> None:
-    """Create a sanitized local bundle for manual bug-report attachment."""
+    """Create a metadata-only bundle; omit log messages, identifiers and credentials."""
     # Standard Library
     from tempfile import gettempdir
 
@@ -145,7 +145,7 @@ def _support_bundle(
         else [Path(gettempdir()), Path(Settings.app_path)]
     )
     bundle_path = write_support_bundle(output, directories, log_lines=log_lines)
-    echo.success("Wrote sanitized support bundle to {!s}", bundle_path)
+    echo.success("Wrote metadata-only support bundle to {!s}", bundle_path)
 
 
 @cli.command(name="clear-cache")

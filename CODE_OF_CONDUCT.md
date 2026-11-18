@@ -16,6 +16,8 @@ Harassment, threats, discrimination, sexualised conduct, deliberate intimidation
 
 ## Reporting a problem
 
-Open an issue using the project's reporting tools, or contact a maintainer privately through the contact details published on the repository profile. Do not include sensitive information in a public issue. Reports will be handled as discreetly as the circumstances allow.
+Contact maintainers [WilhelmZA](https://github.com/WilhelmZA) or [jsenecal](https://github.com/jsenecal) privately through their published profile contact details. Do not publish misconduct reports or sensitive information in an issue.
 
 This code applies to the repository, issue tracker, pull requests, documentation, and project discussions. Maintainers may remove content or restrict participation when necessary to keep these spaces safe and useful.
+
+Original text courtesy of the [Django project](https://www.djangoproject.com/conduct/).

@@ -18,5 +18,5 @@ git clone https://github.com/srl-labs/vrnetlab.git "$BUILD/vrnetlab"
 git -C "$BUILD/vrnetlab" checkout --detach "$REVISION"
 cp --reflink=auto "$IMAGE" "$BUILD/vrnetlab/juniper/vjunosrouter/"
 # The Makefile patches the copy with vjunos-amd-enable, then builds the image.
-make -C "$BUILD/vrnetlab/juniper/vjunosrouter" REGISTRY=ultraglass-lab/
+make -C "$BUILD/vrnetlab/juniper/vjunosrouter" REGISTRY=hyperglass-lab/
 echo "Build directory: $BUILD"

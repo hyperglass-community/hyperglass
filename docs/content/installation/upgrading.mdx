@@ -25,11 +25,18 @@ python -m pip install -e '.[ui]'
 systemctl restart hyperglass
 ```
 
-## Changes inherited from Ultraglass 3.5 to 3.6
+## Migrating from Hyperglass 2.0.4
 
-A 3.5.0 configuration loads unchanged. No configuration key is removed. 3.6 adds these changes:
+Back up `config.yaml`, `devices.yaml` and `directives.yaml` before upgrading. The service and configuration names remain `hyperglass`. Validate the configuration with `hyperglass onboard check` before exposing the upgraded service.
+
+This migration adds these changes without selecting a new release number:
 
 - New built-in platforms: `aruba_aoscx`, `cumulus_linux`, `dell_force10`, `dell_os10`, `fortinet`, `hp_comware`, `ipinfusion_ocnos` and `paloalto_panos`. See [devices](/configuration/devices.mdx) for the `attrs` and VRF forms each platform uses.
 - The `hyperglass onboard` command creates and tests device entries, checks feature settings, and scaffolds custom directives. See [device onboarding](/configuration/onboarding.mdx).
-- Structured output stays opt-in. Set `structured_output: true` on each device that should return tables, including devices on the new platforms.
+- FRR, Juniper and Arista retain their structured-output defaults. Additional platforms require `structured_output: true`. Set `structured_output: false` to retain text output explicitly.
+- Custom VRF directives remain supported. Numeric VRFs normalize to strings; spaces and slashes remain invalid.
+- Valid zero-route MikroTik results complete without repeated SSH sessions.
+- Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`.
+- HTTP devices receive default HTTP configuration when the `http` block is omitted.
+- Support bundles export metadata only. They no longer include free-form messages or exception values.
 - The unused upstream BGP community input plugin is removed. Built-in syntax checks and directive rules still validate community targets.

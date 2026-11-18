@@ -69,7 +69,7 @@ def register_plugin(plugin_file: Path, **kwargs) -> t.Tuple[str, ...]:
     raise FileNotFoundError(str(plugin_file))
 
 
-def register_all_plugins() -> None:
+def register_all_plugins(*, persist_ready: bool = True) -> None:
     """Validate and register all built-in and configured plugins.
 
     The registry lives in Redis alongside the rest of the state, so it is lost with
@@ -81,6 +81,10 @@ def register_all_plugins() -> None:
     from hyperglass.state import use_state
 
     state = use_state()
+    if persist_ready:
+        state.redis.instance.delete(state.redis.key(("plugins", "ready")))
+    state.reset_plugins("input")
+    state.reset_plugins("output")
 
     # Register built-in plugins.
     init_builtin_plugins()
@@ -97,3 +101,6 @@ def register_all_plugins() -> None:
 
     for failure in failures:
         log.bind(plugin=failure).warning("Invalid hyperglass plugin")
+
+    if persist_ready:
+        state.redis.set(("plugins", "ready"), True)

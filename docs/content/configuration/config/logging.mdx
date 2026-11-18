@@ -61,7 +61,7 @@ If `logging.http` is set and `enable` is `true`, Hyperglass sends one HTTP `POST
 | `logging.http.host`       | URL     |         | Webhook URL. Required. Every provider sends to the scheme, host, port, path and query string of this URL. |
 | `logging.http.params`     | Map     |         | URL query parameters added to every webhook request. A key that is also in the query string of `host` replaces it. |
 | `logging.http.headers`    | Map     |         | HTTP headers added to every webhook request. Values are sent as strings. |
-| `logging.http.verify_ssl` | Boolean | true    | Verify the webhook server's TLS certificate. Set to `false` for a self-signed endpoint. |
+| `logging.http.verify_ssl` | Boolean | true    | Verify the webhook server's TLS certificate. Disabling verification permits interception of webhook data. Use a trusted certificate instead. |
 | `logging.http.timeout`    | Number  | 5       | Webhook request timeout in seconds. |
 | `logging.http.enable`     | Boolean | true    | Send webhooks. Set to `false` to turn webhooks off and keep the rest of the block. |
 
@@ -84,12 +84,12 @@ If `logging.http` is set and `enable` is `true`, Hyperglass sends one HTTP `POST
 logging:
     http:
         provider: generic
-        host: https://httpbin.org
+        host: https://logs.example.net/webhook
         params:
             source: hyperglass
 ```
 
-In the example above, Hyperglass sends a `POST` request to `https://httpbin.org?source=hyperglass` for each query. The `source` value is an example identifier and can be changed for your deployment.
+In the example above, Hyperglass sends a `POST` request to `https://logs.example.net/webhook?source=hyperglass` for each query. Replace the example endpoint with your own webhook receiver.
 
 ##### Microsoft Teams Webhook
 
@@ -113,9 +113,13 @@ logging:
 
 ### Local Support Bundles
 
-Use `hyperglass support-bundle` on the Hyperglass host to create a sanitized JSON file for manual attachment to a bug report. The command reads local log files only, makes no network request, and does not add a frontend endpoint or browser feature for reading source-system information.
+Use `hyperglass support-bundle` on the Hyperglass host to create a metadata-only JSON file for manual attachment to a bug report. The command reads local log files only. It makes no network request and adds no frontend endpoint.
 
-The bundle includes Hyperglass version, basic runtime information, recent error-level log records, and failure metadata from `logging.samples`. It reads query samples only from the default file name, `hyperglass_query_log.jsonl`, in each log directory. It excludes query targets, device names, raw device output, parsed results, credentials, tokens, and filesystem paths by default. Review the file before attaching it.
+Bundle format `2` declares `redaction: "metadata-only"`. It includes the Hyperglass version, Python and operating-system versions, validated timestamps, error severity, known exception types, normalized query kinds and bounded query runtimes. It reads query samples only from `hyperglass_query_log.jsonl` in each log directory.
+
+The bundle replaces all messages and exception values with `[REDACTED]`. It omits configuration, extra log fields, custom identifiers, targets, device names, raw output, parsed results, credentials and filesystem paths. It does not attempt to sanitize free-form text with address patterns. Review the file before attaching it.
+
+Text logs now include severity. The bundle exports `ERROR` and `CRITICAL` metadata under `errors`. Older text logs have no severity; their metadata appears under `unclassified_text` with level `UNKNOWN`, not as confirmed errors.
 
 ```shell filename="terminal" copy
 hyperglass support-bundle --output hyperglass-support-bundle.json

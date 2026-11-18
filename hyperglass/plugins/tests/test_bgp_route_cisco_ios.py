@@ -1,4 +1,4 @@
-"""Parse Cisco IOS and IOS XE `show bgp` text output (#83)."""
+"""Parse Cisco IOS and IOS XE `show bgp` text output."""
 
 # Standard Library
 from pathlib import Path
@@ -76,7 +76,7 @@ def test_summary_table_bulk():
 
 
 def test_iosv_policy_aspath():
-    """Replay the complete dual-stack query that failed onboarding acceptance (#215)."""
+    """Replay a complete dual-stack query with wrapped IPv6 prefixes."""
     fixtures = FIXTURES.parent / "cisco-iosv-live"
     table = parse_cisco_ios(
         [(fixtures / f"aspath_policy{family}.txt").read_text() for family in (4, 6)]
@@ -152,7 +152,7 @@ def test_command_error():
 
 @pytest.mark.parametrize("directive", (CiscoIOS_BGPRoute, CiscoIOS_BGPRouteTable))
 def test_ipv6_route_needs_prefix(directive):
-    """IOS has no longest-match BGP lookup for an IPv6 address (#84)."""
+    """IOS has no longest-match BGP lookup for an IPv6 address."""
     rule = directive.rules[1]
     assert rule.validate_target("2606:4700::/32", multiple=False) is True
     with pytest.raises(InputValidationError):

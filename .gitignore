@@ -5,11 +5,6 @@ TODO*
 .env
 .pnpm-store/
 
-# Local working notes
-/lab/PLATFORMS.md
-/lab/ISSUE-TRIAGE.md
-/lab/REMEDIATION-*.md
-
 test.py
 .DS_Store
 .idea

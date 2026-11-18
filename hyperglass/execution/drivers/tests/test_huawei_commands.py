@@ -1,4 +1,4 @@
-"""Huawei VRP 8.180 command forms and command errors (#155)."""
+"""Huawei VRP 8.180 command forms and command errors."""
 
 # Standard Library
 from unittest.mock import Mock

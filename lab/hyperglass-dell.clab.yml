@@ -1,13 +1,15 @@
-# Isolated OS9 acceptance topology using the existing local FTOS image.
-name: ultraglass-dell
+# OS9 acceptance topology using an operator-supplied FTOS image.
+name: hyperglass-dell
 mgmt:
-  network: ultraglass-dell-mgmt
+  network: hyperglass-dell-mgmt
   ipv4-subnet: 192.168.249.0/24
 topology:
+  defaults:
+    privileged: false
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.249.10
       entrypoint: gobgpd
       cmd: -f /etc/gobgp/gobgpd.toml -t toml
@@ -20,7 +22,7 @@ topology:
         - ip addr add 2606:4700::1111/128 dev lo
     os9:
       kind: generic_vm
-      image: ultraglass-lab/dell_os9:9.13.0.0
+      image: hyperglass-lab/dell_os9:9.13.0.0
       mgmt-ipv4: 192.168.249.12
       memory: 2GiB
       cpu: 1

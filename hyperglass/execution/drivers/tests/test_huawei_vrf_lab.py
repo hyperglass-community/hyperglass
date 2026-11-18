@@ -1,4 +1,4 @@
-"""The lab Huawei VRF locations build vpn-instance commands (#130, #155)."""
+"""The lab Huawei VRF locations build vpn-instance commands."""
 
 # Standard Library
 from pathlib import Path
@@ -27,7 +27,7 @@ LAB = Path(__file__).parents[4] / "lab" / "configs"
 LOCATIONS = ("lab-huawei-vrpv8-vrf", "lab-huawei-ne40-vrf")
 
 
-@pytest.fixture(params=[(f, n) for f in ("ultraglass", "ultraglass-text") for n in LOCATIONS])
+@pytest.fixture(params=[(f, n) for f in ("hyperglass", "hyperglass-text") for n in LOCATIONS])
 def lab_state(request):
     """Load a Huawei VRF entry exactly as the lab device file defines it."""
     config, name = request.param
@@ -80,7 +80,7 @@ def test_lab_huawei_vrf_offers_all_query_types(lab_state):
         ("BGP Community", "65000:777", "vpnv4 vpn-instance LAB routing-table community"),
         ("Ping", "198.51.100.1", "ping -c 5 -vpn-instance LAB 198.51.100.1"),
         ("Traceroute", "198.51.100.1", "-f 1 -vpn-instance LAB 198.51.100.1"),
-        # VRP 8 rejects `-vpn-instance` on the IPv6 forms (#155).
+        # VRP 8 rejects `-vpn-instance` on the IPv6 forms.
         ("Ping", "2001:db8:100::1", "ping ipv6 -c 5 vpn-instance LAB 2001:db8:100::1"),
         ("Traceroute", "2001:db8:100::1", "-f 1 vpn-instance LAB 2001:db8:100::1"),
     ],

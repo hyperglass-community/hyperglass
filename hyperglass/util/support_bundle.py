@@ -1,42 +1,59 @@
-"""Build a local, sanitized support bundle for bug reports."""
+"""Build a metadata-only support bundle without exporting free-form log text."""
 
 # Standard Library
 import json
+import math
 import platform
 import re
 import typing as t
+import builtins
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Project
 from hyperglass.constants import __version__
+from hyperglass.exceptions import public, private
 
-_IPV4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
-_SECRET_KEY = re.compile(
-    r"(?i)(password|passwd|secret|token|api[_-]?key|authorization|credential|private[_-]?key)"
-)
 _ERROR_LEVELS = {"ERROR", "CRITICAL"}
+_ERROR_TYPES = {
+    value.__name__
+    for module in (builtins, public, private)
+    for value in vars(module).values()
+    if isinstance(value, type) and issubclass(value, BaseException)
+}
+_QUERY_KINDS = ("bgp_route", "bgp_aspath", "bgp_community", "ping", "traceroute")
+_TEXT_RECORD = re.compile(
+    r"^\[(?P<level>ERROR|CRITICAL)\] \[(?P<time>\d{8} \d{2}:\d{2}:\d{2})\](?:\s|$)"
+)
+_LEGACY_RECORD = re.compile(r"^\[(?P<time>\d{8} \d{2}:\d{2}:\d{2})\](?:\s|$)")
 
 
-def _redact_text(value: str) -> str:
-    """Remove common credentials and IPv4 addresses from free-form log text."""
-    value = re.sub(r"(?i)(bearer\s+)[^\s]+", r"\1[REDACTED]", value)
-    value = re.sub(r"(?i)(https?://[^/\s:@]+:)[^@\s]+@", r"\1[REDACTED]@", value)
-    return _IPV4.sub("[REDACTED-IP]", value)
+def _timestamp(value: t.Any) -> t.Optional[str]:
+    """Retain only parsed timestamps, never arbitrary strings from log records."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value).isoformat()
+    except ValueError:
+        return None
 
 
-def _redact(value: t.Any, key: t.Optional[str] = None) -> t.Any:
-    """Recursively sanitize JSON-compatible values."""
-    if key is not None and _SECRET_KEY.search(key):
-        return "[REDACTED]"
-    if isinstance(value, dict):
-        return {str(k): _redact(v, str(k)) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_redact(item) for item in value]
+def _error_type(value: t.Any) -> str:
+    """Export known exception names rather than custom or free-form identifiers."""
+    return value if isinstance(value, str) and value in _ERROR_TYPES else "UnknownError"
+
+
+def _query_kind(value: t.Any) -> str:
+    """Reduce built-in directive identifiers to a fixed query kind."""
     if isinstance(value, str):
-        return _redact_text(value)
-    return value
+        for kind in _QUERY_KINDS:
+            if value == kind or (
+                value.startswith("__hyperglass_")
+                and value.endswith((f"_{kind}__", f"_{kind}_table__"))
+            ):
+                return kind
+    return "custom"
 
 
 def _tail(path: Path, limit: int) -> t.List[str]:
@@ -49,40 +66,60 @@ def _tail(path: Path, limit: int) -> t.List[str]:
 
 
 def _json_log_errors(path: Path, limit: int) -> t.List[t.Dict[str, t.Any]]:
-    """Extract sanitized error records from a Loguru JSON log."""
+    """Keep error levels, timestamps and known types; omit messages and extra data."""
     errors: t.List[t.Dict[str, t.Any]] = []
     for line in _tail(path, limit):
         try:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
-        source = record.get("record", {})
-        level = source.get("level", {}).get("name")
-        if level in _ERROR_LEVELS:
+        if not isinstance(record, dict) or not isinstance(record.get("record"), dict):
+            continue
+        source = record["record"]
+        level_data = source.get("level")
+        level = level_data.get("name") if isinstance(level_data, dict) else None
+        if isinstance(level, str) and level in _ERROR_LEVELS:
+            time_data = source.get("time")
             error_record: t.Dict[str, t.Any] = {
-                "timestamp": source.get("time", {}).get("repr"),
+                "timestamp": _timestamp(time_data.get("repr"))
+                if isinstance(time_data, dict)
+                else None,
                 "level": level,
-                "message": _redact_text(str(source.get("message", ""))),
+                "message": "[REDACTED]",
             }
             exception = source.get("exception")
-            if exception:
-                error_record["exception"] = _redact(
-                    {
-                        "type": exception.get("type"),
-                        "value": exception.get("value"),
-                    }
-                )
+            if isinstance(exception, dict):
+                error_record["exception"] = {
+                    "type": _error_type(exception.get("type")),
+                    "value": "[REDACTED]",
+                }
             errors.append(error_record)
     return errors
 
 
-def _text_log_errors(path: Path, limit: int) -> t.List[str]:
-    """Extract sanitized error lines from a text log."""
-    return [
-        _redact_text(line.rstrip())
-        for line in _tail(path, limit)
-        if any(f"[{level}]" in line for level in _ERROR_LEVELS)
-    ]
+def _text_log_records(
+    path: Path, limit: int
+) -> t.Tuple[t.List[t.Dict[str, t.Any]], t.List[t.Dict[str, t.Any]]]:
+    """Extract error metadata and classify old level-less records as unknown."""
+    errors: t.List[t.Dict[str, t.Any]] = []
+    legacy: t.List[t.Dict[str, t.Any]] = []
+    for line in _tail(path, limit):
+        match = _TEXT_RECORD.match(line)
+        old_match = _LEGACY_RECORD.match(line) if match is None else None
+        timestamp = match or old_match
+        if timestamp is None:
+            continue
+        try:
+            parsed_time = datetime.strptime(timestamp["time"], "%Y%m%d %H:%M:%S").isoformat()
+        except ValueError:
+            continue
+        record = {
+            "timestamp": parsed_time,
+            "level": match["level"] if match else "UNKNOWN",
+            "message": "[REDACTED]",
+        }
+        (errors if match else legacy).append(record)
+    return errors, legacy
 
 
 def _query_failures(path: Path, limit: int) -> t.List[t.Dict[str, t.Any]]:
@@ -93,17 +130,26 @@ def _query_failures(path: Path, limit: int) -> t.List[t.Dict[str, t.Any]]:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(record, dict):
+            continue
         error = record.get("error")
         if not error:
             continue
-        query = record.get("query", {})
+        query = record.get("query")
+        runtime = record.get("runtime_s")
+        valid_runtime = (
+            type(runtime) in (int, float) and 0 <= runtime <= 86400 and math.isfinite(runtime)
+        )
         failures.append(
             {
-                "timestamp": record.get("timestamp"),
-                "query_type": query.get("type"),
-                "structured": record.get("structured", False),
-                "runtime_s": record.get("runtime_s"),
-                "error": _redact(error),
+                "timestamp": _timestamp(record.get("timestamp")),
+                "query_type": _query_kind(query.get("type") if isinstance(query, dict) else None),
+                "structured": record.get("structured") is True,
+                "runtime_s": runtime if valid_runtime else None,
+                "error": {
+                    "type": _error_type(error.get("type") if isinstance(error, dict) else None),
+                    "message": "[REDACTED]",
+                },
             }
         )
     return failures
@@ -112,9 +158,10 @@ def _query_failures(path: Path, limit: int) -> t.List[t.Dict[str, t.Any]]:
 def build_support_bundle(
     log_directories: t.Iterable[Path], *, log_lines: int = 200
 ) -> t.Dict[str, t.Any]:
-    """Build a sanitized bundle without reading configuration or contacting a service."""
+    """Export only allowlisted metadata without reading configuration or contacting services."""
     bundle: t.Dict[str, t.Any] = {
-        "format": 1,
+        "format": 2,
+        "redaction": "metadata-only",
         "product": "Hyperglass",
         "version": __version__,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -124,6 +171,7 @@ def build_support_bundle(
             "release": platform.release(),
         },
         "errors": {"json": [], "text": []},
+        "unclassified_text": [],
         "query_failures": [],
     }
 
@@ -141,7 +189,9 @@ def build_support_bundle(
         if json_log.is_file():
             bundle["errors"]["json"].extend(_json_log_errors(json_log, log_lines))
         if text_log.is_file():
-            bundle["errors"]["text"].extend(_text_log_errors(text_log, log_lines))
+            errors, legacy = _text_log_records(text_log, log_lines)
+            bundle["errors"]["text"].extend(errors)
+            bundle["unclassified_text"].extend(legacy)
         if samples.is_file():
             bundle["query_failures"].extend(_query_failures(samples, log_lines))
 

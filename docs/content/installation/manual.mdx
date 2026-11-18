@@ -41,6 +41,8 @@ python -m pip install -e '.[ui]'
 
 For an API-only installation, omit the `ui` extra and set `HYPERGLASS_DISABLE_UI=true`; Node.js, pnpm, and the Cairo packages are not needed in that mode.
 
+The optional `performance` extra installs `uvloop` on supported non-Windows systems. Use `python -m pip install -e '.[ui,performance]'` to install both extras.
+
 ### Create app directory
 
 <Callout type="info">If you plan on using a different directory, set it in `HYPERGLASS_APP_PATH`. See [environment variables](environment-variables.mdx).</Callout>

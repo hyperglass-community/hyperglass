@@ -40,6 +40,10 @@ class OnboardState:
         """Register a plugin locally."""
         self._plugins[kind] = list({*self.plugins(kind), plugin})
 
+    def reset_plugins(self, kind: str) -> None:
+        """Clear a local registry without changing the server registry."""
+        self._plugins.pop(kind, None)
+
 
 @contextmanager
 def runtime(*, devices: bool = True, plugins: bool = False) -> t.Iterator[OnboardState]:
@@ -52,5 +56,5 @@ def runtime(*, devices: bool = True, plugins: bool = False) -> t.Iterator[Onboar
             # Project
             from hyperglass.plugins import register_all_plugins
 
-            register_all_plugins()
+            register_all_plugins(persist_ready=False)
         yield state

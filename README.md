@@ -33,11 +33,11 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 | Queries | BGP AS path | List routes matching an AS path expression. Per-platform syntax is validated before the command is sent. |
 | Queries | Ping and traceroute | IPv4 and IPv6, sourced from the device's configured source addresses. |
 | Queries | Custom directives | Publish any device command with its own target rules, fixed-choice select fields, per-platform syntax and version-selected fallback commands. |
-| Queries | VRF queries | Built-in VRF command forms for 14 platforms. Set `vrf` on the device entry. |
-| Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. Opt-in per device. |
+| Queries | VRF queries | Built-in VRF command forms for 16 platforms. Set `vrf` on the device entry. |
+| Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. Enabled by default for FRR, Juniper and Arista; opt-in for additional platforms. |
 | Results | Structured traceroute | Parsed hops with per-probe RTT, loss and best, worst and last statistics per hop. |
 | Results | RPKI validation | Router-reported state, or external validation through Cloudflare or your own Routinator. |
-| Results | IP enrichment | ASN, organisation, country, IXP and reverse DNS for next hops and traceroute hops, inline or asynchronous. |
+| Results | IP enrichment | ASN, organisation, country and IXP metadata, inline or asynchronous. Router-provided traceroute hostnames are preserved without supplemental reverse DNS. |
 | Results | Community policy | Deny or permit listed communities, or append friendly names to them. |
 | Results | Text output | Raw device output with configurable highlighting for devices that stay in text mode. |
 | Devices | 26 built-in platforms | Directives and parsers included. See [Supported platforms](#supported-platforms). |
@@ -62,13 +62,13 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 | Operations | Caching | Redis-backed result cache with a configurable timeout. |
 | Operations | Logging | File logs, SSH session logs, syslog, and HTTP webhooks for Slack, Microsoft Teams or any generic endpoint. |
 | Operations | Query samples | Opt-in JSONL capture of raw and parsed query output, with size-based rotation, for debugging and parser fixtures. |
-| Operations | Support bundle | `hyperglass support-bundle` gathers version, configuration and logs locally for a bug report. Nothing is sent automatically. |
+| Operations | Support bundle | `hyperglass support-bundle` gathers version, runtime and allowlisted error metadata locally. It excludes configuration and free-form log text. Nothing is sent automatically. |
 | Operations | Container images | Build from the included Dockerfile and Compose configuration. Community image publication and scan gates are tracked in [#388](https://github.com/hyperglass-community/hyperglass/issues/388). |
 | Operations | Lab | A Containerlab topology under `lab/` feeds real routing tables to virtual routers for regression testing. |
 
 ## Supported platforms
 
-Hyperglass ships directives and parsers for these 26 platforms. Netmiko provides the device connectivity, so any other Netmiko platform works with custom directives. Structured output is opt-in on every platform: set `structured_output: true` on the device. Text means the query works and returns the device's raw output.
+Hyperglass ships directives and parsers for these 26 platforms. Netmiko provides the device connectivity, so other Netmiko platforms work with custom directives. FRR, Juniper and Arista keep structured output enabled by default. Set `structured_output: true` to enable it on additional supported platforms. Set `structured_output: false` to force text output.
 
 | Platform | `platform` key | Structured BGP | Structured traceroute | Built-in VRF queries | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -136,6 +136,13 @@ Manual installation needs Python 3.11 or later and Redis 7. Install the `ui` ext
 - [Hyperglass Wiki](https://github.com/hyperglass-community/hyperglass/wiki)
 - [Clear BSD license](LICENSE)
 
+The existing [documentation site](https://hyperglass.dev) and [live demo](https://demo.hyperglass.dev/) describe the upstream release. Repository guides describe the migration changes.
+
+## Community
+
+- [Slack](https://netdev.chat/)
+- [Telegram](https://t.me/hyperglasslg)
+
 ## Reporting bugs
 
 Use the [bug report form](https://github.com/hyperglass-community/hyperglass/issues/new/choose). Include the Hyperglass version, deployment method, steps to reproduce, expected and observed behaviour, relevant configuration with secrets removed, and the output of `hyperglass onboard test` or `hyperglass support-bundle`. Review either before attaching it. Do not include device passwords, private keys, tokens or unredacted internal addresses.
@@ -146,4 +153,6 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes s
 
 ## Acknowledgements
 
-Hyperglass is distributed under the [Clear BSD License](LICENSE) and retains the required upstream attribution. It is built with [Netmiko](https://github.com/ktbyers/netmiko), [Litestar](https://litestar.dev), [Pydantic](https://docs.pydantic.dev/latest/), [React](https://react.dev/), [Next.js](https://nextjs.org/), [Chakra UI](https://chakra-ui.com/), [React Flow](https://reactflow.dev/), and [BGP.tools](https://bgp.tools/).
+Hyperglass was created by [Matt Love](https://github.com/thatmattlove) as [thatmattlove/hyperglass](https://github.com/thatmattlove/hyperglass). The community project continues that work under the [Clear BSD License](LICENSE).
+
+Hyperglass uses [Netmiko](https://github.com/ktbyers/netmiko), [Litestar](https://litestar.dev), [Pydantic](https://docs.pydantic.dev/latest/), [React](https://react.dev/), [Next.js](https://nextjs.org/), [Chakra UI](https://chakra-ui.com/), [React Flow](https://reactflow.dev/), and [BGP.tools](https://bgp.tools/).

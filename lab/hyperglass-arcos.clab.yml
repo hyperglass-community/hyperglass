@@ -1,8 +1,8 @@
 # Optional ArcOS lab. Supply a locally tagged native arrcus_arcos image through ARCOS_IMAGE.
-name: ultraglass-arcos
+name: hyperglass-arcos
 
 mgmt:
-  network: ultraglass-arcos-mgmt
+  network: hyperglass-arcos-mgmt
   ipv4-subnet: 192.168.247.0/24
 
 topology:
@@ -11,7 +11,7 @@ topology:
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.247.10
       binds:
         - configs/arcos/gobgpd.toml:/etc/gobgp/gobgpd.toml:ro
