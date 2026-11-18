@@ -8,9 +8,25 @@ import asyncio
 import typing as t
 from ipaddress import ip_address
 import socket
+import re
+import time
+from collections import OrderedDict
+from threading import Lock
 
 from hyperglass.log import log
 from hyperglass.settings import Settings
+
+IPLookup = t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]
+IP_CACHE_MAXSIZE = 4096
+IP_CACHE_TTL = 300.0
+WHOIS_MAX_BYTES = 512 * 1024
+
+
+def _is_ixp(asn: t.Optional[int], name: t.Optional[str]) -> bool:
+    """Recognize explicit exchange descriptions without replacing a valid ASN."""
+    return asn is None and bool(
+        re.search(r"\b(?:IXP|Internet Exchange(?: Point)?)\b", name or "", re.I)
+    )
 
 
 class IPInfo:
@@ -40,8 +56,28 @@ class IPEnrichmentService:
 
     def __init__(self):
         # Runtime caches for performance
-        self._ip_cache: t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]] = {}
+        self._ip_cache: OrderedDict[str, t.Tuple[float, IPLookup]] = OrderedDict()
+        self._cache_lock = Lock()
         self.asn_info: t.Dict[int, t.Dict[str, str]] = {}  # asn -> {name, country}
+
+    def _cached_ip(self, ip: str) -> t.Optional[IPLookup]:
+        """Read an unexpired cache entry."""
+        with self._cache_lock:
+            entry = self._ip_cache.get(ip)
+            if entry is not None:
+                expires, value = entry
+                if expires > time.monotonic():
+                    return value
+                del self._ip_cache[ip]
+        return None
+
+    def _cache_ip(self, ip: str, value: IPLookup) -> None:
+        """Store a lookup with an expiry and a fixed capacity."""
+        with self._cache_lock:
+            self._ip_cache[ip] = (time.monotonic() + IP_CACHE_TTL, value)
+            self._ip_cache.move_to_end(ip)
+            while len(self._ip_cache) > IP_CACHE_MAXSIZE:
+                self._ip_cache.popitem(last=False)
 
     def _ip_info_from_lookup(
         self,
@@ -51,7 +87,7 @@ class IPEnrichmentService:
         prefix: t.Optional[str],
     ) -> IPInfo:
         """Convert a cached lookup tuple to the public result model."""
-        if asn is None and asn_name is not None:
+        if _is_ixp(asn, asn_name):
             return IPInfo(ip, is_ixp=True, ixp_name=asn_name)
         if asn:
             try:
@@ -69,8 +105,9 @@ class IPEnrichmentService:
         Returns (asn_int, asn_name, prefix) or (None, None, None) on failure.
         """
         # Check cache first
-        if ip_str in self._ip_cache:
-            return self._ip_cache[ip_str]
+        cached = self._cached_ip(ip_str)
+        if cached is not None:
+            return cached
 
         # Use TCP WHOIS on bgp.tools:43
         def _whois_blocking(  # noqa: C901 - handle both WHOIS response formats
@@ -86,12 +123,14 @@ class IPEnrichmentService:
                     s.settimeout(10)
                     s.sendall(payload.encode("utf-8"))
                     parts = []
+                    remaining = WHOIS_MAX_BYTES
                     try:
-                        while True:
-                            chunk = s.recv(4096)
+                        while remaining > 0:
+                            chunk = s.recv(min(4096, remaining))
                             if not chunk:
                                 break
                             parts.append(chunk)
+                            remaining -= len(chunk)
                     except socket.timeout:
                         pass
 
@@ -167,7 +206,7 @@ class IPEnrichmentService:
         resp_map = await loop.run_in_executor(None, _whois_blocking, [ip_str])
         asn, org, prefix = resp_map.get(ip_str, (None, None, None))
         # Cache result
-        self._ip_cache[ip_str] = (asn, org, prefix)
+        self._cache_ip(ip_str, (asn, org, prefix))
         return (asn, org, prefix)
 
     async def _query_bgp_tools_bulk(  # noqa: C901 - preserve WHOIS format fallbacks
@@ -191,14 +230,14 @@ class IPEnrichmentService:
                     s.settimeout(15)
                     s.sendall(payload.encode("utf-8"))
                     parts = []
+                    remaining = WHOIS_MAX_BYTES
                     try:
-                        while True:
-                            chunk = s.recv(8192)
+                        while remaining > 0:
+                            chunk = s.recv(min(8192, remaining))
                             if not chunk:
                                 break
                             parts.append(chunk)
-                            if sum(len(p) for p in parts) > 512 * 1024:
-                                break
+                            remaining -= len(chunk)
                     except socket.timeout:
                         pass
 
@@ -216,21 +255,8 @@ class IPEnrichmentService:
                             ipcol = cols[1] if len(cols) > 1 else None
                             prefix = cols[2] if len(cols) > 2 else None
                             org = cols[-1] if len(cols) > 0 else None
-                            # Check if this is an exchange IP (IXP)
-                            is_ixp = any(
-                                keyword in (org or "").lower()
-                                for keyword in ["ix", "exchange", "peering"]
-                            )
                             if ipcol:
-                                # If it's an IXP, mark it specially
-                                if is_ixp:
-                                    out[ipcol] = (
-                                        None,
-                                        org,
-                                        prefix,
-                                    )  # Use None for ASN to indicate IXP
-                                else:
-                                    out[ipcol] = (asn, org, prefix)
+                                out[ipcol] = (asn, org, prefix)
                             else:
                                 if asn is not None:
                                     out_key1 = f"AS{asn}"
@@ -284,7 +310,7 @@ class IPEnrichmentService:
 
         # Prepare list for query
         query_ips: t.List[str] = []
-        cached_ips: t.List[str] = []
+        lookups: t.Dict[str, IPLookup] = {}
         for ip in ips:
             try:
                 target_ip = ip_address(ip)
@@ -297,8 +323,9 @@ class IPEnrichmentService:
                 results[ip] = IPInfo(ip, asn=0, asn_name="Private", prefix="Private Network")
                 continue
 
-            if ip in self._ip_cache:
-                cached_ips.append(ip)
+            cached = self._cached_ip(ip)
+            if cached is not None:
+                lookups[ip] = cached
             else:
                 query_ips.append(ip)
 
@@ -307,10 +334,10 @@ class IPEnrichmentService:
             bulk = await self._query_bgp_tools_bulk(query_ips)
             for ip in query_ips:
                 asn, asn_name, prefix = bulk.get(ip, (None, None, None))
-                self._ip_cache[ip] = (asn, asn_name, prefix)
+                lookups[ip] = (asn, asn_name, prefix)
+                self._cache_ip(ip, lookups[ip])
 
-        for ip in [*query_ips, *cached_ips]:
-            asn, asn_name, prefix = self._ip_cache.get(ip, (None, None, None))
+        for ip, (asn, asn_name, prefix) in lookups.items():
             results[ip] = self._ip_info_from_lookup(ip, asn, asn_name, prefix)
 
         return results
@@ -337,12 +364,7 @@ class IPEnrichmentService:
         try:
             asn, asn_name, prefix = await self._query_bgp_tools_for_ip(ip_str)
 
-            # Check if this is an IXP (indicated by keywords in organization name)
-            is_ixp = asn_name and any(
-                keyword in asn_name.lower() for keyword in ["ix", "exchange", "peering"]
-            )
-
-            if is_ixp:
+            if _is_ixp(asn, asn_name):
                 if Settings.debug:
                     log.debug(f"Found IXP match for {ip_str}: {asn_name}")
                 return IPInfo(ip_str, is_ixp=True, ixp_name=asn_name)

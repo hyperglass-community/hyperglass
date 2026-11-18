@@ -81,6 +81,9 @@ def register_all_plugins() -> None:
     from hyperglass.state import use_state
 
     state = use_state()
+    state.redis.instance.delete(state.redis.key(("plugins", "ready")))
+    state.reset_plugins("input")
+    state.reset_plugins("output")
 
     # Register built-in plugins.
     init_builtin_plugins()
@@ -97,3 +100,5 @@ def register_all_plugins() -> None:
 
     for failure in failures:
         log.bind(plugin=failure).warning("Invalid hyperglass plugin")
+
+    state.redis.set(("plugins", "ready"), True)

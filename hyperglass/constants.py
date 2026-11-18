@@ -24,37 +24,14 @@ TARGET_FORMAT_SPACE = ("huawei", "huawei_vrpv8")
 
 TARGET_JUNIPER_ASPATH = ("juniper", "juniper_junos")
 
-# Every structured parser is opt-in: a device without `structured_output` gets text.
-SUPPORTED_STRUCTURED_OUTPUT = (
+# Preserve automatic structured output on the original supported platforms.
+DEFAULT_STRUCTURED_OUTPUT = (
     "frr",
     "juniper",
     "arista_eos",
-    "huawei",
-    "huawei_vrpv8",
-    "mikrotik_routeros",
-    "mikrotik_switchos",
-    "cisco_ios",
-    "cisco_xr",
-    "cisco_nxos",
-    "nokia_sros",
-    "bird",
-    "openbgpd",
-    "vyos",
-    "vyos_1_3",
-    "tnsr",
-    "extreme_exos",
-    "extreme_vsp",
-    "sonic",
-    "aruba_aoscx",
-    "dell_os10",
-    "dell_force10",
-    "fortinet",
-    "paloalto_panos",
-    "cumulus_linux",
-    "hp_comware",
-    "ipinfusion_ocnos",
-    "arrcus_arcos",
 )
+# Additional parsers become supported with their directives and tests.
+SUPPORTED_STRUCTURED_OUTPUT = DEFAULT_STRUCTURED_OUTPUT
 
 CONFIG_EXTENSIONS = ("py", "yaml", "yml", "json", "toml")
 
@@ -63,8 +40,6 @@ STATUS_CODE_MAP = {"warning": 400, "error": 400, "danger": 500}
 DNS_OVER_HTTPS = {
     "google": "https://dns.google/resolve",
     "cloudflare": "https://cloudflare-dns.com/dns-query",
-    # Resolve on the Hyperglass server, for networks that block public DoH providers.
-    "server": "/api/dns",
 }
 
 PARSED_RESPONSE_FIELDS = (

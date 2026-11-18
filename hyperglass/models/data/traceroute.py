@@ -2,7 +2,7 @@
 
 # Standard Library
 import typing as t
-from ipaddress import ip_address, AddressValueError
+from ipaddress import ip_address
 
 # Third Party
 from pydantic import field_validator, model_validator, computed_field
@@ -49,7 +49,7 @@ class TracerouteHop(HyperglassModel):
                 return None  # Invalid for BGP enrichment but kept in display_ip
             try:
                 ip_address(value)
-            except AddressValueError:
+            except ValueError:
                 return None
         return value
 
