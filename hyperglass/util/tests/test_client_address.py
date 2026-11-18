@@ -178,6 +178,12 @@ def test_dns_rate_limit_is_per_configured_header():
             "1.1.1.1",
         ),
         ({}, {"x-real-ip": "1.1.1.1"}, "127.0.0.1", "127.0.0.1"),
+        (
+            {"header": "X-Real-IP", "trusted_proxies": ["172.18.0.1/32"]},
+            {"x-real-ip": "1.1.1.1", "x-forwarded-for": "8.8.8.8"},
+            "172.18.0.1",
+            "1.1.1.1",
+        ),
         ({**CDN, **TRUSTED}, {"cf-connecting-ip": "8.8.8.8"}, "1.1.1.1", "1.1.1.1"),
     ],
 )
