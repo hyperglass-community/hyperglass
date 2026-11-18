@@ -22,8 +22,24 @@ def get_validation_exception_detail(exc):
 
 @pytest.fixture
 def client(monkeypatch):
-    """Provide a test client for the API without building the UI."""
+    """Provide a test client for the API without building the UI or reading user config."""
+    # Project
+    from hyperglass.state import use_state, recovery
+
     monkeypatch.setattr(Settings, "disable_ui", True)
+    state = use_state()
+    params = state.params
+
+    def initialize():
+        # Stand-in for loading /etc/hyperglass: the request is rejected before
+        # any device or directive is read, so empty state is enough.
+        for key in recovery.REQUIRED_KEYS:
+            state.cache.set(key, None)
+        state.cache.set("params", params)
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    initialize()
+
     # Project
     from hyperglass.api import app
 
