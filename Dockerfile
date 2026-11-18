@@ -44,7 +44,10 @@ WORKDIR /opt/hyperglass
 # truth), then the package itself without re-resolving dependencies. The lock
 # includes the UI extra required by this full application image.
 COPY requirements.lock ./
-RUN pip3 install --no-cache-dir --no-deps -r requirements.lock
+# Rye includes the editable project itself; install it only after copying source.
+RUN sed '/^-e file:\.$/d' requirements.lock > /tmp/hyperglass-dependencies.lock \
+  && pip3 install --no-cache-dir --no-deps -r /tmp/hyperglass-dependencies.lock \
+  && rm /tmp/hyperglass-dependencies.lock
 
 # Application edits do not invalidate either dependency installation layer.
 COPY . .
