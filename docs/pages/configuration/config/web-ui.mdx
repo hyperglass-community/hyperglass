@@ -45,6 +45,36 @@ DNS permits 120 requests per client and 600 requests globally per 60-second wind
 
 AS-path requests accept at most 64 ASNs and an 8 KiB body. ASNs must be decimal integers between 1 and 4294967295. Duplicate ASNs are removed before lookup. Results use shared caches: DNS answers for up to 60 seconds, negative DNS responses for 15 seconds, and ASN names for one hour. Disabling `web.aspath_enrichment` also stops the AS-path modal from requesting enrichment.
 
+### My IP and reverse-proxy upgrades
+
+`web.my_ip: server` uses the request address for the My IP button. Non-public addresses return `null`, leaving the input unchanged. This mode does not fall back to a public IP service. Set `web.my_ip: external` explicitly to use a public IP service from the browser. That setting does not change webhook attribution.
+
+**Upgrade requirement:** forwarding headers now require an explicitly trusted proxy. Existing nginx installations must configure `web.client_ip` to retain visitor addresses for My IP, webhook `source`, and per-client limits. An empty `trusted_proxies` list uses the socket peer, so webhooks report the proxy address until configured.
+
+For nginx on the same host, connecting to Hyperglass over loopback, add this to `config.yaml`:
+
+```yaml
+web:
+    my_ip: server
+    client_ip:
+        trusted_proxies: ["127.0.0.1/32", "::1/128"]
+        header: X-Real-IP
+```
+
+In the nginx location that proxies requests to Hyperglass, overwrite the forwarding headers:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8001;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Use the configured Hyperglass port in `proxy_pass`. Keep Hyperglass bound to loopback for this setup. Restart Hyperglass and reload nginx after updating both configurations. For a container or remote proxy, trust its actual connecting address instead of loopback. Do not trust all networks. This example assumes visitors connect directly to nginx; a CDN or additional proxy requires its own explicit trust configuration in nginx.
+
 ### Logo
 
 | Parameter          | Type             | Default Value | Description                                        |

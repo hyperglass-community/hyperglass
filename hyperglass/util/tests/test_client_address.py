@@ -130,9 +130,9 @@ def test_myip_uses_configured_header():
     from hyperglass.api.routes import myip
 
     _configure(**CDN, **TRUSTED)
-    headers = {"cf-connecting-ip": "203.0.113.7", "x-real-ip": "172.70.0.1"}
+    headers = {"cf-connecting-ip": "1.1.1.1", "x-real-ip": "172.70.0.1"}
     with create_test_client([myip], request_class=ProxyRequest) as client:
-        assert client.get("/api/myip", headers=headers).json() == {"ip": "203.0.113.7"}
+        assert client.get("/api/myip", headers=headers).json() == {"ip": "1.1.1.1"}
 
 
 def test_myip_ignores_headers_from_untrusted_peer():
@@ -167,7 +167,23 @@ def test_dns_rate_limit_is_per_configured_header():
 
 
 @pytest.mark.asyncio
-async def test_webhook_source_is_the_resolved_client(monkeypatch):
+@pytest.mark.parametrize(
+    "settings,headers,peer,expected",
+    [
+        ({**CDN, **TRUSTED}, {"cf-connecting-ip": "1.1.1.1"}, "10.0.0.2", "1.1.1.1"),
+        (
+            {"header": "X-Real-IP", "trusted_proxies": ["127.0.0.1/32", "::1/128"]},
+            {"x-real-ip": "1.1.1.1", "x-forwarded-for": "8.8.8.8"},
+            "127.0.0.1",
+            "1.1.1.1",
+        ),
+        ({}, {"x-real-ip": "1.1.1.1"}, "127.0.0.1", "127.0.0.1"),
+        ({**CDN, **TRUSTED}, {"cf-connecting-ip": "8.8.8.8"}, "1.1.1.1", "1.1.1.1"),
+    ],
+)
+async def test_webhook_source_is_the_resolved_client(
+    monkeypatch, settings, headers, peer, expected
+):
     # Project
     from hyperglass.api import tasks
 
@@ -186,9 +202,14 @@ async def test_webhook_source_is_the_resolved_client(monkeypatch):
         async def send(self, query):
             sent.update(query)
 
-    class Request:
-        headers = {"cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "172.70.0.1, 10.0.0.3"}
-        client = type("Client", (), {"host": "10.0.0.2"})()
+    request = type(
+        "Request",
+        (),
+        {
+            "headers": headers,
+            "client": type("Client", (), {"host": peer})(),
+        },
+    )()
 
     class Data:
         def dict(self):
@@ -201,10 +222,10 @@ async def test_webhook_source_is_the_resolved_client(monkeypatch):
     monkeypatch.setattr(tasks, "network_info", network_info)
     params = Params(
         logging={"http": {"host": "https://hook.example.com"}},
-        web={"client_ip": {**CDN, **TRUSTED}},
+        web={"client_ip": settings},
     )
 
-    await tasks.send_webhook(params=params, data=Data(), request=Request(), timestamp=None)
+    await tasks.send_webhook(params=params, data=Data(), request=request, timestamp=None)
 
-    assert sent["source"] == "203.0.113.7"
+    assert sent["source"] == expected
     assert sent["network"] == {"asn": "64500"}

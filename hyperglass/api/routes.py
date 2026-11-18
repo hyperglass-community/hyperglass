@@ -72,6 +72,8 @@ async def myip(request: Request, family: int = 4) -> dict:
         return {"ip": None}
     if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
         address = address.ipv4_mapped
+    if not address.is_global or address.is_multicast or address.is_reserved:
+        return {"ip": None}
     return {"ip": str(address) if address.version == family else None}
 
 
