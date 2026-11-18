@@ -103,6 +103,8 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 ### Known issues and RC2 follow-up
 
 - Structured output must be opt-in on every platform, as implemented in Ultraglass. RC1 incorrectly restores automatic structured output on FRR, Juniper and Arista. Set `structured_output: false` on those devices to retain text until RC2 restores the opt-in policy.
+- Supplemental traceroute reverse-DNS lookup was removed during migration. Router-provided hostnames remain, but hops without a hostname no longer receive one through enrichment. RC2 must address this loss of Ultraglass behavior.
+- MikroTik BGP queries no longer retry an empty result with a higher delay factor. RC2 must address lost transient-result recovery while preserving immediate completion for genuine zero-route results.
 - Custom directives with permissive rules on shell-backed platforms remain unquoted. Use anchored allowlists. [#407](https://github.com/hyperglass-community/hyperglass/pull/407) supplies the remaining fix for [#383](https://github.com/hyperglass-community/hyperglass/issues/383), scheduled for RC2.
 - Automatic worker sizing still ignores container CPU limits. Set `HYPERGLASS_WORKERS` explicitly; [#356](https://github.com/hyperglass-community/hyperglass/issues/356) remains open.
 - The Juniper structured parser still requires a peer ASN, so responses that omit it can fail ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)). BIRD text-mode queries can still return a banner for an empty result ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
