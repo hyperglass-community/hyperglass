@@ -1,6 +1,5 @@
 import { Text, Tooltip, Badge, Link } from '@chakra-ui/react';
 import { Else, If, Then } from 'react-if';
-import { useColorValue } from '~/hooks';
 
 import type { TextProps } from '@chakra-ui/react';
 
@@ -161,11 +160,6 @@ export const LossField = (props: LossFieldProps): JSX.Element => {
     if (lossPercent < 50) return 'yellow.500';
     return 'red.500';
   };
-
-  const bgColor = useColorValue(
-    loss === 0 ? 'green.50' : loss < 50 ? 'yellow.50' : 'red.50',
-    loss === 0 ? 'green.900' : loss < 50 ? 'yellow.900' : 'red.900',
-  );
 
   return (
     <Badge

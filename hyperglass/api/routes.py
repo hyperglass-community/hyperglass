@@ -25,7 +25,6 @@ from hyperglass.models.api import Query
 from hyperglass.models.data import OutputDataModel
 from hyperglass.util.typing import is_type
 from hyperglass.execution.main import execute
-from hyperglass.execution.drivers.ssh_netmiko import device_delay_factor, delay_factor_override
 from hyperglass.models.api.response import QueryResponse
 from hyperglass.models.config.params import Params, APIParams
 from hyperglass.models.config.devices import Devices, APIDevice
@@ -48,84 +47,10 @@ __all__ = (
     "myip",
 )
 
-# MikroTik occasionally answers a BGP query before its routing table has finished
-# assembling, returning an empty route table on the first attempt. For MikroTik
-# BGP queries only, retry a few times (with a delay) while the result is empty.
-_MIKROTIK_PLATFORMS = ("mikrotik_routeros", "mikrotik_switchos", "mikrotik")
-_MIKROTIK_BGP_MAX_ATTEMPTS = 4
-_MIKROTIK_BGP_RETRY_DELAY = 10  # seconds
-# An empty table is also what a too-low delay factor returns on a slow link, so
-# each retry reads at the next step above the device's own factor (#106).
-_MIKROTIK_DELAY_FACTOR_STEPS = (3, 6, 10)
-
-
-def _delay_factor_steps(start: float) -> t.List[float]:
-    """Return the delay factor for each attempt, starting at the device's own."""
-    steps = [start, *(step for step in _MIKROTIK_DELAY_FACTOR_STEPS if step > start)]
-    return [steps[min(attempt, len(steps) - 1)] for attempt in range(_MIKROTIK_BGP_MAX_ATTEMPTS)]
-
-
-def _is_empty_bgp_table(output: t.Any) -> bool:
-    """Return whether output is a structured BGP table containing no routes."""
-    if not is_type(output, OutputDataModel):
-        return False
-    try:
-        raw = json.loads(output.export_json())
-    except Exception:
-        return False
-    return isinstance(raw, dict) and raw.get("count", None) == 0 and not raw.get("routes")
-
 
 async def _execute_query(data: "Query") -> t.Any:
-    """Execute a query, retrying MikroTik BGP queries that return an empty table."""
-    directive_name = getattr(getattr(data, "directive", None), "name", "") or ""
-    is_bgp_query = "bgp_" in data.query_type or "bgp" in directive_name.lower()
-    is_mikrotik_bgp = data.device.platform in _MIKROTIK_PLATFORMS and is_bgp_query
-    max_attempts = _MIKROTIK_BGP_MAX_ATTEMPTS if is_mikrotik_bgp else 1
-    factors = _delay_factor_steps(device_delay_factor(data.device)) if is_mikrotik_bgp else []
-
-    _log = log.bind(directive=data.query_type, device=data.device.name)
-    if is_mikrotik_bgp:
-        _log.bind(max_attempts=max_attempts, retry_delay=_MIKROTIK_BGP_RETRY_DELAY).debug(
-            "MikroTik BGP empty-table retry enabled"
-        )
-
-    output = None
-    for attempt in range(1, max_attempts + 1):
-        if attempt > 1:
-            _log.bind(
-                attempt=attempt,
-                max_attempts=max_attempts,
-                global_delay_factor=factors[attempt - 1],
-            ).warning(
-                "MikroTik returned empty BGP table - retrying after {}s", _MIKROTIK_BGP_RETRY_DELAY
-            )
-            await asyncio.sleep(_MIKROTIK_BGP_RETRY_DELAY)
-
-        token = delay_factor_override.set(factors[attempt - 1] if attempt > 1 else None)
-        try:
-            output = await execute(data)
-        finally:
-            delay_factor_override.reset(token)
-
-        if not (is_mikrotik_bgp and _is_empty_bgp_table(output)):
-            if attempt > 1 and factors[attempt - 1] > factors[0]:
-                _log.warning(
-                    "{!r} returned no routes at global_delay_factor={} and returned routes at {}. "
-                    "Set driver_config: {{global_delay_factor: {}}} on this device in devices.yaml",
-                    data.device.name,
-                    factors[0],
-                    factors[attempt - 1],
-                    factors[attempt - 1],
-                )
-            break
-
-    if is_mikrotik_bgp and _is_empty_bgp_table(output):
-        _log.bind(global_delay_factor=factors[-1]).info(
-            "MikroTik returned no routes at the highest delay factor"
-        )
-
-    return output
+    """Execute once; a valid empty route table is a completed query."""
+    return await execute(data)
 
 
 # Cap the number of ASNs accepted per enrichment request to bound outbound lookups.
@@ -201,6 +126,8 @@ async def myip(request: Request, family: int = 4) -> dict:
 @get("/api/query/{query_id:str}/enrichment")
 async def query_enrichment(query_id: str) -> dict:
     """Return the current output and enrichment status for a cached query."""
+    if not re.fullmatch(r"hyperglass\.query\.[0-9a-f]{64}", query_id):
+        return {"status": "not_found"}
     from hyperglass.state import use_state
 
     cache = use_state("redis")
@@ -300,7 +227,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
                 structured=data.device.structured_output or False,
             )
         else:
-            # Pass request to execution module (retries empty MikroTik BGP tables)
+            # Pass the request to the execution module once.
             output = await _execute_query(data)
 
         endtime = time.time()

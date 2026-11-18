@@ -1,10 +1,10 @@
-# Ultraglass multi-vendor lab. A GoBGP core sends a real full table (RIPE RIS
-# rrc19, NAPAfrica Johannesburg) to every device under test. Ultraglass queries
+# Hyperglass multi-vendor lab. A GoBGP core sends a real full table (RIPE RIS
+# rrc19, NAPAfrica Johannesburg) to every device under test. Hyperglass queries
 # each device over the management network.
-name: ultraglass
+name: hyperglass
 
 mgmt:
-  network: ultraglass-mgmt
+  network: hyperglass-mgmt
   ipv4-subnet: 192.168.250.0/24
   ipv6-subnet: fd00:250:ffff::/64
 
@@ -14,7 +14,7 @@ topology:
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.250.10
       mgmt-ipv6: fd00:250:ffff::10
       binds:
@@ -40,7 +40,7 @@ topology:
 
     frr:
       kind: linux
-      image: ultraglass-lab/frr:latest
+      image: hyperglass-lab/frr:latest
       mgmt-ipv4: 192.168.250.11
       mgmt-ipv6: fd00:250:ffff::11
       binds:
@@ -58,7 +58,7 @@ topology:
 
     bird:
       kind: linux
-      image: ultraglass-lab/bird:latest
+      image: hyperglass-lab/bird:latest
       mgmt-ipv4: 192.168.250.12
       mgmt-ipv6: fd00:250:ffff::12
       binds:
@@ -72,7 +72,7 @@ topology:
 
     openbgpd:
       kind: linux
-      image: ultraglass-lab/openbgpd:latest
+      image: hyperglass-lab/openbgpd:latest
       mgmt-ipv4: 192.168.250.13
       mgmt-ipv6: fd00:250:ffff::13
       binds:
@@ -86,7 +86,7 @@ topology:
 
     mikrotik:
       kind: mikrotik_ros
-      image: ultraglass-lab/mikrotik_routeros:7.16.2
+      image: hyperglass-lab/mikrotik_routeros:7.16.2
       mgmt-ipv4: 192.168.250.14
       mgmt-ipv6: fd00:250:ffff::14
       startup-config: configs/mikrotik/config.auto.rsc
@@ -100,7 +100,7 @@ topology:
 
     junos:
       kind: juniper_vjunosrouter
-      image: ultraglass-lab/juniper_vjunos-router:26.2R1.7
+      image: hyperglass-lab/juniper_vjunos-router:26.2R1.7
       mgmt-ipv4: 192.168.250.16
       mgmt-ipv6: fd00:250:ffff::16
       startup-config: configs/vjunos/config.conf
@@ -112,11 +112,11 @@ topology:
       mgmt-ipv6: fd00:250:ffff::17
       startup-config: configs/arista/ceos.cfg
 
-    # CE12800 V200R005C10SPC607B607 runs VRP 8.180: Ultraglass platform huawei_vrpv8,
+    # CE12800 V200R005C10SPC607B607 runs VRP 8.180: Hyperglass platform huawei_vrpv8,
     # locations lab-huawei-vrpv8 and lab-huawei-vrpv8-vrf (#103).
     huawei:
       kind: huawei_vrp
-      image: ultraglass-lab/huawei_vrp:ce12800-V200R005C10SPC607B607
+      image: hyperglass-lab/huawei_vrp:ce12800-V200R005C10SPC607B607
       mgmt-ipv4: 192.168.250.18
       mgmt-ipv6: fd00:250:ffff::18
 
@@ -124,13 +124,13 @@ topology:
     # lab-huawei-ne40 and lab-huawei-ne40-vrf (#103). Build: scripts/build-huawei.sh ne40e.
     huawei-ne40:
       kind: huawei_vrp
-      image: ultraglass-lab/huawei_vrp:ne40e-eveng
+      image: hyperglass-lab/huawei_vrp:ne40e-eveng
       mgmt-ipv4: 192.168.250.32
       mgmt-ipv6: fd00:250:ffff::32
 
     iol:
       kind: cisco_iol
-      image: ultraglass-lab/cisco_iol:17.18.02
+      image: hyperglass-lab/cisco_iol:17.18.02
       mgmt-ipv4: 192.168.250.19
       mgmt-ipv6: fd00:250:ffff::19
       env:
@@ -140,7 +140,7 @@ topology:
     ioll2:
       kind: cisco_iol
       type: l2
-      image: ultraglass-lab/cisco_iol:L2-17.18.02
+      image: hyperglass-lab/cisco_iol:L2-17.18.02
       mgmt-ipv4: 192.168.250.20
       mgmt-ipv6: fd00:250:ffff::20
       env:
@@ -154,10 +154,10 @@ topology:
       mgmt-ipv6: fd00:250:ffff::3
       cmd: redis-server --save "" --appendonly no
 
-    ultraglass:
+    hyperglass:
       kind: linux
-      # lab-up.sh --image sets ULTRAGLASS_IMAGE; the default is the local dev build.
-      image: ${ULTRAGLASS_IMAGE:=ultraglass-lab/ultraglass:dev}
+      # lab-up.sh --image sets HYPERGLASS_IMAGE; the default is the local dev build.
+      image: ${HYPERGLASS_IMAGE:=hyperglass-lab/hyperglass:dev}
       mgmt-ipv4: 192.168.250.2
       mgmt-ipv6: fd00:250:ffff::2
       env:
@@ -168,17 +168,17 @@ topology:
         HYPERGLASS_DISABLE_UI: "false"
         HYPERGLASS_CONTAINER: "true"
       binds:
-        - configs/ultraglass:/etc/hyperglass
+        - configs/hyperglass:/etc/hyperglass
       ports:
         - 127.0.0.1:8001:8001
 
     # Same image and devices with structured output off everywhere, so every
     # query can be cross-checked against plain device text. Own Redis DB so
     # neither instance can serve the other's cached result.
-    ultraglass-text:
+    hyperglass-text:
       kind: linux
-      # lab-up.sh --image sets ULTRAGLASS_IMAGE; the default is the local dev build.
-      image: ${ULTRAGLASS_IMAGE:=ultraglass-lab/ultraglass:dev}
+      # lab-up.sh --image sets HYPERGLASS_IMAGE; the default is the local dev build.
+      image: ${HYPERGLASS_IMAGE:=hyperglass-lab/hyperglass:dev}
       mgmt-ipv4: 192.168.250.4
       mgmt-ipv6: fd00:250:ffff::4
       env:
@@ -190,7 +190,7 @@ topology:
         HYPERGLASS_DISABLE_UI: "false"
         HYPERGLASS_CONTAINER: "true"
       binds:
-        - configs/ultraglass-text:/etc/hyperglass
+        - configs/hyperglass-text:/etc/hyperglass
       ports:
         - 127.0.0.1:8002:8002
 

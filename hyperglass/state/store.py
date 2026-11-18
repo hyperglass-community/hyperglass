@@ -2,6 +2,7 @@
 
 # Standard Library
 import typing as t
+import asyncio
 
 # Project
 from hyperglass.exceptions.private import StateError
@@ -68,22 +69,27 @@ class HyperglassState(StateManager):
             self.redis.instance.delete(*batch)
 
     def _required(self, key: str) -> t.Any:
-        """Read a value that must exist, rebuilding state if it has been lost.
-
-        Redis is cache-only, so a flush or a replaced Redis container empties the store
-        while hyperglass is running and leaves every one of these reads failing until
-        the process is restarted. Rebuild and read again instead.
-
-        This sits on the property rather than on `use_state`, because the properties are
-        read directly off a state instance on the hot paths (`Query.device` and the query
-        route both do it), and those reads never pass through `use_state`.
-        """
+        """Recover missing state for synchronous callers without blocking an event loop."""
         try:
             return self.redis.get(key, raise_if_none=True)
         except StateError:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+            else:
+                # The request hook recovers asynchronously before handlers run. If
+                # Redis disappears during a request, fail this read and recover on
+                # the next request rather than blocking every request on this worker.
+                raise
             if not rebuild_state(self.redis):
                 raise
             return self.redis.get(key, raise_if_none=True)
+
+    async def ensure_ready(self) -> None:
+        """Recover configuration and plugins outside the request event loop."""
+        if not await asyncio.to_thread(rebuild_state, self.redis):
+            raise StateError("Hyperglass state is unavailable")
 
     @property
     def cache(self) -> "RedisManager":

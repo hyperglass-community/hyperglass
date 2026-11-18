@@ -1,6 +1,6 @@
 # OcNOS acceptance lab
 
-Supply a compatible licensed OcNOS 6.5+ container image through `OCNOS_IMAGE`. The topology uses a separate management network and the `ultraglass-lab/core:latest` BGP peer. Live validation remains pending.
+Supply a compatible licensed OcNOS 6.5+ container image through `OCNOS_IMAGE`. The topology uses a separate management network and the `hyperglass-lab/core:latest` BGP peer. Live validation remains pending.
 
 From the repository root:
 

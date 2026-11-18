@@ -1,4 +1,4 @@
-"""Parse AS-path and community captures of the lab test routes (#22, #25).
+"""Parse AS-path and community captures of the lab test routes.
 
 The lab core advertises 1.0.0.0/24 and 2606:4700:4700::/48 with AS path 64999 13335,
 community 65000:777 and large community 65000:777:1. No other route carries them.
@@ -44,7 +44,7 @@ def test_arista_aspath6():
 
 @pytest.mark.parametrize("family", (4, 6))
 def test_arista_community_detail(family):
-    """The address-family detail form keeps communities (#66)."""
+    """The address-family detail form keeps communities."""
     table = parse_arista(
         [(FIXTURES / "arista-live" / f"community{family}_detail.json").read_text()]
     )
@@ -65,7 +65,7 @@ def test_mikrotik(kind):
 @pytest.mark.parametrize("family", (4, 6))
 @pytest.mark.parametrize("platform", ("frr", "vyos"))
 def test_frr_community_detail(platform, family):
-    """`json detail` keeps standard and large communities (#67)."""
+    """`json detail` keeps standard and large communities."""
     raw = (FIXTURES / f"{platform}-live" / f"community{family}_detail.json").read_text()
     table = parse_frr([raw])
     assert [route.prefix for route in table.routes] == [PREFIXES[family]]
@@ -76,7 +76,7 @@ def test_frr_community_detail(platform, family):
 @pytest.mark.parametrize("family", (4, 6))
 @pytest.mark.parametrize("kind", ("aspath", "community"))
 def test_juniper(kind, family):
-    """Junos large communities lose the `large:` prefix (#82)."""
+    """Junos large communities lose the `large:` prefix."""
     table = parse_juniper([(FIXTURES / "juniper-live" / f"{kind}{family}.xml").read_text()])
     assert [route.prefix for route in table.routes] == [PREFIXES[family]]
     assert table.routes[0].as_path == [65000, 64999, 13335]

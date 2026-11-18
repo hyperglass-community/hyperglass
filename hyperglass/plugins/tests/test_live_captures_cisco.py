@@ -1,4 +1,4 @@
-"""Captured Cisco IOS-XR, NX-OS and IOSv lab output (#99, #100)."""
+"""Captured Cisco IOS-XR, NX-OS and IOSv lab output."""
 
 # Standard Library
 from pathlib import Path

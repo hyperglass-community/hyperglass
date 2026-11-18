@@ -1,6 +1,6 @@
 """Feature coverage for every lab device, one case per (device, query).
 
-Each case asserts the shape Ultraglass should return from a real device holding
+Each case asserts the shape Hyperglass should return from a real device holding
 a full table. Cases for known, filed bugs are marked xfail with the issue
 number, so the suite stays green until a fix lands and then flags the xpass.
 
@@ -12,7 +12,7 @@ Expectation kinds:
               where the device prints its table header even with no match
 
 The suite runs against the structured instance (8001) by default. Set
-ULTRAGLASS_LAB_TEXT=1 with ULTRAGLASS_LAB_API=http://127.0.0.1:8002/api to run
+HYPERGLASS_LAB_TEXT=1 with HYPERGLASS_LAB_API=http://127.0.0.1:8002/api to run
 it against the text instance: `_table` ids become their text ids and every
 structured case expects text.
 

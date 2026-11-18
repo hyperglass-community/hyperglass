@@ -1,4 +1,4 @@
-"""Run complete FRR and RouterOS device captures through their parsers (#25)."""
+"""Run complete FRR and RouterOS device captures through their parsers."""
 
 import json
 from pathlib import Path
@@ -44,7 +44,7 @@ def test_captured_complete_trace(platform):
 
 
 def test_captured_trace_in_flight_hop_is_unanswered():
-    """An in-flight hop with no address shows as unanswered, not 0% loss (#138).
+    """An in-flight hop with no address shows as unanswered, not 0% loss.
 
     The fixture is the first page (cut at the paging prompt) of a lab-mikrotik
     capture from the 2026-10-30 rc.2 lab run: RouterOS prints hop 9

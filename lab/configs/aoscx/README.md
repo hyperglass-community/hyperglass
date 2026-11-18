@@ -1,6 +1,6 @@
 # AOS-CX acceptance lab
 
-Supply a compatible AOS-CX 10.14 container image through `AOSCX_IMAGE`. The topology uses `ultraglass-lab/core:latest` for its BGP peer. Live validation remains pending.
+Supply a compatible AOS-CX 10.14 container image through `AOSCX_IMAGE`. The topology uses `hyperglass-lab/core:latest` for its BGP peer. Live validation remains pending.
 
 ```sh
 sudo env AOSCX_IMAGE=your-local-aoscx-image containerlab deploy -t lab/hyperglass-aoscx.clab.yml

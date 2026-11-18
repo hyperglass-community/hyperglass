@@ -1,9 +1,9 @@
 # On-demand platform appliances. Start one with: sh platform.sh start <node>
 # Separate from the full-table topology so lab-up.sh cannot start these VMs.
-name: ultraglass-platforms
+name: hyperglass-platforms
 
 mgmt:
-  network: ultraglass-mgmt
+  network: hyperglass-mgmt
   ipv4-subnet: 192.168.250.0/24
   ipv6-subnet: fd00:250:ffff::/64
 
@@ -25,7 +25,7 @@ topology:
 
     sonic:
       kind: sonic-vm
-      image: ultraglass-lab/sonic_sonic-vs:202505.1238524
+      image: hyperglass-lab/sonic_sonic-vs:202505.1238524
       mgmt-ipv4: 192.168.250.21
       memory: 5GiB
       cpu: 2
@@ -34,7 +34,7 @@ topology:
 
     exos:
       kind: generic_vm
-      image: ultraglass-lab/extreme_exos:32.7.2.19
+      image: hyperglass-lab/extreme_exos:32.7.2.19
       mgmt-ipv4: 192.168.250.22
       memory: 2GiB
       cpu: 2
@@ -49,7 +49,7 @@ topology:
 
     voss:
       kind: generic_vm
-      image: ultraglass-lab/extreme_voss:9.4.0.0
+      image: hyperglass-lab/extreme_voss:9.4.0.0
       mgmt-ipv4: 192.168.250.23
       memory: 3GiB
       cpu: 2
@@ -64,7 +64,7 @@ topology:
 
     xrd:
       kind: cisco_xrd
-      image: ultraglass-lab/cisco_xrd:24.2.11
+      image: hyperglass-lab/cisco_xrd:24.2.11
       mgmt-ipv4: 192.168.250.24
       memory: 4GiB
       cpu: 2
@@ -72,7 +72,7 @@ topology:
 
     iosv:
       kind: cisco_vios
-      image: ultraglass-lab/cisco_vios:15.9.3M6
+      image: hyperglass-lab/cisco_vios:15.9.3M6
       mgmt-ipv4: 192.168.250.25
       memory: 2GiB
       cpu: 2
@@ -86,7 +86,7 @@ topology:
 
     nexus:
       kind: cisco_n9kv
-      image: ultraglass-lab/cisco_n9kv:9300-lite-10.4.8.M
+      image: hyperglass-lab/cisco_n9kv:9300-lite-10.4.8.M
       mgmt-ipv4: 192.168.250.26
       memory: 10GiB
       cpu: 4
@@ -102,7 +102,7 @@ topology:
       type: vsr-i
       config-mode: classic
       inject-ssh-keys: false
-      image: ultraglass-lab/nokia_sros:15.0.R3
+      image: hyperglass-lab/nokia_sros:15.0.R3
       mgmt-ipv4: 192.168.250.27
       memory: 10GiB
       cpu: 2
@@ -117,7 +117,7 @@ topology:
 
     routeros6:
       kind: mikrotik_ros
-      image: ultraglass-lab/mikrotik_routeros:6.49.19
+      image: hyperglass-lab/mikrotik_routeros:6.49.19
       mgmt-ipv4: 192.168.250.28
       memory: 2GiB
       cpu: 1
@@ -131,7 +131,7 @@ topology:
 
     os9:
       kind: generic_vm
-      image: ultraglass-lab/dell_os9:9.13.0.0
+      image: hyperglass-lab/dell_os9:9.13.0.0
       mgmt-ipv4: 192.168.250.29
       memory: 2GiB
       cpu: 1

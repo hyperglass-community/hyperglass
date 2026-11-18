@@ -1,4 +1,4 @@
-"""Captured CE12800 regressions for #20, #22 and #25."""
+"""Captured CE12800 parsing regressions."""
 
 from pathlib import Path
 
@@ -32,7 +32,7 @@ def test_complete_captured_tables(name, count):
     use_state("params").structured.rpki.mode = "router"
     table = parse_huawei((sample(name),))
     if count == 0:
-        # No matching routes gives no table, so the query reports no results (#196).
+        # No matching routes gives no table, so the query reports no results.
         assert table is None
         return
     assert table.count == len(table.routes) == count
@@ -66,7 +66,7 @@ def test_merge_address_families():
     ],
 )
 def test_brief_table_converts_asdot_to_asplain(name, paths):
-    """Regression for #132: VRP prints 4-byte ASNs in asdot (`5.280` is 327960)."""
+    """VRP prints 4-byte ASNs in asdot (`5.280` is 327960)."""
     table = parse_huawei((sample(name),))
     assert [route.as_path for route in table.routes] == paths
 
@@ -78,7 +78,7 @@ def test_brief_table_rejects_out_of_range_asdot():
 
 
 def test_detailed_route_weight_is_pref_val_not_route_preference():
-    """Regression for #132: `pre 255` is the route preference; weight is `pref-val`."""
+    """`pre 255` is the route preference; weight is `pref-val`."""
     table = parse_huawei((sample("route4-asdot"),))
     (route,) = table.routes
     assert route.weight == 0

@@ -3,6 +3,7 @@
 # Standard Library
 import typing as t
 import re
+import asyncio
 from abc import ABC, abstractmethod
 
 # Project
@@ -21,7 +22,7 @@ COMMAND_ERROR = re.compile(
     r"|sudo:\s[^\n]*(?:password is required|not allowed|not in the sudoers|command not found)"
     r"|(?:[\w/.-]+:\s*)?(?:Permission denied|Operation not permitted)\s*$"
     r"|(?:traceroute|ping|bgpctl|birdc):[^\n]*(?:not permitted|Permission denied|invalid|unknown)"
-    # Huawei VRP: `Error: Too many parameters ...`, `Error[4]: ...` on the NE40E (#155).
+    # Huawei VRP: `Error: Too many parameters ...`, `Error[4]: ...` on the NE40E.
     r"|Error(?:\[\d+\])?:\s*(?:Wrong parameter|Unrecognized command|Incomplete command"
     r"|Too many parameters)"
     r"|unknown argument:|failure:\s|bad command name\b"
@@ -69,7 +70,9 @@ class Connection(ABC):
         if command_error(output):
             raise DeviceCommandError(device_name=self.device.name)
 
-        response = self.plugin_manager.execute(output=output, query=self.query_data)
+        response = await asyncio.to_thread(
+            self.plugin_manager.execute, output=output, query=self.query_data
+        )
 
         if response is None:
             response = ()

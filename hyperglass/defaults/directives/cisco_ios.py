@@ -114,7 +114,7 @@ CiscoIOS_Traceroute = BuiltinDirective(
             action="permit",
             command="traceroute ipv6 {target} timeout 1 probe 2 source {source6}",
             # Classic IOS (before IOS XE 16) accepts no options after an IPv6 destination
-            # and traces from its routed source address (#109).
+            # and traces from its routed source address.
             fallback_command="traceroute ipv6 {target}",
             fallback_os_version="<16",
         ),

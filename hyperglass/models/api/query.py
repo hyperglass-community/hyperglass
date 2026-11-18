@@ -220,11 +220,16 @@ class Query(BaseModel):
             params = None
 
         # Decide which top-level structured enable flag to consult
-        feature_flag_name = None
-        if getattr(self, "query_type", None) == "traceroute":
-            feature_flag_name = "enable_for_traceroute"
-        elif getattr(self, "query_type", None) in ("bgp_route", "bgp_routestr"):
-            feature_flag_name = "enable_for_bgp_route"
+        directive = getattr(self, "directive", None)
+        if directive is None:
+            matches = device.directives.matching(self.query_type)
+            directive = matches[0] if len(matches) else None
+        query_kind = getattr(directive, "query_kind", self.query_type)
+        feature_flag_name = {
+            "traceroute": "enable_for_traceroute",
+            "bgp_route": "enable_for_bgp_route",
+            "bgp_routestr": "enable_for_bgp_route",
+        }.get(query_kind)
 
         effective_structured = bool(getattr(device, "structured_output", False))
 
