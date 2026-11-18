@@ -8,21 +8,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## 3.0.0-rc.1 - 2026-11-18
 
-This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat it as a stable release. The image is `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.1`. The `latest` tag does not move. Read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.1/docs/content/installation/upgrading.mdx) before you upgrade, and report a defect as a [new issue](https://github.com/hyperglass-community/hyperglass/issues/new/choose) that names this version.
+This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat it as a stable release. The image is `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.1`. The `latest` tag does not move. Report a defect as a [new issue](https://github.com/hyperglass-community/hyperglass/issues/new/choose) that names this version.
+
+Hyperglass 3.0.0 incorporates the Ultraglass 3.6.2 implementation through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390). Every issue and community pull request that this release resolves has the [`fixed-in-next-release`](https://github.com/hyperglass-community/hyperglass/issues?q=label%3Afixed-in-next-release) label.
+
+### Upgrading from 2.0.4
+
+Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.1/docs/content/installation/upgrading.mdx). These changes can require a configuration change:
+
+- Forwarding headers require a trusted proxy. An installation behind a reverse proxy must set `web.client_ip.trusted_proxies`, or My IP, the webhook `source` and the per-client limits use the proxy address.
+- `/api/dns` and `/api/aspath/enrich` are disabled by default. `web.dns_provider.name: server` and `web.aspath_enrichment: true` enable them.
+- The default listen address is `::1`. A reverse proxy must use `[::1]:8001`, or `HYPERGLASS_HOST` must name another address.
+- FRR, Juniper and Arista keep their structured-output defaults. Every other platform requires `structured_output: true`.
+- Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`.
+- Python 3.11 or later and Node.js 22.13 or later are required for a manual installation.
+
+### Security
+
+- Reject control characters and line separators in query targets, including targets accepted by custom directives. Restrict IPv6 zone identifiers to letters, digits and hyphens before command construction ([#392](https://github.com/hyperglass-community/hyperglass/pull/392)). Part of [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
+- Validate built-in directive targets again at the command boundary ([#393](https://github.com/hyperglass-community/hyperglass/pull/393)).
+- Limit the server DNS and ASN lookup endpoints: both are off by default, have global and per-client request limits, and server DNS returns public addresses only ([#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
+- Read forwarding headers only from the proxies in `web.client_ip.trusted_proxies` ([#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
+- The ArcOS BGP Route directive queries the requested prefix only, and a parser failure returns an error instead of raw device output ([#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- Support bundles export metadata only. They no longer include free-form messages or exception values ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- Known limit: a custom directive with a permissive rule on a shell-based platform does not quote its target. Use an anchored allowlist rule. See [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
+
+### Added
+
+- Structured BGP and traceroute results for more platforms, with RPKI state, communities, ASN names and an AS path view ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#399](https://github.com/hyperglass-community/hyperglass/pull/399), [#400](https://github.com/hyperglass-community/hyperglass/pull/400)).
+- Built-in platforms `aruba_aoscx`, `cumulus_linux`, `dell_force10`, `dell_os10`, `fortinet`, `hp_comware`, `ipinfusion_ocnos` and `paloalto_panos` ([#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- VRF queries through built-in directives and device `vrf` settings ([#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
+- The `hyperglass onboard` command, which creates and tests device entries, checks feature settings and scaffolds custom directives ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- Support bundle export for defect reports ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- Connection retry, readiness checks and state recovery for device transports ([#396](https://github.com/hyperglass-community/hyperglass/pull/396)).
+- A containerlab test lab under `lab/` ([#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- New documentation site content, guides and a complete configuration example ([#403](https://github.com/hyperglass-community/hyperglass/pull/403)). Source release history remains in the [Ultraglass repository](https://github.com/WilhelmZA/ultraglass/blob/90e2f3ab260820f49cd99872d779dc8083d9e9b3/CHANGELOG.md); its release numbers are not Hyperglass release numbers.
+- [#304](https://github.com/thatmattlove/hyperglass/pull/304): Add FRR structured output for BGP Routes - @chriswiggins
 
 ### Changed
 
 - Updated the Python package, runtime metadata, UI package and documentation package to 3.0.0-rc.1.
-- Forwarding headers require a trusted proxy. An installation behind a reverse proxy must set `web.client_ip.trusted_proxies`.
-- `/api/dns` and `/api/aspath/enrich` are disabled by default. `web.dns_provider.name: server` and `web.aspath_enrichment: true` enable them, with request limits.
-- The default listen address is `::1`.
-- Support bundles export metadata only.
-
-### Added
-
-- Transfer the Ultraglass 3.6.2 application baseline through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390), including structured results, router implementations, configuration, onboarding and support tools.
-- Transfer the documentation framework, guides and complete configuration example. Source release history remains in the [Ultraglass repository](https://github.com/WilhelmZA/ultraglass/blob/90e2f3ab260820f49cd99872d779dc8083d9e9b3/CHANGELOG.md); its release numbers are not Hyperglass release numbers.
-- [#304](https://github.com/thatmattlove/hyperglass/pull/304): Add FRR structured output for BGP Routes - @chriswiggins
+- Python packaging and the container image install from locked requirements, and Click is constrained below 8.2 for Typer compatibility ([#394](https://github.com/hyperglass-community/hyperglass/pull/394), [#389](https://github.com/hyperglass-community/hyperglass/pull/389)).
+- The UI builds with pnpm 11 and Node.js 22.13 or later ([#395](https://github.com/hyperglass-community/hyperglass/pull/395)).
+- The Docker image is published to `ghcr.io/hyperglass-community/hyperglass` on version tags only. A vulnerability scan with a fixed HIGH or CRITICAL finding blocks publication ([#389](https://github.com/hyperglass-community/hyperglass/pull/389), [#404](https://github.com/hyperglass-community/hyperglass/pull/404)).
+- The unused BGP community input plugin is removed. Built-in syntax checks and directive rules still validate community targets.
 
 ### Fixed
 
@@ -31,7 +60,7 @@ This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat 
 - [#306](https://github.com/thatmattlove/hyperglass/issues/306): Fix: allow integer values in ext_community_list_raw field for Arista BGP - @cooperwinser
 - [#311](https://github.com/thatmattlove/hyperglass/issues/311): Fix: device and directive errors.
 - [#315](https://github.com/thatmattlove/hyperglass/issues/315): Impossibile to use command "BGP Route" with Huawei NetEngine 8000 
-- [#315](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei
+- [#187](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei
 - [#325](https://github.com/thatmattlove/hyperglass/pull/325): Fix code block padding in the documentation - @jagardaniel
 - [#332](https://github.com/thatmattlove/hyperglass/pull/332): Fix custom proxy port support in SSH proxy tunnels @jessiebryan 
 
