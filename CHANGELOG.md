@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Return HTTP 400 with the failed fields for malformed query requests. Request validation errors previously returned HTTP 200 and were logged as critical ([#412](https://github.com/hyperglass-community/hyperglass/pull/412)).
+
 ## 3.0.0-rc.2 - 2026-11-19
 
 This release candidate replaces 3.0.0-rc.1, which was not released. Lab testing of 3.0.0-rc.1 found defects that block it.
