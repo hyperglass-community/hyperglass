@@ -40,3 +40,7 @@ services:
 | `HYPERGLASS_PORT`           | number  | `8001`            | TCP port on which Hyperglass listens for requests.                                                                 |
 | `HYPERGLASS_WORKERS`        | number  | —                 | Number of web server workers. If not supplied, Hyperglass uses 1 worker in debug mode, else 2 workers per CPU core. |
 | `HYPERGLASS_CA_CERT`        | string  | —                 | Path to a CA certificate file. Hyperglass uses it to validate HTTPS certificates on outbound requests. If not supplied, system CAs are used.               |
+
+### Docker Compose port binding
+
+`HYPERGLASS_BIND_ADDRESS` defaults to `0.0.0.0` and controls the host address for the published Docker port. Set it to `127.0.0.1` when nginx runs on the Docker host. Put this Compose-only variable in `.env` beside `compose.yaml` or export it in the shell; `hyperglass.env` does not configure Compose. Keep `HYPERGLASS_HOST=0.0.0.0` inside the container. See [Docker client-address setup](docker.mdx#client-addresses-and-host-nginx) for the required proxy trust configuration.

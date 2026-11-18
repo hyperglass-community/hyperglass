@@ -38,3 +38,13 @@ ln -s /etc/nginx/sites-available/hyperglass /etc/nginx/sites-enabled/hyperglass
 Change the `lg.example.com` value to match your Hyperglass FQDN.
 
 Change the `<path to cert chain>` and `<path to key>` values to match the path to your certificate and private key files.
+
+## Client addresses
+
+Hyperglass ignores forwarding headers until you list the proxy in `web.client_ip.trusted_proxies`. Without that setting, the My IP button, the webhook `source` and the per-client limits use the proxy address. See [Client Address](/configuration/config/web-ui.mdx#client-address). For a proxy on the same host:
+
+```yaml filename="config.yaml" copy
+web:
+    client_ip:
+        trusted_proxies: ["127.0.0.1/32", "::1/128"]
+```

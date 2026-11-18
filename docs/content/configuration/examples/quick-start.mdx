@@ -76,7 +76,7 @@ org_name: "SecureNet"
 primary_asn: 65001
 
 web:
-  # Resolve FQDN targets on the Hyperglass server, not with a public DoH provider
+  # Resolve FQDN targets through the Hyperglass server, not from the visitor's browser
   dns_provider:
     name: "server"
 
@@ -102,7 +102,7 @@ The greeting text comes from the file that `web.greeting.file` names:
 ```markdown filename="/etc/hyperglass/privacy.md"
 ## Privacy Notice
 
-- This server resolves hostnames. Your browser sends no DNS query to a third party.
+- This server looks up hostnames through Cloudflare's public DNS resolver. Your browser sends no DNS query to a third party.
 - The My IP button reads your address from your request to this server.
 - The server logs the location, type and target of each query.
 ```

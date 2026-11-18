@@ -268,8 +268,8 @@ web:
 
   # How the browser resolves a hostname typed as a target.
   #   cloudflare / google - DNS-over-HTTPS from the visitor's browser.
-  #   server - resolve on the Hyperglass server through /api/dns, for networks that
-  #            block public DNS-over-HTTPS.
+  #   server - resolve through /api/dns on the Hyperglass server, which asks
+  #            Cloudflare's public resolver. Public A and AAAA records only.
   #   custom - your own DNS-over-HTTPS endpoint in url (required).
   # Default: cloudflare
   dns_provider:
@@ -277,25 +277,30 @@ web:
     url: "https://doh.example.com/dns-query"
 
   # How the My IP button finds the visitor's address.
-  #   server   - the address the request came from (X-Real-IP / X-Forwarded-For
-  #              behind a proxy). No third party is contacted.
+  #   server   - the address the request came from (the forwarded address behind
+  #              a trusted proxy). No third party is contacted.
   #   external - look it up with myip.wtf after the visitor confirms.
   #   off      - hide the button.
   # Default: server
   my_ip: "server"
 
+  # Enable /api/aspath/enrich, which the AS path view uses to look up ASN names
+  # at bgp.tools.
+  # Default: false
+  aspath_enrichment: false
+
   # How Hyperglass identifies the visitor behind reverse proxies or a CDN. Server
-  # My IP, the /api/dns rate limit and the webhook source all use this address.
+  # My IP, the per-client lookup limits and the webhook source all use this address.
   client_ip:
-    # Request header that carries the visitor's address, read before X-Real-IP and
-    # X-Forwarded-For. Set it when a CDN is in front of your reverse proxy, for
-    # example CF-Connecting-IP, True-Client-IP or Fastly-Client-IP.
+    # Single-address header that the trusted proxy overwrites. Set it when a CDN is
+    # in front of your reverse proxy, for example CF-Connecting-IP, True-Client-IP
+    # or Fastly-Client-IP. When unset, X-Forwarded-For is read.
     # Default: unset
     header: "CF-Connecting-IP"
-    # Networks of the proxies that connect to Hyperglass. When set, client address
-    # headers are read only from these peers, and any other peer is the client.
-    # Set it when a client can reach Hyperglass without going through the proxy.
-    # Default: [] (headers are read from every peer)
+    # Networks of the proxies that connect to Hyperglass. Client address headers
+    # are read only from these peers, and any other peer is the client. Set it on
+    # every installation behind a reverse proxy.
+    # Default: [] (headers are ignored)
     trusted_proxies:
       - "10.0.0.0/8"
       - "fd00::/8"
