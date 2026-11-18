@@ -6,17 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## 3.0.0-rc.1 - 2026-11-18
+## 3.0.0-rc.2 - Unreleased
 
-This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat it as a stable release. The image is `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.1`. The `latest` tag does not move. Report a defect as a [new issue](https://github.com/hyperglass-community/hyperglass/issues/new/choose) that names this version.
+This release candidate replaces 3.0.0-rc.1, which was not released. Lab testing of 3.0.0-rc.1 found defects that block it.
+
+This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat it as a stable release. The image is `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2`. The `latest` tag does not move. Report a defect as a [new issue](https://github.com/hyperglass-community/hyperglass/issues/new/choose) that names this version.
 
 Hyperglass 3.0.0 incorporates the Ultraglass 3.6.2 implementation through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390). It adds router support, structured results, configuration controls, onboarding and runtime recovery. The Python package, CLI, configuration paths, environment variables and service names remain `hyperglass`. Ultraglass release numbers are separate from Hyperglass release numbers.
 
 ### Upgrading from 2.0.4
 
-Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.1/docs/content/installation/upgrading.mdx). These changes can require a configuration change:
+Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.2/docs/content/installation/upgrading.mdx). These changes can require a configuration change:
 
-- RC1 enables structured output by default on FRR, Juniper and Arista. Other supported platforms require `structured_output: true`. Set `structured_output: false` explicitly to force text. The default-on behaviour is a migration regression against Ultraglass's opt-in policy; see Known issues below.
+- This candidate enables structured output by default on FRR, Juniper and Arista. Other supported platforms require `structured_output: true`. Set `structured_output: false` explicitly to force text. The default-on behaviour is a migration regression against Ultraglass's opt-in policy; see Known issues below.
 - Forwarding headers require a trusted proxy. Configure `web.client_ip.trusted_proxies` with the actual connecting proxy addresses. Set `web.client_ip.header` only for a single-address header that the trusted proxy overwrites; otherwise Hyperglass processes `X-Forwarded-For` from right to left.
 - My IP defaults to server-side detection. It returns `null` for non-public addresses, including private proxy addresses, without automatically contacting a public service. Select `web.my_ip: external` explicitly to use the external lookup, or `off` to hide the control.
 - `/api/dns` and `/api/aspath/enrich` are disabled by default. `web.dns_provider.name: server` and `web.aspath_enrichment: true` enable them.
@@ -42,7 +44,7 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 
 ### Added
 
-- Structured BGP tables and traceroute results across supported router platforms, with route attributes, hop timing and loss, communities and AS-path visualization. BGP stays text on platforms with traceroute-only structured support. See the [platform reference](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.1/docs/content/platforms.mdx) for per-platform capabilities ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- Structured BGP tables and traceroute results across supported router platforms, with route attributes, hop timing and loss, communities and AS-path visualization. BGP stays text on platforms with traceroute-only structured support. See the [platform reference](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.2/docs/content/platforms.mdx) for per-platform capabilities ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
 - Built-in directives for `aruba_aoscx`, `arrcus_arcos`, `cumulus_linux`, `dell_force10`, `dell_os10`, `extreme_exos`, `extreme_vsp`, `fortinet`, `hp_comware`, `ipinfusion_ocnos`, `paloalto_panos`, `sonic` and `vyos_1_3` ([#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
 - VRF queries through built-in directives and device `vrf` settings ([#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
 - Named directive variables with fixed choices, required fields and optional command fragments. Selected values participate in query cache identity ([#293](https://github.com/hyperglass-community/hyperglass/issues/293), [#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
@@ -62,7 +64,7 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 
 ### Changed
 
-- Updated the Python package, runtime metadata, UI package and documentation package to 3.0.0-rc.1.
+- Updated the Python package, runtime metadata, UI package and documentation package to 3.0.0-rc.2.
 - Python packaging and the container image install from locked requirements, and Click is constrained below 8.2 for Typer compatibility ([#394](https://github.com/hyperglass-community/hyperglass/pull/394), [#389](https://github.com/hyperglass-community/hyperglass/pull/389)).
 - The UI builds with pnpm 11 and Node.js 22.13 or later ([#395](https://github.com/hyperglass-community/hyperglass/pull/395)).
 - UI fonts are served locally. ASN links use bgp.tools, and the browser no longer calls CAIDA AS Rank ([#255](https://github.com/hyperglass-community/hyperglass/issues/255), [#312](https://github.com/hyperglass-community/hyperglass/issues/312)).
@@ -100,12 +102,13 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 
 - Remove the unused BGP community input plugin. Built-in syntax checks and directive rules still validate community targets.
 
-### Known issues and RC2 follow-up
+### Known issues
 
-- Structured output must be opt-in on every platform, as implemented in Ultraglass. RC1 incorrectly restores automatic structured output on FRR, Juniper and Arista. Set `structured_output: false` on those devices to retain text until RC2 restores the opt-in policy.
-- Supplemental traceroute reverse-DNS lookup was removed during migration. Router-provided hostnames remain, but hops without a hostname no longer receive one through enrichment. RC2 must address this loss of Ultraglass behavior.
-- MikroTik BGP queries no longer retry an empty result with a higher delay factor. RC2 must address lost transient-result recovery while preserving immediate completion for genuine zero-route results.
-- Custom directives with permissive rules on shell-backed platforms remain unquoted. Use anchored allowlists. [#407](https://github.com/hyperglass-community/hyperglass/pull/407) supplies the remaining fix for [#383](https://github.com/hyperglass-community/hyperglass/issues/383), scheduled for RC2.
+- A device query that exceeds the request timeout returns HTTP 500 instead of the timeout message ([#408](https://github.com/hyperglass-community/hyperglass/issues/408)).
+- Structured output must be opt-in on every platform, as implemented in Ultraglass. This candidate incorrectly restores automatic structured output on FRR, Juniper and Arista. Set `structured_output: false` on those devices to retain text until [#413](https://github.com/hyperglass-community/hyperglass/issues/413) restores the opt-in policy.
+- Supplemental traceroute reverse-DNS lookup was removed during migration. Router-provided hostnames remain, but hops without a hostname no longer receive one through enrichment. [#414](https://github.com/hyperglass-community/hyperglass/issues/414) tracks the fix.
+- MikroTik BGP queries no longer retry an empty result with a higher delay factor. [#415](https://github.com/hyperglass-community/hyperglass/issues/415) tracks recovery of transient results while preserving immediate completion for genuine zero-route results.
+- Custom directives with permissive rules on shell-backed platforms remain unquoted. Use anchored allowlists. [#407](https://github.com/hyperglass-community/hyperglass/pull/407) supplies the remaining fix for [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
 - Automatic worker sizing still ignores container CPU limits. Set `HYPERGLASS_WORKERS` explicitly; [#356](https://github.com/hyperglass-community/hyperglass/issues/356) remains open.
 - The Juniper structured parser still requires a peer ASN, so responses that omit it can fail ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)). BIRD text-mode queries can still return a banner for an empty result ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
 
