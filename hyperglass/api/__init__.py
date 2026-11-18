@@ -28,7 +28,7 @@ from .routes import (
     aspath_enrich,
     query_enrichment,
 )
-from .middleware import COMPRESSION_CONFIG, create_cors_config
+from .middleware import COMPRESSION_CONFIG, recover_state, create_cors_config
 from .error_handlers import app_handler, http_handler, default_handler, validation_handler
 
 __all__ = ("app",)
@@ -93,6 +93,7 @@ app = Litestar(
         Exception: default_handler,
     },
     on_startup=[check_redis],
+    before_request=recover_state,
     debug=STATE.settings.debug,
     cors_config=create_cors_config(state=STATE),
     compression_config=COMPRESSION_CONFIG,

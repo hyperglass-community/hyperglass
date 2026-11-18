@@ -2,6 +2,9 @@
 
 # Standard Library
 import typing as t
+import asyncio
+import pickle
+import threading
 from fnmatch import fnmatch
 
 # Third Party
@@ -56,7 +59,9 @@ class FakeRedis:
 
 def cache_with(*keys: str) -> RedisManager:
     """Build a cache manager containing `keys`."""
-    return RedisManager(instance=FakeRedis(**dict.fromkeys(keys, b"")), namespace=NAMESPACE)
+    return RedisManager(
+        instance=FakeRedis(**dict.fromkeys(keys, pickle.dumps(None))), namespace=NAMESPACE
+    )
 
 
 def state_with(cache: RedisManager) -> HyperglassState:
@@ -96,7 +101,7 @@ def test_partial_state_is_rebuilt(monkeypatch):
 
     def initialize():
         for key in STATE_KEYS:
-            cache.instance.data[key] = b""
+            cache.instance.data[key] = pickle.dumps(None)
 
     monkeypatch.setattr(recovery, "_initialize", initialize)
 
@@ -113,7 +118,7 @@ def test_waits_for_another_process(monkeypatch):
 
     def sleep(_):
         for key in STATE_KEYS:
-            cache.instance.data[key] = b""
+            cache.instance.data[key] = pickle.dumps(None)
         cache.instance.delete(LOCK)  # the winner finished and released the lock
 
     monkeypatch.setattr(recovery.time, "sleep", sleep)
@@ -158,7 +163,7 @@ def test_property_read_rebuilds_lost_state(monkeypatch):
     state = state_with(cache)
 
     def initialize():
-        cache.instance.data.update(dict.fromkeys(STATE_KEYS, b""))
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
         cache.set("devices", ["recovered"])
 
     monkeypatch.setattr(recovery, "_initialize", initialize)
@@ -188,3 +193,133 @@ def test_clear_is_scoped_to_hyperglass():
 
     assert cache.instance.exists(*STATE_KEYS) == 0
     assert "someotherapp.session.1" in cache.instance.data
+
+
+def test_configuration_without_plugins_is_not_ready(monkeypatch):
+    cache = cache_with(
+        *(f"{NAMESPACE}.{key}" for key in ("params", "directives", "devices", "ui_params"))
+    )
+    calls = []
+
+    def initialize():
+        calls.append(True)
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    assert rebuild_state(cache) is True
+    assert calls == [True]
+
+
+def test_incomplete_initialization_is_retried_after_cooldown(monkeypatch):
+    cache = cache_with()
+    monkeypatch.setattr(recovery, "_initialize", lambda: cache.set("params", {}))
+    assert rebuild_state(cache) is False
+    assert not recovery.is_populated(cache)
+    recovery._last_failure = 0.0
+
+    def initialize():
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    assert rebuild_state(cache) is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("waiting", [False, True])
+async def test_async_recovery_does_not_block_event_loop(monkeypatch, waiting):
+    cache = cache_with(LOCK) if waiting else cache_with()
+    state = state_with(cache)
+    started = threading.Event()
+    release = threading.Event()
+    thread_ids = []
+
+    def initialize_or_wait(*args):
+        thread_ids.append(threading.get_ident())
+        started.set()
+        if not release.wait(timeout=2):
+            raise RuntimeError("Event loop did not continue during recovery")
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+        cache.instance.delete(LOCK)
+        return True
+
+    monkeypatch.setattr(
+        recovery, "_wait_for_rebuild" if waiting else "_initialize", initialize_or_wait
+    )
+    task = asyncio.create_task(state.ensure_ready())
+    try:
+        async with asyncio.timeout(3):
+            while not started.is_set():
+                await asyncio.sleep(0)
+        assert thread_ids != [threading.get_ident()]
+    finally:
+        release.set()
+        await task
+
+
+@pytest.mark.asyncio
+async def test_mid_request_state_loss_never_rebuilds_on_event_loop(monkeypatch):
+    calls = []
+    monkeypatch.setattr(recovery, "_initialize", lambda: calls.append(True))
+    with pytest.raises(StateError):
+        _ = state_with(cache_with()).devices
+    assert calls == []
+
+
+def test_generation_and_plugin_readiness_follow_complete_initialization(monkeypatch):
+    from hyperglass import configuration
+    from hyperglass.state import use_state
+    from hyperglass.plugins import register_all_plugins
+    from hyperglass.models.directive import Directives
+    from hyperglass.models.config.devices import Devices
+
+    state = use_state()
+    devices = Devices(
+        {
+            "name": "test",
+            "address": "192.0.2.1",
+            "platform": "frr",
+            "credential": {"username": "test", "password": "test"},
+            "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
+        }
+    )
+    monkeypatch.setattr(configuration, "init_files", lambda: None)
+    monkeypatch.setattr(configuration, "init_directives", Directives)
+    monkeypatch.setattr(configuration, "init_ui_params", lambda **kwargs: {})
+    configuration.init_user_config(params=state.params, devices=devices)
+    first_generation = state.generation
+    assert first_generation is not None
+    assert not recovery.is_populated(state.redis)
+    register_all_plugins()
+    assert recovery.is_populated(state.redis)
+    assert state.plugins("output")
+
+    configuration.init_user_config(params=state.params, devices=devices)
+    assert state.generation != first_generation
+    assert not recovery.is_populated(state.redis)
+
+
+def test_api_request_recovers_before_reading_state(monkeypatch):
+    from litestar.testing import TestClient
+
+    from hyperglass.state import use_state
+    from hyperglass.settings import Settings
+
+    monkeypatch.setattr(Settings, "disable_ui", True)
+    from hyperglass.api import app
+
+    state = use_state()
+    params = state.params
+    calls = []
+
+    def initialize():
+        calls.append(threading.get_ident())
+        for key in recovery.REQUIRED_KEYS:
+            state.cache.set(key, None)
+        state.cache.set("params", params)
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    state.clear()
+    with TestClient(app=app) as client:
+        response = client.get("/api/info")
+    assert response.status_code == 200
+    assert len(calls) == 1

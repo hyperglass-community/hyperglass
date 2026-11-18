@@ -4,7 +4,6 @@
 import pytest
 
 # Project
-from hyperglass.exceptions.private import ConfigError
 from hyperglass.models.config.devices import Device
 
 CONFIG = {
@@ -14,9 +13,23 @@ CONFIG = {
 }
 
 
-def test_http_platform_requires_http_block():
-    with pytest.raises(ConfigError, match="no http parameters are defined"):
-        Device(**CONFIG, platform="http")
+@pytest.mark.parametrize("explicit_null", [False, True])
+def test_http_platform_defaults_http_block(explicit_null):
+    kwargs = {"http": None} if explicit_null else {}
+    device = Device(**CONFIG, platform="http", **kwargs)
+    client = device.http.create_client(device=device)
+    assert str(client.base_url).rstrip("/") == "https://192.0.2.10"
+
+
+def test_http_driver_defaults_http_block():
+    device = Device(
+        **CONFIG,
+        platform="cisco_ios",
+        driver="hyperglass_http_client",
+        attrs={"source4": "192.0.2.1", "source6": "2001:db8::1"},
+    )
+    assert device.http is not None
+    assert device.http.create_client(device=device) is not None
 
 
 def test_http_platform_with_http_block():

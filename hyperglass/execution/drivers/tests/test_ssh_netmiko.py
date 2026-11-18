@@ -8,7 +8,7 @@ from netmiko.exceptions import ReadTimeout
 
 from hyperglass.execution.drivers import ssh_netmiko
 from hyperglass.execution.drivers._common import Connection, command_error
-from hyperglass.exceptions.public import DeviceCommandError, DeviceTimeout
+from hyperglass.exceptions.public import AuthError, DeviceCommandError, DeviceTimeout
 
 PARAMS = SimpleNamespace(request_timeout=90, logging=SimpleNamespace(session_log=False))
 
@@ -196,3 +196,28 @@ async def test_retry_override_sets_delay_factor(monkeypatch):
     finally:
         ssh_netmiko.delay_factor_override.reset(token)
     assert handler.call_args.kwargs["global_delay_factor"] == 10
+
+
+@pytest.mark.asyncio
+async def test_enable_password_failure_is_an_authentication_error(monkeypatch):
+    driver = object.__new__(ssh_netmiko.NetmikoConnection)
+    driver.device = SimpleNamespace(
+        name="test",
+        platform="arista_eos",
+        proxy=None,
+        _target="192.0.2.1",
+        port=22,
+        credential=SimpleNamespace(username="lg", _method="key", key="/test/key"),
+        driver_config={},
+        disable_paging=True,
+        get_device_type=lambda: "arista_eos",
+    )
+    driver.query = ["show ip bgp 192.0.2.1"]
+    session = Mock()
+    session.enable.side_effect = ValueError("Failed to enter enable mode")
+    monkeypatch.setattr(ssh_netmiko, "ConnectHandler", Mock(return_value=session))
+    monkeypatch.setattr(ssh_netmiko, "use_state", lambda _: PARAMS)
+    with pytest.raises(AuthError, match="Enable authentication failed"):
+        await driver.collect()
+    session.send_command.assert_not_called()
+    session.disconnect.assert_called_once()
