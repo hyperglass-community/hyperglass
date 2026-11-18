@@ -1,4 +1,4 @@
-"""Captured MikroTik RouterOS 6.49 lab output (#117)."""
+"""Captured MikroTik RouterOS 6.49 lab output."""
 
 # Standard Library
 import json

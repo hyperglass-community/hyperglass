@@ -12,7 +12,7 @@ LAB = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("start_node", LAB / "scripts/start-node.py")
 helper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helper)
-helper.PREFIX = "clab-ultraglass-platforms-"
+helper.PREFIX = "clab-hyperglass-platforms-"
 run, inspect, interface = helper.run, helper.inspect, helper.interface
 
 

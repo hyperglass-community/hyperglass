@@ -46,7 +46,7 @@ def directives():
         [
             "docker",
             "exec",
-            "clab-ultraglass-redis",
+            "clab-hyperglass-redis",
             "redis-cli",
             "-n",
             REDIS_DB,

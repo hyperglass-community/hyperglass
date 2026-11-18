@@ -11,7 +11,7 @@
 # A smaller table means less memory on the core and on each device under test.
 set -eu
 cd "$(dirname "$0")/.."
-C=clab-ultraglass-core
+C=clab-hyperglass-core
 N="${PREFIXES:-}"
 [ data/testset-bview -nt data/bview ] || python3 scripts/filter-mrt.py data/bview data/testset-bview
 docker exec $C gobgp global rib -a ipv4 del all 2>/dev/null || true

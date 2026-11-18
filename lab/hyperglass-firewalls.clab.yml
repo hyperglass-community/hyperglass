@@ -1,7 +1,7 @@
 # Supply locally built, licensed vendor images. No images or licences are included.
-name: ultraglass-firewalls
+name: hyperglass-firewalls
 mgmt:
-  network: ultraglass-firewalls-mgmt
+  network: hyperglass-firewalls-mgmt
   ipv4-subnet: 192.168.248.0/24
 topology:
   defaults:
@@ -9,7 +9,7 @@ topology:
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.248.10
       entrypoint: gobgpd
       cmd: -f /etc/gobgp/gobgpd.toml -t toml

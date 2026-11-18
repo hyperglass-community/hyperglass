@@ -26,7 +26,7 @@ PLATFORMS = {
 def check(node, timeout):
     """Wait for an optional platform to become ready."""
     number, driver, username, password, command = PLATFORMS[node]
-    container = "clab-ultraglass-platforms-" + node
+    container = "clab-hyperglass-platforms-" + node
     deadline = time.monotonic() + timeout
     last_error = "waiting for startup"
     configured = False
@@ -70,7 +70,7 @@ def check(node, timeout):
                     [
                         "docker",
                         "exec",
-                        "clab-ultraglass-platforms-probe",
+                        "clab-hyperglass-platforms-probe",
                         "ping",
                         "-c",
                         "3",

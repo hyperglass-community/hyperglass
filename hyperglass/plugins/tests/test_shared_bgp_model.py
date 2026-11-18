@@ -1,4 +1,4 @@
-"""Exercise shared policies across vendor parsers for #22, without external services."""
+"""Exercise shared policies across vendor parsers without external services."""
 
 from pathlib import Path
 from types import SimpleNamespace

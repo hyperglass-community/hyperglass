@@ -100,5 +100,5 @@ p.write_text(text.replace(old, 'self.wait_write(cmd="configure account admin pas
 PY
 fi
 cp --reflink=auto "$CACHE/$DISK" "$BUILD/$WRAPPER/"
-make -C "$BUILD/$WRAPPER" REGISTRY=ultraglass-lab/ IMAGE="$DISK" docker-build
+make -C "$BUILD/$WRAPPER" REGISTRY=hyperglass-lab/ IMAGE="$DISK" docker-build
 echo "Build directory: $BUILD"

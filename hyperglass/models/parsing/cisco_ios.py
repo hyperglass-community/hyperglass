@@ -160,7 +160,8 @@ def _apply_table_columns(route: t.Dict[str, t.Any], line: str, col: t.Dict[str, 
     route["local_preference"] = int(locprf) if locprf else 100
     route["weight"] = int(weight) if weight else 0
     # The last path token is the origin code.
-    route["as_path"] = parse_as_path(line[col["path"] :].rsplit(maxsplit=1)[0])
+    path_tokens = line[col["path"] :].rsplit(maxsplit=1)
+    route["as_path"] = parse_as_path(path_tokens[0] if path_tokens else "")
 
 
 def _start_path(

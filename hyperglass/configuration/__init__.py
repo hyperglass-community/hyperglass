@@ -27,6 +27,7 @@ def init_user_config(
 ) -> None:
     """Initialize all user configurations and add them to global state."""
     state = use_state()
+    state.redis.instance.delete(state.redis.key(("plugins", "ready")))
     init_files()
 
     _params = params or init_params()
@@ -44,6 +45,5 @@ def init_user_config(
     with state.cache.pipeline() as pipeline:
         pipeline.set("devices", _devices)
         pipeline.set("ui_params", ui_params)
-        # Written last, so its presence means state is complete. Changes on every load,
-        # so a lost and rebuilt store is distinguishable from the original.
+        # Changes on each configuration load. Plugin readiness is recorded separately.
         pipeline.set("generation", str(uuid4()))

@@ -2,7 +2,7 @@
 """Exercise every query type for one lab device and report results.
 
 Usage: test-device.py lab-frr frr
-Reads directive IDs for the platform from the running Ultraglass, queries each
+Reads directive IDs for the platform from the running Hyperglass, queries each
 with v4 and v6 targets where relevant, and prints level + output shape + a short
 excerpt. Then prints any captured errors from the sample log.
 """
@@ -37,7 +37,7 @@ def directives():
         [
             "docker",
             "exec",
-            "clab-ultraglass-redis",
+            "clab-hyperglass-redis",
             "redis-cli",
             "-n",
             "1",

@@ -4,11 +4,11 @@ set -eu
 cd "$(dirname "$0")"
 ACTION=${1:-status}
 NODE=${2:-}
-PREFIX=clab-ultraglass-platforms
+PREFIX=clab-hyperglass-platforms
 
 case "$ACTION" in
     status)
-        docker ps -a --filter label=containerlab=ultraglass-platforms \
+        docker ps -a --filter label=containerlab=hyperglass-platforms \
             --format 'table {{.Names}}\t{{.Status}}'
         exit 0 ;;
     stop)
@@ -26,15 +26,15 @@ PYTHON=${LAB_PYTHON:-../.venv/bin/python3}
 "$PYTHON" -c 'import yaml, netmiko'
 
 case "$NODE" in
-    sonic) IMAGE=ultraglass-lab/sonic_sonic-vs:202505.1238524; LIMIT_MB=5120 ;;
-    exos) IMAGE=ultraglass-lab/extreme_exos:32.7.2.19; LIMIT_MB=2048 ;;
-    voss) IMAGE=ultraglass-lab/extreme_voss:9.4.0.0; LIMIT_MB=3072 ;;
-    xrd) IMAGE=ultraglass-lab/cisco_xrd:24.2.11; LIMIT_MB=4096 ;;
-    iosv) IMAGE=ultraglass-lab/cisco_vios:15.9.3M6; LIMIT_MB=2048 ;;
-    nexus) IMAGE=ultraglass-lab/cisco_n9kv:9300-lite-10.4.8.M; LIMIT_MB=10240 ;;
-    timos) IMAGE=ultraglass-lab/nokia_sros:15.0.R3; LIMIT_MB=10240 ;;
-    routeros6) IMAGE=ultraglass-lab/mikrotik_routeros:6.49.19; LIMIT_MB=2048 ;;
-    os9) IMAGE=ultraglass-lab/dell_os9:9.13.0.0; LIMIT_MB=2048 ;;
+    sonic) IMAGE=hyperglass-lab/sonic_sonic-vs:202505.1238524; LIMIT_MB=5120 ;;
+    exos) IMAGE=hyperglass-lab/extreme_exos:32.7.2.19; LIMIT_MB=2048 ;;
+    voss) IMAGE=hyperglass-lab/extreme_voss:9.4.0.0; LIMIT_MB=3072 ;;
+    xrd) IMAGE=hyperglass-lab/cisco_xrd:24.2.11; LIMIT_MB=4096 ;;
+    iosv) IMAGE=hyperglass-lab/cisco_vios:15.9.3M6; LIMIT_MB=2048 ;;
+    nexus) IMAGE=hyperglass-lab/cisco_n9kv:9300-lite-10.4.8.M; LIMIT_MB=10240 ;;
+    timos) IMAGE=hyperglass-lab/nokia_sros:15.0.R3; LIMIT_MB=10240 ;;
+    routeros6) IMAGE=hyperglass-lab/mikrotik_routeros:6.49.19; LIMIT_MB=2048 ;;
+    os9) IMAGE=hyperglass-lab/dell_os9:9.13.0.0; LIMIT_MB=2048 ;;
     *) echo "Pick sonic, exos, voss, xrd, iosv, nexus, timos, routeros6 or os9" >&2; exit 1 ;;
 esac
 docker image inspect "$IMAGE" >/dev/null 2>&1 || {
@@ -63,7 +63,7 @@ if [ "$NODE" = xrd ]; then
     }
 fi
 case "$NODE" in
-    sonic|exos|voss|xrd|iosv|nexus|timos|routeros6|os9) docker image inspect ultraglass-lab/core:latest >/dev/null ;;
+    sonic|exos|voss|xrd|iosv|nexus|timos|routeros6|os9) docker image inspect hyperglass-lab/core:latest >/dev/null ;;
 esac
 if [ "$NODE" = timos ] && [ ! -s data/platforms/timos.license ]; then
     echo "Place the TiMOS license at lab/data/platforms/timos.license first." >&2
@@ -103,7 +103,7 @@ if [ -f data/platforms/active.clab.yml ]; then
 fi
 # Remove containers left by a run whose rendered topology is gone, for example a run
 # from another checkout. Deploy cannot reconcile a stopped appliance and fails.
-STALE=$(docker ps -aq --filter label=containerlab=ultraglass-platforms)
+STALE=$(docker ps -aq --filter label=containerlab=hyperglass-platforms)
 if [ -n "$STALE" ]; then
     # shellcheck disable=SC2086
     docker rm -f $STALE >/dev/null
@@ -117,12 +117,12 @@ from pathlib import Path
 import yaml
 
 node = sys.argv[1]
-topology = yaml.safe_load(Path('ultraglass-platforms.clab.yml').read_text())
+topology = yaml.safe_load(Path('hyperglass-platforms.clab.yml').read_text())
 nodes = topology['topology']['nodes']
 topology['topology']['nodes'] = {name: nodes[name] for name in ('probe', node)}
 if node in ('sonic', 'exos', 'voss', 'xrd', 'iosv', 'nexus', 'timos', 'routeros6', 'os9'):
     nodes['probe'].update(
-        image='ultraglass-lab/core:latest', memory='256MiB',
+        image='hyperglass-lab/core:latest', memory='256MiB',
         entrypoint='gobgpd', cmd='-f /etc/gobgp/gobgpd.toml -t toml',
         binds=[f'configs/{node}/gobgpd.toml:/etc/gobgp/gobgpd.toml:ro'],
     )
