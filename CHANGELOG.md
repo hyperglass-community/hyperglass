@@ -6,12 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## 3.0.0-rc.1 - 2026-11-18
+
+This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat it as a stable release. The image is `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.1`. The `latest` tag does not move. Read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.1/docs/content/installation/upgrading.mdx) before you upgrade, and report a defect as a [new issue](https://github.com/hyperglass-community/hyperglass/issues/new/choose) that names this version.
+
+### Changed
+
+- Updated the Python package, runtime metadata, UI package and documentation package to 3.0.0-rc.1.
+- Forwarding headers require a trusted proxy. An installation behind a reverse proxy must set `web.client_ip.trusted_proxies`.
+- `/api/dns` and `/api/aspath/enrich` are disabled by default. `web.dns_provider.name: server` and `web.aspath_enrichment: true` enable them, with request limits.
+- The default listen address is `::1`.
+- Support bundles export metadata only.
+
 ### Added
 
 - Transfer the Ultraglass 3.6.2 application baseline through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390), including structured results, router implementations, configuration, onboarding and support tools.
 - Transfer the documentation framework, guides and complete configuration example. Source release history remains in the [Ultraglass repository](https://github.com/WilhelmZA/ultraglass/blob/90e2f3ab260820f49cd99872d779dc8083d9e9b3/CHANGELOG.md); its release numbers are not Hyperglass release numbers.
+- [#304](https://github.com/thatmattlove/hyperglass/pull/304): Add FRR structured output for BGP Routes - @chriswiggins
 
 ### Fixed
+
 - Reject control characters and line separators in query targets, including targets accepted by custom directives. Restrict IPv6 zone identifiers to letters, digits and hyphens before command construction. Part of [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
 - [#280](https://github.com/thatmattlove/hyperglass/issues/280): Fix: `condition: None` caused error in directive @Jimmy01240397
 - [#306](https://github.com/thatmattlove/hyperglass/issues/306): Fix: allow integer values in ext_community_list_raw field for Arista BGP - @cooperwinser
@@ -27,10 +41,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - [#245](https://github.com/thatmattlove/hyperglass/issues/245): v2.0.0 Vyos version platforms - Moved to latest LTS command set. - @ServerForge
 - [#292](https://github.com/thatmattlove/hyperglass/pull/292): Updates Mikrotik BGP route command so supernets are selected as well as exact matches. - @GrandArcher
-
-### Added
-
-- [#304](https://github.com/thatmattlove/hyperglass/pull/304): Add FRR structured output for BGP Routes - @chriswiggins
 
 ## 2.0.4 - 2024-06-30
 

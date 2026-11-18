@@ -18,7 +18,7 @@
 
 Hyperglass is a network looking glass. It lets customers, peers and other engineers run BGP route, BGP community, BGP AS path, ping and traceroute queries from the routers you choose, through a web interface and a REST API, without touching the routers themselves. You decide which devices, commands, targets and result formats are public.
 
-The community-maintained Hyperglass project incorporates the Ultraglass implementation. The Python package, CLI, configuration paths, environment variables and service names remain `hyperglass`. The migration is tracked in [#390](https://github.com/hyperglass-community/hyperglass/issues/390); the release number remains undecided.
+The community-maintained Hyperglass project incorporates the Ultraglass implementation. The Python package, CLI, configuration paths, environment variables and service names remain `hyperglass`. The migration is tracked in [#390](https://github.com/hyperglass-community/hyperglass/issues/390); the migration release is 3.0.0.
 
 ## Add a router in four commands
 

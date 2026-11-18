@@ -1,6 +1,6 @@
 {
   "name": "hyperglass-docs",
-  "version": "2.0.4",
+  "version": "3.0.0-rc.1",
   "description": "Hyperglass documentation",
   "private": true,
   "scripts": {
