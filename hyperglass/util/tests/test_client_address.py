@@ -3,6 +3,8 @@
 # Third Party
 import pytest
 from litestar.testing import create_test_client
+from litestar import Request
+from litestar.datastructures import Address
 
 # Project
 from hyperglass.state import use_state
@@ -13,38 +15,47 @@ CDN = {"header": "CF-Connecting-IP"}
 TRUSTED = {"trusted_proxies": ["10.0.0.0/8", "2001:db8:ffff::/48"]}
 
 
+class ProxyRequest(Request):
+    """Simulate a connection from an explicitly trusted proxy."""
+
+    @property
+    def client(self):
+        """Return the connecting proxy's socket address."""
+        return Address("10.0.0.2", 1234)
+
+
 @pytest.mark.parametrize(
     "settings,headers,peer,expected",
     (
-        # Default: X-Real-IP, then the first X-Forwarded-For entry, then the peer.
+        # Default: ignore every forwarding header and use the socket peer.
         ({}, {}, "192.0.2.1", "192.0.2.1"),
-        ({}, {"x-real-ip": "198.51.100.1"}, "10.0.0.2", "198.51.100.1"),
-        ({}, {"x-forwarded-for": "198.51.100.1, 10.0.0.3"}, "10.0.0.2", "198.51.100.1"),
+        ({}, {"x-real-ip": "198.51.100.1"}, "10.0.0.2", "10.0.0.2"),
+        ({}, {"x-forwarded-for": "198.51.100.1, 10.0.0.3"}, "10.0.0.2", "10.0.0.2"),
         (
             {},
             {"x-real-ip": "198.51.100.1", "x-forwarded-for": "198.51.100.9"},
             "10.0.0.2",
-            "198.51.100.1",
+            "10.0.0.2",
         ),
         # An unset header ignores the CDN header.
         ({}, {"cf-connecting-ip": "203.0.113.7"}, "10.0.0.2", "10.0.0.2"),
         # A value that is not an address is skipped.
         ({}, {"x-real-ip": "not-an-ip"}, "10.0.0.2", "10.0.0.2"),
         ({}, {"x-forwarded-for": "unknown, 10.0.0.3"}, "10.0.0.2", "10.0.0.2"),
-        # The configured header wins over X-Real-IP, which holds the CDN edge address.
+        # A configured header still requires an explicitly trusted peer.
         (
             CDN,
             {"cf-connecting-ip": "203.0.113.7", "x-real-ip": "172.70.0.1"},
             "10.0.0.2",
-            "203.0.113.7",
+            "10.0.0.2",
         ),
-        (CDN, {"cf-connecting-ip": "2001:db8::7"}, "10.0.0.2", "2001:db8::7"),
-        (CDN, {"x-real-ip": "198.51.100.1"}, "10.0.0.2", "198.51.100.1"),
+        (CDN, {"cf-connecting-ip": "2001:db8::7"}, "10.0.0.2", "10.0.0.2"),
+        (CDN, {"x-real-ip": "198.51.100.1"}, "10.0.0.2", "10.0.0.2"),
         (
             CDN,
             {"cf-connecting-ip": "junk", "x-real-ip": "198.51.100.1"},
             "10.0.0.2",
-            "198.51.100.1",
+            "10.0.0.2",
         ),
         # Trusted proxies: headers from any other peer are ignored.
         (
@@ -72,6 +83,9 @@ TRUSTED = {"trusted_proxies": ["10.0.0.0/8", "2001:db8:ffff::/48"]}
         ),
         (TRUSTED, {"x-forwarded-for": "10.0.0.4, 10.0.0.3"}, "10.0.0.2", "10.0.0.2"),
         (TRUSTED, {"x-forwarded-for": "198.51.100.1, junk"}, "10.0.0.2", "10.0.0.2"),
+        ({**CDN, **TRUSTED}, {"x-real-ip": "198.51.100.1"}, "10.0.0.2", "10.0.0.2"),
+        (TRUSTED, {"x-real-ip": "198.51.100.1"}, "10.0.0.2", "10.0.0.2"),
+        (TRUSTED, {"x-forwarded-for": "::ffff:198.51.100.1"}, "10.0.0.2", "198.51.100.1"),
     ),
 )
 def test_resolve_client_address(settings, headers, peer, expected):
@@ -115,9 +129,9 @@ def test_myip_uses_configured_header():
     # Project
     from hyperglass.api.routes import myip
 
-    _configure(**CDN)
+    _configure(**CDN, **TRUSTED)
     headers = {"cf-connecting-ip": "203.0.113.7", "x-real-ip": "172.70.0.1"}
-    with create_test_client([myip]) as client:
+    with create_test_client([myip], request_class=ProxyRequest) as client:
         assert client.get("/api/myip", headers=headers).json() == {"ip": "203.0.113.7"}
 
 
@@ -136,8 +150,10 @@ def test_dns_rate_limit_is_per_configured_header():
     # Project
     from hyperglass.api.routes import dns
 
-    _configure(**CDN)
-    with create_test_client([dns]) as client:
+    use_state().redis.set(
+        "params", Params(web={"client_ip": {**CDN, **TRUSTED}, "dns_provider": {"name": "server"}})
+    )
+    with create_test_client([dns], request_class=ProxyRequest) as client:
 
         def get(address):
             return client.get(
@@ -183,7 +199,10 @@ async def test_webhook_source_is_the_resolved_client(monkeypatch):
 
     monkeypatch.setattr(tasks, "Webhook", Hook)
     monkeypatch.setattr(tasks, "network_info", network_info)
-    params = Params(logging={"http": {"host": "https://hook.example.com"}}, web={"client_ip": CDN})
+    params = Params(
+        logging={"http": {"host": "https://hook.example.com"}},
+        web={"client_ip": {**CDN, **TRUSTED}},
+    )
 
     await tasks.send_webhook(params=params, data=Data(), request=Request(), timestamp=None)
 

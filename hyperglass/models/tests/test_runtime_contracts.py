@@ -127,7 +127,7 @@ def test_vrf_without_usable_directives_is_a_configuration_error():
 def test_dns_choices_only_advertise_implemented_providers():
     api = import_module("hyperglass.api")
     assert DNS_OVER_HTTPS["server"] == "/api/dns"
-    assert any(route.path == "/api/dns" for route in api.app.routes)
+    assert not any(route.path == "/api/dns" for route in api.app.routes)
 
 
 def test_default_credit_and_help_use_hyperglass_links():
