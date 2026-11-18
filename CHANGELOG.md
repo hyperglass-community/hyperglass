@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### RC2 fixes
+
+- Require explicit structured-output opt-in on every supported platform, including FRR, Juniper aliases and Arista ([#413](https://github.com/hyperglass-community/hyperglass/issues/413)).
+- Retry a built-in MikroTik BGP query once after a transport read fault with a higher delay factor. Complete genuine zero-route replies immediately ([#415](https://github.com/hyperglass-community/hyperglass/issues/415)).
+- Restore bounded PTR enrichment for missing traceroute hostnames after sending the initial response. Preserve router-provided names ([#414](https://github.com/hyperglass-community/hyperglass/issues/414)).
+- Accept Juniper route entries without a peer ASN while preserving route attributes ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)).
+- Treat BIRD text replies containing only banners and table headers as empty results ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
+
 ### Added
 
 - Transfer the Ultraglass 3.6.2 application baseline through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390), including structured results, router implementations, configuration, onboarding and support tools.

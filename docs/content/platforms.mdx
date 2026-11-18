@@ -192,7 +192,7 @@ FortiGate-VM64-KVM 7.6.8 has authentic captures for IPv4 and IPv6 BGP route deta
 
 ### Structured output
 
-FRR, Juniper and Arista enable structured output by default. Additional platforms require `structured_output: true`. Set `structured_output: false` to force text. BGP queries stay text when a platform supports structured traceroute only.
+Every platform requires `structured_output: true` to enable parsed output, including FRR, Juniper and Arista. Omitted, `null` and `false` settings return text. BGP queries stay text when a platform supports structured traceroute only.
 
 | Platform | Structured BGP source | Limitations |
 | :------- | :-------------------- | :---------- |

@@ -46,7 +46,7 @@ netmiko_device_globals = {
     "mikrotik_switchos": {"global_cmd_verify": False, "global_delay_factor": MIKROTIK_DELAY_FACTOR},
 }
 
-# Set by the API's empty-table retry to run one attempt at a higher delay factor.
+# Set by the API's read-fault retry to run one attempt at a higher delay factor.
 delay_factor_override: ContextVar[t.Optional[float]] = ContextVar(
     "delay_factor_override", default=None
 )

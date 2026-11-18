@@ -1,6 +1,7 @@
 """Parse BIRD Text Response to Structured Data."""
 
 # Standard Library
+import re
 import typing as t
 
 # Third Party
@@ -47,6 +48,9 @@ class BGPRoutePluginBird(OutputPlugin):
     _hyperglass_builtin: bool = PrivateAttr(True)
     platforms: t.Sequence[str] = ("bird",)
     directives: t.Sequence[str] = (
+        "__hyperglass_bird_bgp_route__",
+        "__hyperglass_bird_bgp_aspath__",
+        "__hyperglass_bird_bgp_community__",
         "__hyperglass_bird_bgp_route_table__",
         "__hyperglass_bird_bgp_aspath_table__",
         "__hyperglass_bird_bgp_community_table__",
@@ -58,10 +62,21 @@ class BGPRoutePluginBird(OutputPlugin):
             (
                 isinstance(output, (list, tuple)),
                 query.device.platform in self.platforms,
-                query.device.structured_output is True,
                 query.device.has_directives(*self.directives),
             )
         )
         if should_process:
+            if not query.device.structured_output:
+                # Only known banner/header lines prove an empty reply. Preserve any
+                # other text, including unfamiliar route formats and diagnostics.
+                lines = [line.strip() for response in output for line in response.splitlines()]
+                if all(
+                    not line
+                    or re.fullmatch(r"BIRD [\w.+-]+ ready\.", line)
+                    or re.fullmatch(r"Table [\w.:-]+:", line)
+                    for line in lines
+                ):
+                    return None
+                return output
             return parse_bird(output)
         return output

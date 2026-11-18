@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 ## Structured
 
-Devices that return structured or easily parsed data can display tables or JSON through the REST API. FRR, Juniper and Arista enable structured output by default. Additional supported platforms require `structured_output: true`. Set `structured_output: false` to force text. Unsupported platforms reject an explicit `true`.
+Devices that return structured or easily parsed data can display tables or JSON through the REST API. Every supported platform requires `structured_output: true`, including FRR, Juniper and Arista. Omitted, `null` and `false` settings return text. Unsupported platforms reject an explicit `true`.
 
 Structured BGP results are available for Arista EOS, BIRD, Cisco IOS, IOS-XR and NX-OS, NVIDIA Cumulus Linux, Extreme EXOS, FRRouting, Huawei VRP, Juniper Junos, MikroTik RouterOS and SwitchOS, OpenBGPD, SONiC and VyOS 1.4 and later. Aruba AOS-CX, Dell OS9 and SmartFabric OS10, FortiGate, HPE Comware 7, IP Infusion OcNOS and PAN-OS have structured results for BGP route queries only. Their AS path and community queries, where the platform offers them, return text. Structured traceroute covers all these platforms and also Nokia SR OS, TNSR, Extreme VOSS and VyOS 1.3. See [structured output in Platforms](/platforms.mdx#structured-output) for the source command and limitations of each platform.
 
@@ -17,7 +17,9 @@ For external validation, Hyperglass supports two backends:
 
 Hyperglass can also control which BGP communities are shown to the end user.
 
-For structured traceroute, Hyperglass can add ASN, organisation, prefix and IXP details using BGP.tools. It preserves router-provided hostnames without making supplemental reverse DNS requests. Disabled traceroute enrichment performs no additional lookups.
+For structured traceroute, Hyperglass can add ASN, organisation, prefix and IXP details using BGP.tools. Enabled traceroute enrichment also fills missing hostnames through bounded PTR lookups after the initial response. Router-provided hostnames stay unchanged. Disabled traceroute enrichment performs no additional lookups.
+
+PTR enrichment uses the system resolver for at most 32 distinct hop addresses. It allows four outstanding resolver calls per process, waits at most one second per lookup, and stops each batch after two seconds. A slow or failed lookup leaves the hostname empty. PTR work always runs in the background, including with `mode: inline`; the UI retrieves completed results through enrichment polling.
 
 | Parameter                                    | Type            | Default Value | Description |
 | :------------------------------------------- | :-------------- | :------------ | :---------- |
@@ -27,7 +29,7 @@ For structured traceroute, Hyperglass can add ASN, organisation, prefix and IXP 
 | `structured.communities.mode`                | String          | deny          | Use `deny` to deny any communities listed, `permit` to _only_ permit communities listed, or `name` to append friendly names. |
 | `structured.communities.items`               | List of Strings |               | List of communities to match (used by `deny` and `permit` modes). |
 | `structured.communities.names`               | Dict            |               | Dictionary mapping BGP community codes to friendly names. Required, with at least one entry, when `mode` is `name`. |
-| `structured.ip_enrichment.enrich_traceroute` | Boolean         | false         | Enrich traceroute hops with ASN, organisation, prefix and IXP details. |
+| `structured.ip_enrichment.enrich_traceroute` | Boolean         | false         | Enrich traceroute hops with ASN, organisation, prefix, IXP details and missing hostnames. |
 | `structured.ip_enrichment.enrich_bgproute`   | Boolean         | false         | Enrich BGP routes with AS path organisation names and next-hop details when the query runs. When `false`, the UI loads AS path organisation names when the user opens the AS path. |
 | `structured.ip_enrichment.mode`              | String          | inline        | `inline` enriches the result before Hyperglass returns it. `async` returns the result first, then enriches it in the background and the UI fetches the enriched result. |
 | `structured.enable_for_traceroute`           | Boolean         |               | Set to `false` to return text traceroute output on every device. When unset, each device's `structured_output` setting applies. |

@@ -66,6 +66,7 @@ def test_builtin_ids_honor_structured_feature_flags(kind, flag):
                 "name": "test",
                 "address": "192.0.2.1",
                 "platform": "frr",
+                "structured_output": True,
                 "credential": {"username": "test", "password": "test"},
                 "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
             }

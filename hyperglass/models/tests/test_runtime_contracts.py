@@ -30,11 +30,13 @@ def device_config(platform, **kwargs):
     }
 
 
-@pytest.mark.parametrize("platform", ["frr", "juniper", "arista_eos"])
-def test_original_platforms_keep_structured_output_default(platform):
+@pytest.mark.parametrize("platform", ["frr", "juniper", "juniper_junos", "arista_eos"])
+def test_original_platforms_require_structured_output_opt_in(platform):
     device = Device(**device_config(platform))
-    assert device.structured_output is True
-    assert any("table" in name for name in device.directive_ids)
+    assert device.structured_output is False
+    assert all("table" not in name for name in device.directive_ids)
+    enabled = Device(**device_config(platform, structured_output=True))
+    assert any("table" in name for name in enabled.directive_ids)
 
 
 @pytest.mark.parametrize("platform", ["cisco_ios", "huawei", "mikrotik_routeros"])

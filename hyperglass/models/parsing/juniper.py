@@ -65,7 +65,7 @@ class JuniperRouteTableEntry(JuniperBase):
     validation_state: int = 3
     next_hop: str
     peer_rid: str
-    peer_as: int
+    peer_as: t.Optional[int] = None
     source_as: int
     source_rid: str
     communities: t.List[str] = None
@@ -143,7 +143,14 @@ class JuniperRouteTableEntry(JuniperBase):
         """Remove origin flags from AS_PATH and convert asdot ASNs."""
         return parse_as_path(value)
 
-    @field_validator("peer_as", "source_as", mode="before")
+    @field_validator("peer_as", mode="before")
+    def validate_optional_peer_as(cls, value):
+        """Keep an absent peer ASN unknown, without deriving it from the route path."""
+        if value in (None, ""):
+            return None
+        return cls.validate_asn(value)
+
+    @field_validator("source_as", mode="before")
     def validate_asn(cls, value):
         """Convert asplain or asdot ASNs to integers."""
         asn = parse_asn(value)
