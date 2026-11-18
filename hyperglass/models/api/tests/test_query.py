@@ -9,6 +9,7 @@ import pytest
 
 # Project
 from hyperglass.state import use_state
+from hyperglass.constants import SUPPORTED_STRUCTURED_OUTPUT
 from hyperglass.models.directive import Directive, Directives
 from hyperglass.models.config.devices import Device
 from hyperglass.models.api.query import resolve_directive_by_name
@@ -161,13 +162,13 @@ BUILTIN_TRACEROUTE = "__hyperglass_cisco_ios_traceroute__"
 
 
 def cisco_ios(name: str, *directives: t.Any) -> Device:
-    """Build a real structured Cisco IOS device, so its directive list is validated."""
+    """Build a real Cisco IOS device, so its directive list is validated."""
     return Device(
         name=name,
         address="192.0.2.10",
         credential={"username": "admin", "password": "admin"},
         platform="cisco_ios",
-        structured_output=True,
+        structured_output="cisco_ios" in SUPPORTED_STRUCTURED_OUTPUT,
         directives=list(directives),
         attrs={"source4": "192.0.2.1", "source6": "2001:db8::1"},
     )

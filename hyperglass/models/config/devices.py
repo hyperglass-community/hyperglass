@@ -22,6 +22,7 @@ from hyperglass.constants import (
     SCRAPE_HELPERS,
     LINUX_PLATFORMS,
     NETMIKO_DEVICE_TYPES,
+    DEFAULT_STRUCTURED_OUTPUT,
     SUPPORTED_STRUCTURED_OUTPUT,
 )
 from hyperglass.exceptions.private import ConfigError, UnsupportedDevice
@@ -113,6 +114,10 @@ class Device(HyperglassModelWithId, extra="allow"):
         platform = kw.get("platform")
         if platform in SCRAPE_HELPERS:
             platform = SCRAPE_HELPERS[platform]
+        if kw.get("http") is None and (
+            platform == "http" or kw.get("driver") == "hyperglass_http_client"
+        ):
+            kw["http"] = HttpConfiguration()
         # Netmiko's generic driver sends no paging command. TNSR CLI has no `terminal length`.
         if platform == "tnsr" and "disable_paging" not in kw:
             kw["disable_paging"] = False
@@ -288,20 +293,29 @@ class Device(HyperglassModelWithId, extra="allow"):
 
         return value
 
+    @field_validator("vrf", mode="before")
+    def validate_vrf(cls, value: t.Any) -> t.Optional[str]:
+        """Normalize numeric VRFs and reject command syntax in routing contexts."""
+        if value is None:
+            return None
+        if type(value) not in (str, int) or not re.fullmatch(r"[A-Za-z0-9_.:-]+", str(value)):
+            raise ValueError("vrf must be a non-empty routing-context name or number")
+        return str(value)
+
     @field_validator("structured_output", mode="before")
     def validate_structured_output(cls, value: bool, info: ValidationInfo) -> bool:
-        """Validate structured output is supported on the device; default to text."""
+        """Keep legacy table defaults and require opt-in for additional parsers."""
 
         if value is True:
             if info.data.get("platform") not in SUPPORTED_STRUCTURED_OUTPUT:
                 raise ConfigError(
-                    "The 'structured_output' field is set to 'true' on device '{d}' with "
-                    "platform '{p}', which does not support structured output",
-                    d=info.data.get("name"),
-                    p=info.data.get("platform"),
+                    "The 'structured_output' field is set to 'true' on device '{device}' with "
+                    + "platform '{platform}', which does not support structured output",
+                    device=info.data.get("name"),
+                    platform=info.data.get("platform"),
                 )
             return value
-        return False
+        return value is None and info.data.get("platform") in DEFAULT_STRUCTURED_OUTPUT
 
     @field_validator("directives", mode="before")
     def validate_directives(
@@ -333,18 +347,10 @@ class Device(HyperglassModelWithId, extra="allow"):
         # Directives matching provided IDs.
         device_directives = directives.filter(*directive_ids)
         # Matching built-in directives for this device's platform.
+        vrf = info.data.get("vrf") is not None
         builtins = directives.device_builtins(
-            platform=platform,
-            table_output=structured_output,
-            vrf=info.data.get("vrf") is not None,
+            platform=platform, table_output=structured_output, vrf=vrf
         )
-
-        if info.data.get("vrf") is not None and directive_options.builtins and not len(builtins):
-            raise ConfigError(
-                "Device '{device}' sets vrf, but platform '{platform}' has no VRF-capable built-in directives",
-                device=info.data["name"],
-                platform=platform,
-            )
 
         if directive_options.builtins is True:
             # Add all builtins.
@@ -353,6 +359,10 @@ class Device(HyperglassModelWithId, extra="allow"):
             # If the user provides a list of builtin directives to include, add only those.
             device_directives += builtins.matching(*directive_options.builtins)
 
+        if vrf and not device_directives:
+            raise ConfigError(
+                "Device '{device}' has no VRF-capable directives.", device=info.data.get("name")
+            )
         return device_directives
 
     @field_validator("os_version", mode="before")

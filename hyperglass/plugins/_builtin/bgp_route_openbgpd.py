@@ -33,6 +33,8 @@ def parse_openbgpd(output: t.Sequence[str]) -> "OutputDataModel":
     for response in output:
         try:
             parsed: t.Dict = json.loads(response)
+            if not isinstance(parsed, dict):
+                raise ParsingError("Expected a JSON object in response data")
 
             _log.debug("Pre-parsed data", data=parsed)
 

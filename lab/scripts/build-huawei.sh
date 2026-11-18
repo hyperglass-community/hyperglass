@@ -30,4 +30,4 @@ EXPOSE 22 80 161/udp 443 830 5000 57400 10000-10099
 EOF
     docker build -t "vrnetlab/huawei_vrp:$TAG" "$CONTEXT"
 fi
-docker build --build-arg BASE="vrnetlab/huawei_vrp:$TAG" -t "ultraglass-lab/huawei_vrp:$TAG" "$ROOT/images/huawei"
+docker build --build-arg BASE="vrnetlab/huawei_vrp:$TAG" -t "hyperglass-lab/huawei_vrp:$TAG" "$ROOT/images/huawei"

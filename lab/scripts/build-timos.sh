@@ -11,5 +11,5 @@ git -C "$BUILD" remote add origin https://github.com/srl-labs/vrnetlab.git
 git -C "$BUILD" fetch --quiet --depth 1 origin "$REVISION"
 git -C "$BUILD" checkout --quiet --detach FETCH_HEAD
 cp --reflink=auto "$DISK" "$BUILD/nokia/sros/sros-vm-15.0.R3.qcow2"
-make -C "$BUILD/nokia/sros" REGISTRY=ultraglass-lab/ IMAGE=sros-vm-15.0.R3.qcow2 docker-build
+make -C "$BUILD/nokia/sros" REGISTRY=hyperglass-lab/ IMAGE=sros-vm-15.0.R3.qcow2 docker-build
 echo "Build directory: $BUILD"

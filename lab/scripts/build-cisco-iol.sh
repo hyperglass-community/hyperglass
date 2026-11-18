@@ -14,6 +14,6 @@ for NAME in iol-xe-17-18-02 ioll2-xe-17-18-02; do
     test -s "$BUILD/vrnetlab/cisco/iol/$NAME.tar.gz"
     tar -tzf "$BUILD/vrnetlab/cisco/iol/$NAME.tar.gz" >/dev/null
 done
-make -C "$BUILD/vrnetlab/cisco/iol" REGISTRY=ultraglass-lab/
-docker image inspect ultraglass-lab/cisco_iol:17.18.02 ultraglass-lab/cisco_iol:L2-17.18.02 --format '{{.RepoTags}}'
+make -C "$BUILD/vrnetlab/cisco/iol" REGISTRY=hyperglass-lab/
+docker image inspect hyperglass-lab/cisco_iol:17.18.02 hyperglass-lab/cisco_iol:L2-17.18.02 --format '{{.RepoTags}}'
 echo "Build directory: $BUILD"

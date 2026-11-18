@@ -11,7 +11,7 @@ import vrnetlab
 
 def stable_mac(last_octet=None):
     """Generate a stable management interface address."""
-    identity = f"ultraglass:{os.environ['HOSTNAME']}:{last_octet}"
+    identity = f"hyperglass:{os.environ['HOSTNAME']}:{last_octet}"
     suffix = hashlib.sha256(identity.encode()).digest()[:5]
     return "02:" + ":".join(f"{byte:02x}" for byte in suffix)
 

@@ -1,6 +1,6 @@
 # Comware 7 acceptance lab
 
-Supply a compatible licensed VSR1000 container image through `COMWARE_IMAGE`. The topology uses `ultraglass-lab/core:latest` and two BGP sessions. Live validation remains pending.
+Supply a compatible licensed VSR1000 container image through `COMWARE_IMAGE`. The topology uses `hyperglass-lab/core:latest` and two BGP sessions. Live validation remains pending.
 
 From the repository root:
 

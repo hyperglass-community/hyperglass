@@ -1,6 +1,6 @@
 # ArcOS acceptance lab
 
-Supply a locally tagged ArcOS container image through `ARCOS_IMAGE`. ArcOS is a native containerlab kind (`arrcus_arcos`). The topology uses `ultraglass-lab/core:latest` for its BGP peer. Live validation remains pending.
+Supply a locally tagged ArcOS container image through `ARCOS_IMAGE`. ArcOS is a native containerlab kind (`arrcus_arcos`). The topology uses `hyperglass-lab/core:latest` for its BGP peer. Live validation remains pending.
 
 ```sh
 sudo env ARCOS_IMAGE=arcos:8.2.1A.P2 containerlab deploy -t lab/hyperglass-arcos.clab.yml

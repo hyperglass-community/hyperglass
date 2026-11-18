@@ -15,7 +15,7 @@ import yaml
 def check(node, timeout=180, management_only=False):
     """Wait for a node to answer its readiness checks."""
     lab = Path(__file__).resolve().parents[1]
-    devices = yaml.safe_load((lab / "configs/ultraglass/devices.yaml").read_text())["devices"]
+    devices = yaml.safe_load((lab / "configs/hyperglass/devices.yaml").read_text())["devices"]
     # Both Huawei nodes run VRP 8.180, so their locations carry the platform name (#103).
     name = {"huawei": "lab-huawei-vrpv8"}.get(node, "lab-" + node)
     device = next((item for item in devices if item["name"] == name), None)
@@ -23,20 +23,20 @@ def check(node, timeout=180, management_only=False):
     error = "not ready"
     while time.monotonic() < deadline:
         try:
-            if node in ("ultraglass", "ultraglass-text"):
-                port = 8001 if node == "ultraglass" else 8002
+            if node in ("hyperglass", "hyperglass-text"):
+                port = 8001 if node == "hyperglass" else 8002
                 with urlopen(f"http://127.0.0.1:{port}/api/info", timeout=5) as response:
                     assert json.load(response)["version"]
                 with urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
                     assert response.status == 200
             elif node == "redis":
                 output = subprocess.check_output(
-                    ["docker", "exec", "clab-ultraglass-redis", "redis-cli", "ping"], text=True
+                    ["docker", "exec", "clab-hyperglass-redis", "redis-cli", "ping"], text=True
                 )
                 assert output.strip() == "PONG"
             elif node == "core":
                 subprocess.run(
-                    ["docker", "exec", "clab-ultraglass-core", "gobgp", "global", "rib", "summary"],
+                    ["docker", "exec", "clab-hyperglass-core", "gobgp", "global", "rib", "summary"],
                     check=True,
                     capture_output=True,
                 )
@@ -64,7 +64,7 @@ def check(node, timeout=180, management_only=False):
                         [
                             "docker",
                             "exec",
-                            "clab-ultraglass-core",
+                            "clab-hyperglass-core",
                             "ping",
                             "-c",
                             "2",

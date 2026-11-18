@@ -11,7 +11,7 @@ import time
 import yaml
 
 LAB = Path(__file__).resolve().parents[1]
-PREFIX = "clab-ultraglass-"
+PREFIX = "clab-hyperglass-"
 
 
 def run(*args, check=True):
@@ -38,7 +38,7 @@ def interface(node, name):
 
 def start(node, timeout=600):  # noqa: C901 - platform startup and link-repair sequence
     """Start a node and restore its configured links."""
-    topology = yaml.safe_load((LAB / "ultraglass-lab.clab.yml").read_text())["topology"]
+    topology = yaml.safe_load((LAB / "hyperglass-lab.clab.yml").read_text())["topology"]
     if node not in topology["nodes"]:
         raise ValueError(f"Unknown lab node: {node}")
     state = inspect(node)
@@ -68,7 +68,7 @@ def start(node, timeout=600):  # noqa: C901 - platform startup and link-repair s
         # Docker retains stopped containers' assigned IPv6 addresses while the
         # allocator can reuse them. Reconnect using the topology's fixed address.
         definition = topology["nodes"][node]
-        network = "ultraglass-mgmt"
+        network = "hyperglass-mgmt"
         endpoint = state["NetworkSettings"]["Networks"].get(network)
         desired4 = definition["mgmt-ipv4"]
         desired6 = definition.get("mgmt-ipv6", "fd00:250:ffff::" + desired4.rsplit(".", 1)[1])

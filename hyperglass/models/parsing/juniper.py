@@ -153,7 +153,7 @@ class JuniperRouteTableEntry(JuniperBase):
 
     @field_validator("communities", mode="before")
     def validate_communities(cls, value):
-        """Flatten community list and drop Junos' `large:` prefix (#82)."""
+        """Flatten community list and drop Junos' `large:` prefix."""
         flat = []
         blocks = value if isinstance(value, t.List) else [value]
         for block in blocks:

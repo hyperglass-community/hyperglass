@@ -2,7 +2,7 @@
 # IOL reads config.txt only on its first boot; later boots read NVRAM.
 set -eu
 for NODE in iol ioll2; do
-    [ "$(docker inspect -f '{{.State.Running}}' "clab-ultraglass-$NODE" 2>/dev/null)" = true ] || continue
+    [ "$(docker inspect -f '{{.State.Running}}' "clab-hyperglass-$NODE" 2>/dev/null)" = true ] || continue
     case "$NODE" in
         iol) ADDRESS=192.168.250.19 ;;
         ioll2) ADDRESS=192.168.250.20 ;;

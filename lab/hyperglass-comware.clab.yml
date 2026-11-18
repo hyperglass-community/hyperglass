@@ -9,7 +9,7 @@ topology:
   nodes:
     core:
       kind: linux
-      image: ultraglass-lab/core:latest
+      image: hyperglass-lab/core:latest
       mgmt-ipv4: 192.168.252.10
       binds:
         - configs/comware/gobgpd.toml:/etc/gobgp/gobgpd.toml:ro
