@@ -83,6 +83,7 @@ class Device(HyperglassModelWithId, extra="allow"):
     proxy: t.Optional[Proxy] = None
     display_name: t.Optional[str] = None
     port: int = 22
+    vrf: t.Optional[str] = None
     http: HttpConfiguration = HttpConfiguration()
     platform: str
     os_version: t.Optional[str] = None
@@ -258,6 +259,15 @@ class Device(HyperglassModelWithId, extra="allow"):
 
         return value
 
+    @field_validator("vrf", mode="before")
+    def validate_vrf(cls, value: t.Any) -> t.Optional[str]:
+        """Normalize numeric VRFs and reject command syntax in routing contexts."""
+        if value is None:
+            return None
+        if type(value) not in (str, int) or not re.fullmatch(r"[A-Za-z0-9_.:-]+", str(value)):
+            raise ValueError("vrf must be a non-empty routing-context name or number")
+        return str(value)
+
     @field_validator("structured_output", mode="before")
     def validate_structured_output(cls, value: bool, info: ValidationInfo) -> bool:
         """Validate structured output is supported on the device & set a default."""
@@ -265,10 +275,10 @@ class Device(HyperglassModelWithId, extra="allow"):
         if value is True:
             if info.data.get("platform") not in SUPPORTED_STRUCTURED_OUTPUT:
                 raise ConfigError(
-                    "The 'structured_output' field is set to 'true' on device '{}' with "
-                    + "platform '{}', which does not support structured output",
-                    info.data.get("name"),
-                    info.data.get("platform"),
+                    "The 'structured_output' field is set to 'true' on device '{device}' with "
+                    + "platform '{platform}', which does not support structured output",
+                    device=info.data.get("name"),
+                    platform=info.data.get("platform"),
                 )
             return value
         if value is None and info.data.get("platform") in SUPPORTED_STRUCTURED_OUTPUT:
@@ -307,7 +317,10 @@ class Device(HyperglassModelWithId, extra="allow"):
         # Directives matching provided IDs.
         device_directives = directives.filter(*directive_ids)
         # Matching built-in directives for this device's platform.
-        builtins = directives.device_builtins(platform=platform, table_output=structured_output)
+        vrf = info.data.get("vrf") is not None
+        builtins = directives.device_builtins(
+            platform=platform, table_output=structured_output, vrf=vrf
+        )
 
         if directive_options.builtins is True:
             # Add all builtins.
@@ -316,6 +329,10 @@ class Device(HyperglassModelWithId, extra="allow"):
             # If the user provides a list of builtin directives to include, add only those.
             device_directives += builtins.matching(*directive_options.builtins)
 
+        if vrf and not device_directives:
+            raise ConfigError(
+                "Device '{device}' has no VRF-capable directives.", device=info.data.get("name")
+            )
         return device_directives
 
     @field_validator("os_version", mode="before")

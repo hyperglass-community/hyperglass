@@ -28,7 +28,16 @@ if t.TYPE_CHECKING:
 __all__ = ("rebuild_state",)
 
 # Keys that must all be present for state to be usable.
-REQUIRED_KEYS = ("params", "directives", "devices", "ui_params")
+REQUIRED_KEYS = (
+    "params",
+    "directives",
+    "devices",
+    "ui_params",
+    "generation",
+    "plugins.input",
+    "plugins.output",
+    "plugins.ready",
+)
 
 # Lock key, held for the duration of a rebuild by the process performing it.
 LOCK_KEY = ("rebuild", "lock")
@@ -118,6 +127,8 @@ def rebuild_state(cache: "RedisManager") -> bool:
     try:
         log.bind(keys=REQUIRED_KEYS).warning("hyperglass state is missing from Redis, rebuilding")
         _initialize()
+        if not is_populated(cache):
+            raise RuntimeError("State initialization did not complete")
     except Exception as error:
         _last_failure = time.monotonic()
         log.bind(error=str(error)).critical("Failed to rebuild hyperglass state")
