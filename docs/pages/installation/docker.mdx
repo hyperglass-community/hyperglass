@@ -59,7 +59,7 @@ docker compose up -d hyperglass
 docker compose port hyperglass 8001
 ```
 
-For the default port, the second command must show `127.0.0.1:8001`. Point nginx at `http://127.0.0.1:8001`. The supplied `.samples/hyperglass.nginx` overwrites `X-Real-IP` and `X-Forwarded-For` with `$remote_addr`.
+For the default port, the second command must show `127.0.0.1:8001`. Point nginx at `http://127.0.0.1:8001`: the supplied `.samples/hyperglass.nginx` uses `http://[::1]:8001` for an installation without Docker, so change its `proxy_pass` line. The sample overwrites `X-Real-IP` and `X-Forwarded-For` with `$remote_addr`.
 
 On Linux Docker bridge networking, Hyperglass sees host nginx through the bridge gateway, not `127.0.0.1`. Find that gateway:
 

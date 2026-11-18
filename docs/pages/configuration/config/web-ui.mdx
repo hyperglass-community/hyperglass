@@ -65,7 +65,7 @@ In the nginx location that proxies requests to Hyperglass, overwrite the forward
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:8001;
+    proxy_pass http://[::1]:8001;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -73,7 +73,7 @@ location / {
 }
 ```
 
-Use the configured Hyperglass port in `proxy_pass`. Keep Hyperglass bound to loopback for this setup. Restart Hyperglass and reload nginx after updating both configurations. For a container or remote proxy, trust its actual connecting address instead of loopback. Do not trust all networks. This example assumes visitors connect directly to nginx; a CDN or additional proxy requires its own explicit trust configuration in nginx.
+Hyperglass listens on `[::1]` by default. Use the configured `HYPERGLASS_HOST` address and port in `proxy_pass`, for example `http://127.0.0.1:8001` when `HYPERGLASS_HOST=127.0.0.1`. Keep Hyperglass bound to loopback for this setup. Restart Hyperglass and reload nginx after updating both configurations. For a container or remote proxy, trust its actual connecting address instead of loopback. Do not trust all networks. This example assumes visitors connect directly to nginx; a CDN or additional proxy requires its own explicit trust configuration in nginx.
 
 ### Logo
 
