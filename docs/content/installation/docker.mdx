@@ -26,7 +26,7 @@ The Compose file uses `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2` and V
 
 ## Verify a published image
 
-Release images carry a signed build provenance attestation and an SPDX SBOM attestation. Images up to and including `3.0.0-rc.2` have neither. Verify that an image was built by this repository's CI with the [GitHub CLI](https://cli.github.com/), replacing `<version>` with the image tag:
+Release images carry a signed build provenance attestation and an SPDX SBOM attestation. Images published before attestations were introduced have none, so verification fails for them. Verify that an image was built by this repository's CI with the [GitHub CLI](https://cli.github.com/), replacing `<version>` with the image tag:
 
 ```shell copy
 gh attestation verify oci://ghcr.io/hyperglass-community/hyperglass:<version> -R hyperglass-community/hyperglass
