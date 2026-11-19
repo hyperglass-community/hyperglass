@@ -13,7 +13,8 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "build": "next build && rm -rf ../hyperglass/static/ui && cp -r out ../hyperglass/static/ui",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "test:coverage": "vitest --run --coverage"
   },
   "browserslist": "> 0.25%, not dead",
   "dependencies": {
@@ -69,6 +70,7 @@
     "@typescript-eslint/eslint-plugin": "^7.1.0",
     "@typescript-eslint/parser": "^7.1.0",
     "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "5.1.0",
     "@vitest/ui": "^5.1.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^8.57.0",
