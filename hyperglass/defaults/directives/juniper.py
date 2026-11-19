@@ -164,8 +164,8 @@ JuniperBGPCommunityTable = BuiltinDirective(
             condition="*",
             action="permit",
             commands=[
-                "show route protocol bgp table inet.0 community {target} detail | display xml",
-                "show route protocol bgp table inet6.0 community {target} detail | display xml",
+                'show route protocol bgp table inet.0 community "{target}" detail | display xml',
+                'show route protocol bgp table inet6.0 community "{target}" detail | display xml',
             ],
         )
     ],
