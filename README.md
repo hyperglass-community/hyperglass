@@ -165,6 +165,10 @@ The existing [documentation site](https://hyperglass.dev) and [live demo](https:
 
 Use the [bug report form](https://github.com/hyperglass-community/hyperglass/issues/new/choose). Include the Hyperglass version, deployment method, steps to reproduce, expected and observed behaviour, relevant configuration with secrets removed, and the output of `hyperglass onboard test` or `hyperglass support-bundle`. Review either before attaching it. Do not include device passwords, private keys, tokens or unredacted internal addresses.
 
+## Reporting security vulnerabilities
+
+Do not open a public issue for a security vulnerability. Report it privately as described in [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes should keep the backend and UI checks passing, preserve IPv4 and IPv6 support, and avoid hard-coding text or deployment-specific values that administrators should be able to configure.
