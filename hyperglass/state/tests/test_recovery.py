@@ -79,12 +79,6 @@ def no_cooldown():
     recovery._last_failure = 0.0
 
 
-@pytest.fixture
-def instant_sleep(monkeypatch):
-    """Remove the poll delay so waiting tests do not take real time."""
-    monkeypatch.setattr(recovery.time, "sleep", lambda _: None)
-
-
 def test_populated_state_is_not_rebuilt(monkeypatch):
     """State that is present must not be re-initialized."""
     calls = []
@@ -110,29 +104,44 @@ def test_partial_state_is_rebuilt(monkeypatch):
     assert LOCK not in cache.instance.data
 
 
-def test_waits_for_another_process(monkeypatch):
-    """A process that loses the lock waits instead of rebuilding in parallel."""
+def test_lock_held_elsewhere_fails_fast(monkeypatch):
+    """A process that loses the lock does not rebuild in parallel, and does not wait."""
     calls = []
     monkeypatch.setattr(recovery, "_initialize", lambda: calls.append(True))
-    cache = cache_with(LOCK)
-
-    def sleep(_):
-        for key in STATE_KEYS:
-            cache.instance.data[key] = pickle.dumps(None)
-        cache.instance.delete(LOCK)  # the winner finished and released the lock
-
-    monkeypatch.setattr(recovery.time, "sleep", sleep)
-
-    assert rebuild_state(cache) is True
-    assert calls == [], "rebuilt state while another process held the lock"
-
-
-def test_wait_times_out(monkeypatch, instant_sleep):
-    """Waiting on a lock holder that never finishes eventually gives up."""
-    monkeypatch.setattr(recovery, "WAIT_TIMEOUT", 0.01)
+    monkeypatch.setattr(recovery.time, "sleep", lambda _: pytest.fail("waited for the lock"))
     cache = cache_with(LOCK)
 
     assert rebuild_state(cache) is False
+    assert calls == [], "rebuilt state while another process held the lock"
+    assert cache.instance.get(LOCK) is not None, "released another process's lock"
+
+
+def test_lock_held_elsewhere_starts_cooldown(monkeypatch):
+    """A request that loses the lock records the cooldown, so later ones skip the lock."""
+    cache = cache_with(LOCK)
+    attempts = []
+    original_set = cache.instance.set
+
+    def set_(*args, **kwargs):
+        attempts.append(args[0])
+        return original_set(*args, **kwargs)
+
+    monkeypatch.setattr(cache.instance, "set", set_)
+
+    assert rebuild_state(cache) is False
+    assert rebuild_state(cache) is False
+    assert attempts == [LOCK], "contended for the lock during the cooldown"
+
+
+def test_state_rebuilt_elsewhere_is_served_during_cooldown(monkeypatch):
+    """The cooldown must not hide state that another process has finished rebuilding."""
+    cache = cache_with(LOCK)
+    assert rebuild_state(cache) is False
+
+    cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+    cache.instance.delete(LOCK)
+
+    assert rebuild_state(cache) is True
 
 
 def test_failure_backs_off(monkeypatch):
@@ -225,26 +234,21 @@ def test_incomplete_initialization_is_retried_after_cooldown(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("waiting", [False, True])
-async def test_async_recovery_does_not_block_event_loop(monkeypatch, waiting):
-    cache = cache_with(LOCK) if waiting else cache_with()
+async def test_async_recovery_does_not_block_event_loop(monkeypatch):
+    cache = cache_with()
     state = state_with(cache)
     started = threading.Event()
     release = threading.Event()
     thread_ids = []
 
-    def initialize_or_wait(*args):
+    def initialize():
         thread_ids.append(threading.get_ident())
         started.set()
         if not release.wait(timeout=2):
             raise RuntimeError("Event loop did not continue during recovery")
         cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
-        cache.instance.delete(LOCK)
-        return True
 
-    monkeypatch.setattr(
-        recovery, "_wait_for_rebuild" if waiting else "_initialize", initialize_or_wait
-    )
+    monkeypatch.setattr(recovery, "_initialize", initialize)
     task = asyncio.create_task(state.ensure_ready())
     try:
         async with asyncio.timeout(3):
@@ -254,6 +258,42 @@ async def test_async_recovery_does_not_block_event_loop(monkeypatch, waiting):
     finally:
         release.set()
         await task
+
+
+@pytest.mark.asyncio
+async def test_concurrent_requests_during_rebuild_fail_fast(monkeypatch):
+    """Requests that arrive while a rebuild is running return at once.
+
+    One request holds the lock and rebuilds; the rest must fail without occupying a
+    thread for the length of the rebuild, so the pool stays free for other work.
+    """
+    cache = cache_with()
+    state = state_with(cache)
+    started = threading.Event()
+    release = threading.Event()
+
+    def initialize():
+        started.set()
+        if not release.wait(timeout=5):
+            raise RuntimeError("rebuild was never released")
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    rebuild = asyncio.create_task(state.ensure_ready())
+    try:
+        async with asyncio.timeout(3):
+            while not started.is_set():
+                await asyncio.sleep(0)
+        async with asyncio.timeout(2):
+            results = await asyncio.gather(
+                *(state.ensure_ready() for _ in range(20)), return_exceptions=True
+            )
+        assert all(isinstance(result, StateError) for result in results), results
+    finally:
+        release.set()
+    await rebuild
+    # Once the rebuild finishes, requests are served despite the cooldown.
+    await state.ensure_ready()
 
 
 @pytest.mark.asyncio
@@ -323,3 +363,62 @@ def test_api_request_recovers_before_reading_state(monkeypatch):
         response = client.get("/api/info")
     assert response.status_code == 200
     assert len(calls) == 1
+
+
+def test_api_requests_get_fast_503_while_state_is_missing(monkeypatch):
+    """Concurrent API requests during a missing-state window get a prompt 503.
+
+    The rebuild lock is held by another process and never released, which is what a
+    slow or wedged rebuild looks like from this worker.
+    """
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from litestar.testing import TestClient
+
+    from hyperglass.state import use_state
+    from hyperglass.settings import Settings
+
+    monkeypatch.setattr(Settings, "disable_ui", True)
+    from hyperglass.api import app
+
+    state = use_state()
+    calls = []
+    monkeypatch.setattr(recovery, "_initialize", lambda: calls.append(True))
+    state.clear()
+    state.cache.instance.set(state.cache.key(recovery.LOCK_KEY), b"other", ex=60)
+
+    with TestClient(app=app) as client:
+        started = time.monotonic()
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(lambda _: client.get("/api/info"), range(10)))
+        elapsed = time.monotonic() - started
+
+    assert [response.status_code for response in responses] == [503] * 10
+    assert calls == [], "rebuilt state while another process held the lock"
+    assert elapsed < 5, f"requests waited {elapsed:.1f}s for another process's rebuild"
+
+
+def test_api_requests_get_503_after_failed_rebuild(monkeypatch):
+    """A failed rebuild answers 503 and is not retried for every request."""
+    from litestar.testing import TestClient
+
+    from hyperglass.state import use_state
+    from hyperglass.settings import Settings
+
+    monkeypatch.setattr(Settings, "disable_ui", True)
+    from hyperglass.api import app
+
+    state = use_state()
+    calls = []
+
+    def initialize():
+        calls.append(True)
+        raise RuntimeError("bad config")
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    state.clear()
+    with TestClient(app=app) as client:
+        statuses = [client.get("/api/info").status_code for _ in range(3)]
+    assert statuses == [503] * 3
+    assert calls == [True]

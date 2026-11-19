@@ -5,11 +5,13 @@ import typing as t
 
 # Third Party
 from litestar import Request
+from litestar.exceptions import ServiceUnavailableException
 from litestar.config.cors import CORSConfig
 from litestar.config.compression import CompressionConfig
 
 # Project
 from hyperglass.state import use_state
+from hyperglass.exceptions.private import StateError
 
 if t.TYPE_CHECKING:
     # Project
@@ -26,8 +28,18 @@ RESPONSE_LOG_FIELDS = ("status_code",)
 
 
 async def recover_state(request: Request) -> None:
-    """Wait for complete state recovery without blocking other requests."""
-    await use_state().ensure_ready()
+    """Recover lost state before the request is handled, or answer 503.
+
+    A request that finds state missing while it is being rebuilt elsewhere, or while a
+    failed rebuild is cooling down, is rejected at once instead of waiting, so missing
+    state cannot exhaust the worker's thread pool. 503 tells clients and load balancers
+    the condition is temporary.
+    """
+    try:
+        await use_state().ensure_ready()
+    except StateError as error:
+        # The message cannot come from `params.messages`: params are what is missing.
+        raise ServiceUnavailableException(detail=str(error)) from error
 
 
 def create_cors_config(state: "HyperglassState") -> CORSConfig:
