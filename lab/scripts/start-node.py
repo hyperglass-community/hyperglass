@@ -36,7 +36,7 @@ def interface(node, name):
     return json.loads(result.stdout)[0] if result.returncode == 0 else None
 
 
-def start(node, timeout=600):  # noqa: C901 - platform startup and link-repair sequence
+def start(node, timeout=600, management_only=False):  # noqa: C901 - startup and link repairs
     """Start a node and restore its configured links."""
     topology = yaml.safe_load((LAB / "hyperglass-lab.clab.yml").read_text())["topology"]
     if node not in topology["nodes"]:
@@ -213,7 +213,10 @@ def start(node, timeout=600):  # noqa: C901 - platform startup and link-repair s
                     "300",
                 )
                 run(str(python), str(LAB / "scripts/configure-huawei.py"), node)
-            result = run(str(python), str(LAB / "scripts/check-node.py"), node)
+            check_args = [str(python), str(LAB / "scripts/check-node.py"), node]
+            if management_only:
+                check_args.append("--management-only")
+            result = run(*check_args)
             print(result.stdout.strip(), flush=True)
             return
         time.sleep(3)
@@ -224,5 +227,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("node")
     parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--management-only", action="store_true")
     args = parser.parse_args()
-    start(args.node, args.timeout)
+    start(args.node, args.timeout, args.management_only)

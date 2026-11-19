@@ -44,6 +44,22 @@ class OS9VM(vrnetlab.VM):
         _, match, output = self.tn.expect([self.prompt], 120)
         if not match or re.search(rb"%\s*(?:Error|Invalid|Incomplete|Ambiguous)", output, re.I):
             raise RuntimeError(f"OS9 command failed: {command}\n{output.decode(errors='replace')}")
+        return output
+
+    def wait_for_host_key(self, timeout=180):
+        """Wait for the generated RSA key before sending the startup configuration."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                output = self.command("do show crypto key mypubkey rsa")
+            except RuntimeError as error:
+                if "% Error: Host key is not generated." not in str(error):
+                    raise
+                output = b""
+            if re.search(rb"(?m)^ssh-rsa [A-Za-z0-9+/]+={0,2}\s*$", output):
+                return
+            time.sleep(1)
+        raise RuntimeError("OS9 SSH host-key generation did not complete")
 
     def bootstrap_spin(self):
         """Apply startup configuration once the console is ready."""
@@ -59,9 +75,10 @@ class OS9VM(vrnetlab.VM):
             "enable", "terminal length 0", "configure terminal", "no logging console",
             f"hostname {self.hostname}",
             f"username {self.username} password 0 {self.password} privilege 15",
-            "ip ssh server enable", "interface managementethernet 0/0",
+            "interface managementethernet 0/0",
             "ip address 10.0.0.15/24", "no keepalive", "no shutdown", "exit",
             "management route 0.0.0.0/0 10.0.0.2",
+            "ip ssh server enable",
         ]
         startup = Path("/config/startup.cfg")
         if startup.exists():
@@ -71,6 +88,8 @@ class OS9VM(vrnetlab.VM):
         try:
             for command in commands:
                 self.command(command)
+                if command == "ip ssh server enable":
+                    self.wait_for_host_key()
         except RuntimeError:
             # Keep the console available for diagnosis, but do not report healthy.
             self.bootstrap_failed = True
