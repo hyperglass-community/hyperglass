@@ -61,9 +61,8 @@ async def test_both_paths_send_the_same_bulk_request(monkeypatch, bulk):
     create = whois_server(monkeypatch, PIPE_RESPONSE)
     await query(ip_enrichment.IPEnrichmentService(), ["1.1.1.1"], bulk)
     host, timeout = create.call_args.args[0], create.call_args.kwargs["timeout"]
-    assert host == (ip_enrichment.WHOIS_HOST, ip_enrichment.WHOIS_PORT)
-    expected = ip_enrichment.WHOIS_BULK_TIMEOUT if bulk else ip_enrichment.WHOIS_TIMEOUT
-    assert timeout == expected
+    assert host == ("bgp.tools", 43)
+    assert timeout == (15 if bulk else 10)
     sent = create.return_value.sendall.call_args.args[0]
     assert sent == b"begin\n1.1.1.1\nend\n"
 

@@ -4,17 +4,32 @@ import asyncio
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from ipaddress import ip_address
-from threading import BoundedSemaphore
+from threading import Lock, BoundedSemaphore
 
-PTR_WORKERS = 4
-PTR_MAX_ADDRESSES = 32
-PTR_LOOKUP_TIMEOUT = 1.0
-PTR_QUERY_TIMEOUT = 2.0
+from hyperglass.state import use_state
 
 # Cancelling an await does not stop libc DNS. Retain the slot until its actual
 # worker finishes, so slow resolvers cannot grow the executor queue unboundedly.
-_executor = ThreadPoolExecutor(max_workers=PTR_WORKERS, thread_name_prefix="hyperglass-ptr")
-_slots = BoundedSemaphore(PTR_WORKERS)
+# Created on first use, sized by `structured.ip_enrichment.reverse_dns.workers`; a
+# configuration change takes effect on restart, like the rest of the configuration.
+_executor = None
+_slots = None
+_pool_lock = Lock()
+
+
+def _config():
+    return use_state("params").structured.ip_enrichment.reverse_dns
+
+
+def _pool():
+    """Return the PTR executor and its slots, creating them on first use."""
+    global _executor, _slots  # noqa: PLW0603
+    with _pool_lock:
+        if _executor is None or _slots is None:
+            workers = _config().workers
+            _executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="hyperglass-ptr")
+            _slots = BoundedSemaphore(workers)
+    return _executor, _slots
 
 
 def _public_address(address):
@@ -37,16 +52,17 @@ async def lookup_hostname(address: str):
     address = _public_address(address)
     if address is None:
         return None
-    if not _slots.acquire(blocking=False):
+    executor, slots = _pool()
+    if not slots.acquire(blocking=False):
         return None
     try:
-        future = _executor.submit(socket.gethostbyaddr, address)
+        future = executor.submit(socket.gethostbyaddr, address)
     except Exception:
-        _slots.release()
+        slots.release()
         raise
-    future.add_done_callback(lambda _: _slots.release())
+    future.add_done_callback(lambda _: slots.release())
     try:
-        result = await asyncio.wait_for(asyncio.wrap_future(future), PTR_LOOKUP_TIMEOUT)
+        result = await asyncio.wait_for(asyncio.wrap_future(future), _config().lookup_timeout)
     except (OSError, TimeoutError):
         return None
     hostname = result[0]
@@ -57,6 +73,7 @@ async def lookup_hostname(address: str):
 
 def _missing_addresses(output):
     """Group missing hostnames by address up to the per-query budget."""
+    max_addresses = _config().max_addresses
     pending = {}
     for hop in output.hops:
         if hop.hostname or not hop.ip_address:
@@ -64,7 +81,7 @@ def _missing_addresses(output):
         address = _public_address(hop.ip_address)
         if address is None:
             continue
-        if address not in pending and len(pending) >= PTR_MAX_ADDRESSES:
+        if address not in pending and len(pending) >= max_addresses:
             continue
         pending.setdefault(address, []).append(hop)
     return pending
@@ -72,6 +89,7 @@ def _missing_addresses(output):
 
 async def enrich_hostnames(output) -> None:
     """Fill missing names within one shared deadline and a fixed address budget."""
+    config = _config()
     pending = _missing_addresses(output)
     addresses = iter(pending)
 
@@ -85,8 +103,8 @@ async def enrich_hostnames(output) -> None:
 
     try:
         await asyncio.wait_for(
-            asyncio.gather(*(worker() for _ in range(min(PTR_WORKERS, len(pending))))),
-            PTR_QUERY_TIMEOUT,
+            asyncio.gather(*(worker() for _ in range(min(config.workers, len(pending))))),
+            config.query_timeout,
         )
     except TimeoutError:
         # Partial results remain useful; a missing name is not a failed query.

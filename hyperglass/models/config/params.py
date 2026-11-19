@@ -171,6 +171,6 @@ class Params(ParamsPublic, HyperglassModel):
                 "web": ...,
                 "messages": ...,
             },
-            # Proxy settings are used by the server only.
-            exclude={"web": {"client_ip"}},
+            # Proxy settings and server lookup bounds are used by the server only.
+            exclude={"web": {"client_ip", "server_lookups"}},
         )

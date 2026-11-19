@@ -32,6 +32,14 @@ PTR enrichment uses the system resolver for at most 32 distinct hop addresses. I
 | `structured.ip_enrichment.enrich_traceroute` | Boolean         | false         | Enrich traceroute hops with ASN, organisation, prefix, IXP details and missing hostnames. |
 | `structured.ip_enrichment.enrich_bgproute`   | Boolean         | false         | Enrich BGP routes with AS path organisation names and next-hop details when the query runs. When `false`, the UI loads AS path organisation names when the user opens the AS path. |
 | `structured.ip_enrichment.mode`              | String          | inline        | `inline` enriches the result before Hyperglass returns it. `async` returns the result first, then enriches it in the background and the UI fetches the enriched result. |
+| `structured.ip_enrichment.whois_host`        | String          | bgp.tools     | WHOIS server for ASN, prefix and organisation lookups. `/api/aspath/enrich` uses it too. |
+| `structured.ip_enrichment.whois_port`        | Integer         | 43            | TCP port of the WHOIS server. |
+| `structured.ip_enrichment.whois_timeout`     | Float           | 10            | Seconds allowed for a single-address WHOIS lookup. |
+| `structured.ip_enrichment.whois_bulk_timeout` | Float          | 15            | Seconds allowed for a bulk WHOIS lookup. |
+| `structured.ip_enrichment.reverse_dns.workers` | Integer       | 4             | PTR lookups in flight at once, per worker process, for missing traceroute hop names. |
+| `structured.ip_enrichment.reverse_dns.max_addresses` | Integer | 32            | Most distinct hop addresses looked up for one traceroute. |
+| `structured.ip_enrichment.reverse_dns.lookup_timeout` | Float  | 1             | Seconds allowed for one PTR lookup. |
+| `structured.ip_enrichment.reverse_dns.query_timeout` | Float   | 2             | Seconds allowed for all PTR lookups of one traceroute. |
 | `structured.enable_for_traceroute`           | Boolean         |               | Set to `false` to return text traceroute output on every device. When unset, each device's `structured_output` setting applies. |
 | `structured.enable_for_bgp_route`            | Boolean         |               | Set to `false` to return text BGP route output on every device. When unset, each device's `structured_output` setting applies. |
 
