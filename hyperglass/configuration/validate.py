@@ -75,12 +75,11 @@ def init_params() -> "Params":
 def init_directives() -> "Directives":
     """Validate & initialize directives."""
     # Map imported user directives to expected schema.
-    directives = load_config("directives", required=False)
+    user_directives = load_config("directives", required=False)
     try:
-        directives = (
-            Directive(id=name, **directive)
-            for name, directive in load_config("directives", required=False).items()
-        )
+        directives = [
+            Directive(id=name, **directive) for name, directive in user_directives.items()
+        ]
 
     except ValidationError as err:
         raise ConfigInvalid(errors=err.errors()) from err
