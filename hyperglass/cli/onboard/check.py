@@ -29,7 +29,7 @@ def font_status(ui: Path) -> tuple[str, str]:
         return "unknown", "No built UI found; run hyperglass build-ui"
     html = index.read_text(encoding="utf-8")
     if "fonts.googleapis.com" in html or "fonts.gstatic.com" in html:
-        return "off", "Run hyperglass build-ui with access to Google Fonts"
+        return "off", "Use the default fonts, or set web.theme.fonts.download: true"
     if all((ui / "fonts" / f"{kind}.css").is_file() for kind in ("body", "mono")):
         return "pass", "Fonts are served by this installation"
     return "unknown", "The built UI does not contain the expected font stylesheets"

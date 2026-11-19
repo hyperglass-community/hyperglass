@@ -387,12 +387,15 @@ web:
 
 #### Fonts
 
-Hyperglass's fonts come from [Google Fonts](https://fonts.google.com/). Any Google font name may be specified to override the default fonts. When the UI is built, the server downloads the configured fonts and serves them itself, so visitors' browsers do not contact Google. If the download fails, for example on a server without internet access, the UI links Google Fonts instead.
+Hyperglass's fonts come from [Google Fonts](https://fonts.google.com/). The default fonts, Nunito and Fira Code, ship with hyperglass under the SIL Open Font License. The UI build serves them itself without network access, so neither the server nor visitors' browsers contact Google.
 
-| Parameter              | Type   | Default Value | Description                                                                              |
-| :--------------------- | :----- | :------------ | :--------------------------------------------------------------------------------------- |
-| `web.theme.fonts.body` | String | Nunito        | Font for all standard body text, including headings.                                     |
-| `web.theme.fonts.mono` | String | Fira Code     | Font for all monospace text such as inline code or code blocks, including device output. |
+Any other Google font name may be specified to override the default fonts. By default, the server does not download it, and visitors' browsers load it from Google Fonts. Set `web.theme.fonts.download` to `true` to have the server download non-default fonts from Google when the UI is built and serve them itself. If that download fails, for example on a server without internet access, the UI links Google Fonts instead.
+
+| Parameter                  | Type    | Default Value | Description                                                                              |
+| :------------------------- | :------ | :------------ | :--------------------------------------------------------------------------------------- |
+| `web.theme.fonts.body`     | String  | Nunito        | Font for all standard body text, including headings.                                     |
+| `web.theme.fonts.mono`     | String  | Fira Code     | Font for all monospace text such as inline code or code blocks, including device output. |
+| `web.theme.fonts.download` | Boolean | `false`       | Download non-default fonts from Google Fonts when the UI is built, and serve them.       |
 
 ##### Example
 
@@ -401,4 +404,5 @@ web:
     theme:
         fonts:
             body: Inter
+            download: true
 ```

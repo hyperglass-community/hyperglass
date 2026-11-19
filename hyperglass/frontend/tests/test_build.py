@@ -131,7 +131,9 @@ def test_failed_build_does_not_record_build_id(
             (),
             {
                 "colors": type("Colors", (), {"black": "#000000"})(),
-                "fonts": type("Fonts", (), {"body": "Nunito", "mono": "Fira Code"})(),
+                "fonts": type(
+                    "Fonts", (), {"body": "Nunito", "mono": "Fira Code", "download": False}
+                )(),
             },
         )()
 
@@ -204,7 +206,9 @@ def _custom_files_params(custom_javascript: Path):
             (),
             {
                 "colors": type("Colors", (), {"black": "#000000"})(),
-                "fonts": type("Fonts", (), {"body": "Nunito", "mono": "Fira Code"})(),
+                "fonts": type(
+                    "Fonts", (), {"body": "Nunito", "mono": "Fira Code", "download": False}
+                )(),
             },
         )()
         custom_html = None
@@ -307,3 +311,43 @@ def test_build_ui_disables_next_telemetry(tmp_path: Path, monkeypatch: pytest.Mo
 
     assert calls[0]["cmd"] == "node_modules/.bin/next build"
     assert calls[0]["env"]["NEXT_TELEMETRY_DISABLED"] == "1"
+
+
+@pytest.mark.parametrize("download", (False, True))
+def test_build_frontend_passes_font_download_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, download: bool
+) -> None:
+    """Only web.theme.fonts.download may let the build download fonts (#434)."""
+    package_ui = tmp_path / "package-ui"
+    package_ui.mkdir()
+    (package_ui / "package.json").write_text("{}")
+    (package_ui / "node_modules").mkdir()
+    monkeypatch.setattr("hyperglass.frontend.PACKAGE_UI_DIR", package_ui)
+    (tmp_path / "app" / "static" / "images" / "favicons").mkdir(parents=True)
+    custom_js = tmp_path / "custom.js"
+    custom_js.write_text("")
+    params = _custom_files_params(custom_js)
+    params.web.theme.fonts.download = download
+    calls = []
+
+    async def fake_build_ui(*args, **kwargs) -> str:
+        return "built"
+
+    monkeypatch.setattr("hyperglass.frontend.build_ui", fake_build_ui)
+    monkeypatch.setattr("hyperglass.frontend.generate_favicons", lambda *args: ())
+    monkeypatch.setattr("hyperglass.frontend.self_host_fonts", lambda *args: calls.append(args))
+    monkeypatch.setattr("hyperglass.frontend.migrate_images", lambda *args: True)
+    monkeypatch.setattr("hyperglass.frontend.generate_opengraph", lambda *args: True)
+
+    asyncio.run(
+        build_frontend(
+            dev_mode=False,
+            dev_url="http://localhost/",
+            prod_url="/api/",
+            params=params,
+            app_path=tmp_path / "app",
+        )
+    )
+
+    assert calls[0][0] == {"body": "Nunito", "mono": "Fira Code"}
+    assert calls[0][2] is download

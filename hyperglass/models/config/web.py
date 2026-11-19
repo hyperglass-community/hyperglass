@@ -200,6 +200,9 @@ class ThemeFonts(HyperglassModel):
 
     body: str = "Nunito"
     mono: str = "Fira Code"
+    # Download non-default fonts from Google Fonts when the UI is built. The default
+    # fonts ship with hyperglass, so the build never contacts Google unless enabled.
+    download: bool = False
 
 
 class Theme(HyperglassModel):

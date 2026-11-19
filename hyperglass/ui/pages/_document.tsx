@@ -41,16 +41,13 @@ class MyDocument extends Document<DocumentExtra> {
     //   },
     // } = await getHyperglassConfig(hyperglassUrl);
 
-    // The UI build downloads the fonts into public/fonts, so browsers do not contact Google.
-    // If that download failed, fall back to Google Fonts.
-    const selfHosted =
-      fs.existsSync('public/fonts/body.css') && fs.existsSync('public/fonts/mono.css');
-    fonts = selfHosted
-      ? { body: '/fonts/body.css', mono: '/fonts/mono.css' }
-      : {
-          body: googleFontUrl(config.web.theme.fonts.body),
-          mono: googleFontUrl(config.web.theme.fonts.mono),
-        };
+    // The UI build writes each self-hosted font into public/fonts, so browsers do not
+    // contact Google. Fonts that were not self-hosted fall back to Google Fonts.
+    const fontUrl = (kind: 'body' | 'mono'): string =>
+      fs.existsSync(`public/fonts/${kind}.css`)
+        ? `/fonts/${kind}.css`
+        : googleFontUrl(config.web.theme.fonts[kind]);
+    fonts = { body: fontUrl('body'), mono: fontUrl('mono') };
     defaultColorMode = config.web.theme.defaultColorMode;
 
     return { customJs, customHtml, fonts, defaultColorMode, ...initialProps };
@@ -67,7 +64,7 @@ class MyDocument extends Document<DocumentExtra> {
           <meta name="og:image" content="/images/opengraph.jpg" />
           <meta property="og:image:width" content="1200" />
           <meta property="og:image:height" content="630" />
-          {this.props.fonts.body.startsWith('https://') && (
+          {Object.values(this.props.fonts).some(url => url.startsWith('https://')) && (
             <>
               <link rel="dns-prefetch" href="//fonts.gstatic.com" />
               <link rel="dns-prefetch" href="//fonts.googleapis.com" />

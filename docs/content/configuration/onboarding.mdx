@@ -201,7 +201,7 @@ OFF	edge1: OS version
 PASS	core1: structured output
 ```
 
-Self-hosted font detection examines the served UI under `static/ui`. A missing build is reported as unknown. A build that links Google Fonts is reported as off. Rebuild with `hyperglass build-ui` and working font-download access to self-host the fonts.
+Self-hosted font detection examines the served UI under `static/ui`. A missing build is reported as unknown. A build that links Google Fonts is reported as off. The default fonts are always self-hosted. To self-host other fonts, set `web.theme.fonts.download: true` and rebuild with `hyperglass build-ui` and access to Google Fonts.
 
 Suggestions use dotted setting paths, such as `structured.rpki.mode: external`. Apply them as nested YAML in the relevant file. The command does not edit `config.yaml`. Global structured-output toggles do not opt devices in. Every platform requires explicit `structured_output: true`, including FRR, Juniper and Arista. The onboarding prompt defaults to no unless an existing entry enables structured output. Router-supplied RPKI remains valid when external RPKI is off. Redis reachability does not verify the external validator's health.
 

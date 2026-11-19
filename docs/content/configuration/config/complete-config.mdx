@@ -621,6 +621,7 @@ web:
 | :-------- | :--- | :------ | :---------- |
 | `web.theme.fonts.body` | String | `Nunito` | Font family for body text. |
 | `web.theme.fonts.mono` | String | `Fira Code` | Font family for monospace text (IPs, commands, etc.). |
+| `web.theme.fonts.download` | Boolean | `false` | Download non-default fonts from Google Fonts when the UI is built. The default fonts ship with hyperglass. |
 
 #### Default Color Mode
 
@@ -1163,6 +1164,9 @@ web:
     fonts:
       body: "Nunito"
       mono: "Fira Code"
+      # Download non-default fonts from Google Fonts when the UI is built. The
+      # default fonts ship with hyperglass and never need network access.
+      download: false
     # Palette. Any CSS colour. The functional colours default to a palette colour:
     # primary=cyan, secondary=blue, success=green, warning=yellow, error=orange,
     # danger=red.
