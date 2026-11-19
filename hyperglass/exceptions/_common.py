@@ -88,6 +88,7 @@ class HyperglassError(Exception):
         except Exception:  # noqa: BLE001
             return str(template)
 
+    @staticmethod
     def _parse_pydantic_errors(*errors: Dict[str, Any]) -> str:
         errs = ("\n",)
 
