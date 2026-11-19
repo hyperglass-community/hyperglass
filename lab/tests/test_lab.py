@@ -16,9 +16,9 @@ HYPERGLASS_LAB_TEXT=1 with HYPERGLASS_LAB_API=http://127.0.0.1:8002/api to run
 it against the text instance: `_table` ids become their text ids and every
 structured case expects text.
 
-The lab core NATs IPv4 out to the host but has no IPv6 egress. IPv6 ping and
-traceroute cases use VRF targets inside the lab, and IOL, which answers with
-text even when the probes time out.
+Ping and traceroute cases target the device's BGP peer address on the lab
+core, so they pass without Internet access. VRF locations target addresses
+inside their VRF.
 """
 
 import time
@@ -61,6 +61,21 @@ def _huawei_vrf(v4, v6):
     ]
 
 
+def _peer_diagnostics(platform, link, trace="structured"):
+    """Ping and traceroute cases that target the device's BGP peer on the lab core.
+
+    Core link `link` is `10.250.<link>.0/31` and `fd00:250:<link>::/127`. The
+    core holds the even address, so these cases need no Internet access.
+    """
+    v4, v6 = f"10.250.{link}.0", f"fd00:250:{link}::"
+    return [
+        (f"__hyperglass_{platform}_ping__", "ping_v4", v4, "text", None),
+        (f"__hyperglass_{platform}_ping__", "ping_v6", v6, "text", None),
+        (f"__hyperglass_{platform}_traceroute__", "traceroute_v4", v4, trace, None),
+        (f"__hyperglass_{platform}_traceroute__", "traceroute_v6", v6, trace, None),
+    ]
+
+
 # device -> list of (query_type, label, target, expectation, xfail_issue)
 MATRIX = {
     "lab-frr": [
@@ -68,8 +83,7 @@ MATRIX = {
         ("__hyperglass_frr_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_frr_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
         ("__hyperglass_frr_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
-        ("__hyperglass_frr_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_frr_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("frr", 1),
     ],
     # FRR has no VRF form of ping or traceroute, so the VRF location drops them.
     "lab-frr-vrf": [
@@ -88,8 +102,7 @@ MATRIX = {
         ("__hyperglass_bird_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_bird_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
         ("__hyperglass_bird_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
-        ("__hyperglass_bird_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_bird_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("bird", 2),
     ],
     "lab-openbgpd": [
         ("__hyperglass_openbgpd_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
@@ -102,8 +115,7 @@ MATRIX = {
             "structured",
             None,
         ),
-        ("__hyperglass_openbgpd_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_openbgpd_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("openbgpd", 3),
     ],
     "lab-mikrotik": [
         ("__hyperglass_mikrotik_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
@@ -116,16 +128,14 @@ MATRIX = {
             "structured",
             None,
         ),
-        ("__hyperglass_mikrotik_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_mikrotik_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("mikrotik", 4),
     ],
     "lab-vyos": [
         ("__hyperglass_vyos_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
         ("__hyperglass_vyos_bgp_route_table__", "bgp_route_v6", V6, "structured", None),
         ("__hyperglass_vyos_bgp_aspath_table__", "bgp_aspath", ASPATH, "structured", None),
         ("__hyperglass_vyos_bgp_community_table__", "bgp_community", COMMUNITY, "structured", None),
-        ("__hyperglass_vyos_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_vyos_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("vyos", 5),
     ],
     "lab-arista": [
         ("__hyperglass_arista_eos_bgp_route_table__", "bgp_route_v4", V4, "structured", None),
@@ -138,9 +148,7 @@ MATRIX = {
             "structured",
             None,
         ),
-        ("__hyperglass_arista_eos_ping__", "ping_v4", V4, "text", None),
-        # The shared standard traceroute parser now gives Arista structured hops.
-        ("__hyperglass_arista_eos_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("arista_eos", 7),
     ],
     "lab-arista-vrf": [
         ("__hyperglass_arista_eos_bgp_route_table__", "bgp_route_v4", VRF_V4, "structured", None),
@@ -179,8 +187,7 @@ MATRIX = {
             "structured",
             None,
         ),
-        ("__hyperglass_huawei_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_huawei_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("huawei", 8),
     ],
     "lab-huawei-vrpv8-vrf": _huawei_vrf("192.0.2.108", "2001:db8:100::8"),
     # NE40E V800R011C00SPC607B607, also VRP 8.180, with the same capped feed (#103).
@@ -195,8 +202,7 @@ MATRIX = {
             "structured",
             None,
         ),
-        ("__hyperglass_huawei_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_huawei_traceroute__", "traceroute_v4", V4, "structured", None),
+        *_peer_diagnostics("huawei", 11),
     ],
     "lab-huawei-ne40-vrf": _huawei_vrf("192.0.2.111", "2001:db8:100::11"),
     "lab-iol": [
@@ -210,10 +216,7 @@ MATRIX = {
             "structured",
             None,
         ),
-        ("__hyperglass_cisco_ios_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_cisco_ios_ping__", "ping_v6", V6, "text", None),
-        ("__hyperglass_cisco_ios_traceroute__", "traceroute_v4", V4, "structured", None),
-        ("__hyperglass_cisco_ios_traceroute__", "traceroute_v6", V6, "structured", None),
+        *_peer_diagnostics("cisco_ios", 9),
     ],
     # IOL-L2 has `structured_output: false`, so it offers text ids on both instances.
     "lab-ioll2": [
@@ -221,10 +224,7 @@ MATRIX = {
         ("__hyperglass_cisco_ios_bgp_route__", "bgp_route_v6", V6_PREFIX, "text", None),
         ("__hyperglass_cisco_ios_bgp_aspath__", "bgp_aspath", ASPATH, "text", None),
         ("__hyperglass_cisco_ios_bgp_community__", "bgp_community", COMMUNITY, "text", None),
-        ("__hyperglass_cisco_ios_ping__", "ping_v4", V4, "text", None),
-        ("__hyperglass_cisco_ios_ping__", "ping_v6", V6, "text", None),
-        ("__hyperglass_cisco_ios_traceroute__", "traceroute_v4", V4, "text", None),
-        ("__hyperglass_cisco_ios_traceroute__", "traceroute_v6", V6, "text", None),
+        *_peer_diagnostics("cisco_ios", 10, trace="text"),
     ],
 }
 
