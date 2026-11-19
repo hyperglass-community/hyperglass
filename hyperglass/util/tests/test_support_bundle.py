@@ -220,3 +220,52 @@ def test_support_bundle_uses_hyperglass_default_filename(tmp_path, monkeypatch):
     assert output.is_file()
     assert json.loads(output.read_text())["redaction"] == "metadata-only"
     assert not (tmp_path / "ultraglass-support-bundle.json").exists()
+
+
+SAMPLE_FAILURE = {
+    "timestamp": "2026-08-26T10:00:00+00:00",
+    "query": {"type": "ping"},
+    "error": {"type": "DeviceTimeout", "message": "Timed out"},
+}
+
+
+def test_support_bundle_reads_custom_samples_path(tmp_path):
+    """A custom `logging.samples.path` is read instead of the default file (#454)."""
+    # Project
+    from hyperglass.models.config.logging import QuerySamples
+
+    log_directory = tmp_path / "logs"
+    log_directory.mkdir()
+    custom = tmp_path / "samples" / "custom.jsonl"
+    custom.parent.mkdir()
+    custom.write_text(json.dumps(SAMPLE_FAILURE) + "\n")
+
+    bundle = build_support_bundle(
+        [log_directory, tmp_path], samples=QuerySamples(enable=True, path=custom)
+    )
+
+    assert [f["error"]["type"] for f in bundle["query_failures"]] == ["DeviceTimeout"]
+
+
+def test_support_bundle_command_uses_configured_samples_path(tmp_path, monkeypatch):
+    """The CLI finds query failures at the samples path set in config.yaml (#454)."""
+    # Project
+    from hyperglass.settings import Settings
+
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    custom = tmp_path / "custom.jsonl"
+    custom.write_text(json.dumps(SAMPLE_FAILURE) + "\n")
+    (app_path / "config.yaml").write_text(f"logging:\n  samples:\n    path: {custom}\n")
+    log_directory = tmp_path / "logs"
+    log_directory.mkdir()
+    monkeypatch.setattr(Settings, "app_path", app_path)
+    output = tmp_path / "bundle.json"
+
+    result = CliRunner().invoke(
+        cli, ["support-bundle", "-o", str(output), "--log-directory", str(log_directory)]
+    )
+
+    assert result.exit_code == 0, result.output
+    failures = json.loads(output.read_text())["query_failures"]
+    assert [f["error"]["type"] for f in failures] == ["DeviceTimeout"]

@@ -137,14 +137,25 @@ def _support_bundle(
 
     # Project
     from hyperglass.settings import Settings
+    from hyperglass.configuration.load import load_config
     from hyperglass.util.support_bundle import write_support_bundle
+    from hyperglass.models.config.logging import QuerySamples
 
     directories = (
         [log_directory]
         if log_directory is not None
         else [Path(gettempdir()), Path(Settings.app_path)]
     )
-    bundle_path = write_support_bundle(output, directories, log_lines=log_lines)
+
+    # Read only `logging.samples`, to find a custom samples file. The bundle never
+    # exports configuration, and a broken config must not prevent a bundle.
+    try:
+        logging_config = load_config("config", required=False).get("logging") or {}
+        samples = QuerySamples(**(logging_config.get("samples") or {}))
+    except Exception:  # noqa: BLE001
+        samples = None
+
+    bundle_path = write_support_bundle(output, directories, log_lines=log_lines, samples=samples)
     echo.success("Wrote metadata-only support bundle to {!s}", bundle_path)
 
 

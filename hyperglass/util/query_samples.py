@@ -32,9 +32,9 @@ _write_lock = threading.Lock()
 DEFAULT_FILENAME = "hyperglass_query_log.jsonl"
 
 
-def _resolve_path(cfg: "QuerySamples", directory: Path) -> Path:
+def resolve_path(cfg: t.Optional["QuerySamples"], directory: Path) -> Path:
     """Determine the JSONL output path (explicit path, else <directory>/<default>)."""
-    if cfg.path is not None:
+    if cfg is not None and cfg.path is not None:
         return Path(cfg.path)
     return Path(directory) / DEFAULT_FILENAME
 
@@ -141,7 +141,7 @@ def log_query_sample(
     if not cfg.enable:
         return
     try:
-        path = _resolve_path(cfg, directory)
+        path = resolve_path(cfg, directory)
         record = build_sample(
             query,
             cfg,
