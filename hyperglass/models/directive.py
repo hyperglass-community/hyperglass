@@ -237,8 +237,11 @@ class RuleWithIP(Rule):
         The classes follow Python's `ipaddress` flags, which hold for a prefix only when the
         whole prefix is in the class. Loopback and unspecified are checked first, so `::1` and
         `::` need only `allow_loopback` or `allow_unspecified`, although IPv6 `::/8` is also
-        reserved. Documentation ranges, such as 192.0.2.0/24, are not reserved.
+        reserved. Documentation ranges, such as 192.0.2.0/24, are not reserved. A zone is
+        checked before any class, so no other option admits it (#439).
         """
+        if getattr(target.network_address, "scope_id", None) is not None:
+            return None if self.zone_allowed(target) else "Zoned"
         if target.is_loopback:
             return None if self.allow_loopback else "Loopback"
         if target.is_unspecified:
@@ -246,6 +249,19 @@ class RuleWithIP(Rule):
         if target.is_reserved and not self.allow_reserved:
             return "Reserved"
         return None
+
+    def zone_allowed(self, target: IPvAnyNetwork) -> bool:
+        """Return whether a zoned target may be queried (#439).
+
+        A zone lets a visitor choose the router interface for the query, so zones are refused
+        unless an IPv6 rule sets `allow_link_local`. Even then only a link-local host address
+        may carry one: a zone on a prefix or a global address has no valid use.
+        """
+        return (
+            getattr(self, "allow_link_local", False)
+            and target.prefixlen == target.max_prefixlen
+            and target.network_address.is_link_local
+        )
 
     def validate_target(self, target: str, *, multiple: bool) -> bool:
         """Validate an IP address target against this rule's conditions."""
@@ -325,6 +341,7 @@ class RuleWithIPv6(RuleWithIP):
 
     _type: RuleTypeAttr = "ipv6"
     condition: IPv6Network
+    allow_link_local: bool = False
     ge: int = Field(0, ge=0, le=128)
     le: int = Field(128, ge=0, le=128)
 

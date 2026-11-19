@@ -54,7 +54,7 @@ def test_ip_directives_reject_command_syntax_in_zone(directive, target):
 
 @pytest.mark.parametrize("target", ("fe80::1%eth0", "fe80::1%br-lan", "fe80::1%3"))
 def test_safe_ipv6_zones_remain_valid(target):
-    rule = RuleWithIPv6(condition="::/0", command="ping {target}")
+    rule = RuleWithIPv6(condition="::/0", command="ping {target}", allow_link_local=True)
     assert rule.validate_target(target, multiple=False) is True
 
 
@@ -123,7 +123,7 @@ def test_command_uses_validated_canonical_ip(query_context, target, expected):
     directive, device = query_context
     directive.rules = [
         RuleWithIPv4(condition="0.0.0.0/0", command="ping {target}"),
-        RuleWithIPv6(condition="::/0", command="ping {target}"),
+        RuleWithIPv6(condition="::/0", command="ping {target}", allow_link_local=True),
     ]
     query = query_module.Query(
         query_location="test-device", query_type="test-query", query_target=target
