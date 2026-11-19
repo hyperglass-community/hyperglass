@@ -116,3 +116,24 @@ LINUX_PLATFORMS = (
     "sonic",
     "arrcus_arcos",
 )
+
+# Platforms whose commands a POSIX shell parses: Netmiko's `linux_ssh` family, VyOS
+# operational mode, and TNSR's `dataplane shell`. Command arguments are quoted on these
+# platforms. Netmiko's `_ssh` aliases name the same device types, so each is included.
+_SHELL_PLATFORMS = (
+    *LINUX_PLATFORMS,
+    "linux",
+    "cumulus_linux",
+    "corelight_linux",
+    "edgecore_sonic",
+    "f5_linux",
+    "ovs_linux",
+    "cisco_apic",
+    "vyos",
+    "vyos_1_3",
+    "brocade_vyos",
+    "vyatta_vyos",
+    "ubiquiti_edgerouter",
+    "tnsr",
+)
+SHELL_PLATFORMS = frozenset((*_SHELL_PLATFORMS, *(f"{p}_ssh" for p in _SHELL_PLATFORMS)))
