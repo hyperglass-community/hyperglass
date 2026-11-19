@@ -8,15 +8,9 @@ docker exec clab-hyperglass-dell-core gobgp global rib add 1.1.1.0/24 nexthop 10
 docker exec clab-hyperglass-dell-core gobgp global rib add -a ipv6 2606:4700::/44 nexthop fd00:251:9::2 aspath 13335 community 37195:302
 ```
 
-After OS9 boots, log in with the lab credential `admin` / `Lab-Router9` and enable the configured peers:
+The startup configuration enables both BGP peers. It deactivates the IPv6 peer in the default IPv4 address family and activates it under IPv6. The lab credential is `admin` / `Lab-Router9`.
 
-```text
-configure terminal
-router bgp 65029
- neighbor 10.251.9.2 no shutdown
- neighbor fd00:251:9::2 no shutdown
-end
-```
+Rebuild the OS9 image after updating `launch.py`. The bootstrap waits for RSA host-key generation before applying the data-interface and BGP configuration. A key-generation timeout leaves bootstrap failed rather than reporting a healthy router.
 
 Test both prefixes, IPv4 AS path `_13335$`, community `37195:302`, and diagnostics to `1.1.1.1` and `2606:4700::1111`. Use a `dell_force10` device with structured output on and off. Authentic OS9 9.13 captures are under `hyperglass/plugins/tests/fixtures/dell-os9-live/`. Repeat BGP and ping in a named VRF. OS9 traceroute VRFs are E-Series-specific and are not advertised.
 
