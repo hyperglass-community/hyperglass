@@ -127,9 +127,12 @@ logging:
     port: 514
 
   # Post a notification to a webhook for each query. Omit the block to disable.
+  # Each webhook carries the visitor's address, and Hyperglass looks that address
+  # up at BGP.tools, so this sample leaves it off. See "Data Sent to Third
+  # Parties" (/configuration/third-party-data).
   http:
     # Set false to keep the block but stop sending. Default: true
-    enable: true
+    enable: false
     # msteams (Teams Workflows Adaptive Card), slack, or generic (JSON POST).
     # Default: generic
     provider: "generic"
@@ -239,6 +242,9 @@ structured:
 
   # Add ASN, organisation, prefix and IXP details from BGP.tools (WHOIS, TCP port
   # 43, outbound access required). Lookups are cached in memory per worker.
+  # Enrichment sends every public traceroute hop, BGP next hop and ASN to
+  # BGP.tools over plain-text WHOIS, so this sample leaves it off. See "Data Sent
+  # to Third Parties" (/configuration/third-party-data) before enabling it.
   ip_enrichment:
     # inline - enrich before returning the result.
     # async  - return the result first, then enrich it in the background; the UI
@@ -246,11 +252,11 @@ structured:
     # Default: inline
     mode: "async"
     # Enrich traceroute hops with ASN, organisation, prefix and IXP. Default: false
-    enrich_traceroute: true
+    enrich_traceroute: false
     # Enrich BGP routes with AS path organisation names and next-hop details when
     # the query runs. When false, the UI loads AS path names when the user opens
     # the AS path. Default: false
-    enrich_bgproute: true
+    enrich_bgproute: false
     # WHOIS server for ASN, prefix and organisation lookups. /api/aspath/enrich
     # (web.aspath_enrichment) uses it too. Default: bgp.tools, port 43
     whois_host: "bgp.tools"
