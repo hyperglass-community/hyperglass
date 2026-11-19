@@ -16,6 +16,7 @@ from hyperglass.frontend import (
     _ui_subprocess_env,
     build_frontend,
     generate_favicons,
+    node_initial,
 )
 
 
@@ -163,3 +164,27 @@ def test_failed_build_does_not_record_build_id(
         )
 
     assert "HYPERGLASS_BUILD_ID" not in dot_env_file.read_text()
+
+
+def test_node_initial_returns_command_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Return the `pnpm install` output unchanged, not one character per line."""
+
+    class Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"Lockfile is up to date\nDone in 1s\n", b""
+
+        async def wait(self):
+            return 0
+
+    async def create_subprocess_shell(*args, **kwargs):
+        return Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", create_subprocess_shell)
+
+    result = asyncio.run(node_initial(ui_path=tmp_path))
+
+    assert result == "Lockfile is up to date\nDone in 1s"
