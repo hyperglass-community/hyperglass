@@ -384,6 +384,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Sign attestations with a Sigstore certificate and store them.
+      id-token: write
+      attestations: write
     steps:
       - name: Download scanned image
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -418,6 +421,56 @@ jobs:
             docker tag "$EXPECTED_IMAGE_ID" "$tag"
             docker push "$tag"
           done <<< "$IMAGE_TAGS"
+
+      # Attestations bind to the digest the registry serves for the pushed tags,
+      # which is what `gh attestation verify oci://<image>:<tag>` resolves.
+      - name: Resolve published digest
+        id: digest
+        env:
+          IMAGE_TAGS: ${{ needs.image.outputs.tags }}
+        run: |
+          digest=""
+          while IFS= read -r tag; do
+            tag_digest=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | jq -r .digest)
+            if [ -z "$digest" ]; then
+              digest="$tag_digest"
+            elif [ "$tag_digest" != "$digest" ]; then
+              echo "::error::$tag resolves to $tag_digest, expected $digest."
+              exit 1
+            fi
+          done <<< "$IMAGE_TAGS"
+          case "$digest" in
+            sha256:*) ;;
+            *) echo "::error::Could not resolve the published digest."; exit 1 ;;
+          esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SBOM
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP:/out" \
+            "aquasec/trivy:${TRIVY_VERSION}" image \
+            --format spdx-json \
+            --output /out/sbom.spdx.json \
+            hyperglass:scan
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          sbom-path: ${{ runner.temp }}/sbom.spdx.json
+          push-to-registry: true
+          create-storage-record: false
 
   release:
     name: Publish GitHub release
