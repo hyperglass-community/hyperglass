@@ -95,6 +95,7 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 - [#187](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei
 - [#325](https://github.com/thatmattlove/hyperglass/pull/325): Fix code block padding in the documentation - @jagardaniel
 - [#332](https://github.com/thatmattlove/hyperglass/pull/332): Fix custom proxy port support in SSH proxy tunnels @jessiebryan 
+- [#356](https://github.com/hyperglass-community/hyperglass/issues/356): Detect the CPUs available to the process (CPU affinity, then the cgroup CPU quota) instead of the host's core count, and cap the automatic worker count at 8, so containers on high-core hosts no longer start enough workers to be OOM-killed. `HYPERGLASS_WORKERS` still overrides the count.
 
 - [#292](https://github.com/thatmattlove/hyperglass/pull/292): Updates Mikrotik BGP route command so supernets are selected as well as exact matches. - @GrandArcher
 
