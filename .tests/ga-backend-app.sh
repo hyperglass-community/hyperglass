@@ -30,32 +30,39 @@ fi
 
 echo "[INFO] Starting hyperglass..."
 python3 -m hyperglass.console start &>$LOG_FILE &
-sleep 120
+HYPERGLASS_PID=$!
+trap 'kill $HYPERGLASS_PID 2>/dev/null' EXIT
 
-if [[ ! $? == 0 ]]; then
-    echo "[ERROR] Failed to start hyperglass."
-    cat /tmp/hyperglass.log
-    cat $LOG_FILE
-    exit 1
-else
-    echo "[SUCCESS] Started hyperglass."
-fi
+# Poll until hyperglass answers 200, the process exits, or the timeout passes.
+STARTUP_TIMEOUT=${HYPERGLASS_STARTUP_TIMEOUT:-300}
+URL="http://127.0.0.1:8001"
+STATUS="000"
+START_TIME=$SECONDS
 
-echo "[INFO] Running HTTP test..."
+while true; do
+    if ! kill -0 $HYPERGLASS_PID 2>/dev/null; then
+        wait $HYPERGLASS_PID
+        echo "[ERROR] hyperglass exited with status $? before it was ready."
+        cat /tmp/hyperglass.log
+        cat $LOG_FILE
+        exit 1
+    fi
 
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8001)
+    STATUS=$(curl -s --max-time 5 -o /dev/null -w "%{http_code}" $URL)
+    if [[ "$STATUS" == "200" ]]; then
+        break
+    fi
 
-echo "[INFO] Status code: $STATUS"
+    if (( SECONDS - START_TIME >= STARTUP_TIMEOUT )); then
+        echo "[ERROR] hyperglass did not return 200 within ${STARTUP_TIMEOUT}s (last status: $STATUS)."
+        cat /tmp/hyperglass.log
+        cat $LOG_FILE
+        exit 1
+    fi
 
-if [[ ! $? == 0 ]]; then
-    echo "[ERROR] HTTP test failed."
-    exit 1
-elif [[ ! "$STATUS" == "200" ]]; then
-    echo "[ERROR] HTTP test failed."
-    cat /tmp/hyperglass.log
-    cat $LOG_FILE
-    exit 1
-fi
+    sleep 2
+done
 
+echo "[SUCCESS] hyperglass returned $STATUS after $((SECONDS - START_TIME))s."
 echo "[SUCCESS] Tests ran successfully."
 exit 0
