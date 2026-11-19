@@ -128,6 +128,7 @@ class FRRBGPTable(_FRRBase):
                     "as_path": route.aspath,
                     "communities": route.community,
                     "next_hop": route.nexthops[0].ip,
+                    # Aggregator AS: used as the origin only when the AS path is empty.
                     "source_as": route.aggregator_as,
                     "source_rid": route.aggregator_id,
                     "peer_rid": route.peer.peer_id,

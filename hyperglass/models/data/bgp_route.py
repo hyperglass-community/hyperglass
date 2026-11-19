@@ -63,7 +63,7 @@ class BGPRoute(HyperglassModel):
     as_path: t.List[int]
     communities: t.List[str]
     next_hop: str
-    source_as: int
+    source_as: int = 0
     source_rid: str
     peer_rid: str
     rpki_state: int
@@ -112,6 +112,22 @@ class BGPRoute(HyperglassModel):
         func = func_map[structured.communities.mode]
 
         return [c for c in value if func(c)]
+
+    @field_validator("source_as")
+    def validate_source_as(cls, value: int, info: ValidationInfo) -> int:
+        """Use the origin AS: the last ASN in the AS path.
+
+        This is the same origin that RPKI validation checks (`_rpki_target`), so
+        "Origin" means the same thing on every platform. A route with an empty AS
+        path was originated inside this network: keep a local ASN the parser
+        supplied (for example, the router's own AS), otherwise use `primary_asn`.
+        """
+        as_path = info.data.get("as_path") or []
+        if as_path:
+            return as_path[-1]
+        if value:
+            return value
+        return int(use_state("params").primary_asn)
 
     @field_validator("rpki_state")
     def validate_rpki_state(cls, value, info: ValidationInfo):

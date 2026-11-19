@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 # Project
+from hyperglass.state import use_state
 from hyperglass.plugins import OutputPluginManager
 from hyperglass.models.config.devices import Device
 from hyperglass.execution.drivers._construct import Construct
@@ -91,15 +92,18 @@ def test_documented_detail_keeps_all_paths(family, prefix):
         ("65000 64496", 64496),
         ("65000 65000 1.10", 65546),
         ("64496", 64496),
-        ("(null)", 0),
+        # An empty path is a locally originated route: its origin is primary_asn.
+        ("(null)", None),
     ],
 )
 def test_origin_as_is_last_asn(family, original, path, origin):
+    local_asn = int(use_state("params").primary_asn)
+    origin = local_asn if origin is None else origin
     text = (FIXTURES / f"route{family}.txt").read_text()
     text = text.replace(f"AS-path         : {original}", f"AS-path         : {path}")
     result = parse_comware(text)
     assert result.routes[1].source_as == origin
-    assert result.routes[0].source_as == (0 if family == 4 else origin)
+    assert result.routes[0].source_as == (local_asn if family == 4 else origin)
 
 
 @pytest.mark.parametrize(

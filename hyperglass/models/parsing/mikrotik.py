@@ -109,11 +109,6 @@ class MikrotikRouteEntry(MikrotikBase):
         return self.communities + self.large_communities + self.ext_communities
 
     @property
-    def source_as(self) -> int:
-        """Return the origin ASN."""
-        return self.as_path[-1] if self.as_path else 0
-
-    @property
     def source_rid(self) -> str:
         """Extract the IP/IPv6 address from belongs-to field.
 
@@ -368,7 +363,6 @@ class MikrotikBGPTable(MikrotikBase):
                 "as_path": route.as_path,
                 "communities": route.all_communities,
                 "next_hop": route.next_hop,
-                "source_as": route.source_as,
                 "source_rid": route.source_rid,
                 "peer_rid": route.peer_rid,
                 "rpki_state": route.rpki_state,

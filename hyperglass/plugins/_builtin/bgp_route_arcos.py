@@ -192,7 +192,6 @@ def _path(node: dict) -> dict:
         "next_hop": _next_hop(node),
         "peer_rid": peer,
         "source_rid": peer,
-        "source_as": as_path[-1] if as_path else 0,
         "as_path": as_path,
         "communities": _communities(node),
         "med": _int_field(node, 0, "med", "metric"),

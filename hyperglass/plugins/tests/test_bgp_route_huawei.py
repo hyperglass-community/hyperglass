@@ -66,7 +66,7 @@ def test_huawei_bgp_route(state):
     best = by_prefix["203.0.113.0/24"]
     assert best.active is True, "best+select route should be active"
     assert best.as_path == [64500, 64501], f"Bad as_path: {best.as_path}"
-    assert best.source_as == 64500, "source_as should be first ASN in path"
+    assert best.source_as == 64501, "source_as should be the last (origin) ASN in the path"
     assert best.next_hop == "198.51.100.1"
     assert "64500:100" in best.communities
 

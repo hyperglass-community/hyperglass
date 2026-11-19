@@ -45,7 +45,6 @@ def _path(prefix: str, path: str, block: str) -> dict:
         "peer_rid": str(ip_address(hop[2])),
         "source_rid": str(ip_address(hop[3])),
         "as_path": as_path,
-        "source_as": as_path[-1] if as_path else 0,
         "active": bool(re.search(r"(?:^|,\s*)best(?:,|$)", origin[1])),
         "local_preference": int(pref[1]),
         "med": int(metric[1]) if metric else 0,

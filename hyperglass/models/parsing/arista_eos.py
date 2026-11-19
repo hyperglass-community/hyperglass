@@ -143,12 +143,6 @@ class AristaBGPTable(_AristaBase):
                         *route.route_detail.large_community_list,
                     ]
 
-                # iBGP paths contain an empty AS_PATH array. If the AS_PATH is empty, we
-                # set the source_as to the router's local-as.
-                source_as = self.asn
-                if len(as_path) != 0:
-                    source_as = as_path[0]
-
                 routes.append(
                     {
                         "prefix": prefix,
@@ -160,7 +154,9 @@ class AristaBGPTable(_AristaBase):
                         "as_path": as_path,
                         "communities": communities,
                         "next_hop": route.next_hop,
-                        "source_as": source_as,
+                        # Origin for an empty (iBGP or local) AS path; BGPRoute uses
+                        # the last ASN in the path otherwise.
+                        "source_as": self.asn,
                         "source_rid": route.peer_entry.peer_router_id,
                         "peer_rid": route.peer_entry.peer_router_id,
                         "rpki_state": rpki_state,
