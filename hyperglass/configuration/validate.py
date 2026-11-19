@@ -114,7 +114,6 @@ def init_ui_params(*, params: "Params", devices: "Devices") -> "UIParameters":
     from hyperglass.defaults import CREDIT
     from hyperglass.constants import (
         PARSED_RESPONSE_FIELDS,
-        __fork_url__,
         __upstream_url__,
         __upstream_version__,
         __version__,
@@ -129,7 +128,6 @@ def init_ui_params(*, params: "Params", devices: "Devices") -> "UIParameters":
         version=__version__,
         upstream_version=__upstream_version__,
         upstream_url=__upstream_url__,
-        fork_url=__fork_url__,
     )
 
     _ui_params = params.frontend()
