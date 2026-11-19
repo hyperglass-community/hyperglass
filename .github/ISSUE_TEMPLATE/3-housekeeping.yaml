@@ -1,0 +1,53 @@
+name: Housekeeping
+description: Maintenance work such as cleanup, hardening, tooling or documentation accuracy
+labels:
+  - housekeeping
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Use this form for focused maintenance work that is neither a user-facing bug nor a new feature.
+        Keep each issue to one problem and one change. Report security vulnerabilities privately, not here.
+  - type: dropdown
+    id: area
+    validations:
+      required: true
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - CI / release
+        - Container image
+        - Dependencies
+        - Backend
+        - Frontend
+        - Directives / platforms
+        - Documentation
+        - Tests
+        - Process
+  - type: textarea
+    id: problem
+    validations:
+      required: true
+    attributes:
+      label: Problem
+      description: What is wrong or missing today? Link the code, for example a permalink to the lines.
+  - type: textarea
+    id: proposed-change
+    validations:
+      required: true
+    attributes:
+      label: Proposed change
+      description: The smallest change that solves the problem.
+  - type: textarea
+    id: done-when
+    validations:
+      required: true
+    attributes:
+      label: Done when
+      description: How a reviewer can tell the work is complete, ideally something a test or CI check can show.
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Related issues, pull requests or discussions.
