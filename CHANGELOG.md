@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 - Return HTTP 400 with the failed fields for malformed query requests. Request validation errors previously returned HTTP 200 and were logged as critical ([#412](https://github.com/hyperglass-community/hyperglass/pull/412), [#490](https://github.com/hyperglass-community/hyperglass/issues/490)). **API change:** this applies to every route, and external clients that received HTTP 200 with `"status_code": 422` in the body now receive HTTP 400 with the same body keys.
+- Resolve a query type by its exact directive id. A query for a custom directive such as `ping` could run another directive whose id contains it, such as `ping6`, depending on the process hash seed.
 
 ## 3.0.0-rc.2 - 2026-11-19
 

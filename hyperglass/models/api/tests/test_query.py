@@ -224,3 +224,48 @@ def test_builtin_id_refused_without_a_same_name_directive() -> None:
         resolve_directive_by_name(devices=[iol, iosv], device=iosv, directive_id=BUILTIN_TRACEROUTE)
         is None
     )
+
+
+@pytest.fixture
+def overlapping_ids_state() -> t.Generator[t.Any, None, None]:
+    """Seed one device whose custom directive ids overlap: `ping` is a substring of `ping6`."""
+    # Project
+    from hyperglass.configuration import init_ui_params
+    from hyperglass.models.config.params import Params
+    from hyperglass.models.config.devices import Devices
+
+    state = use_state()
+    params = Params()
+    command = {"condition": "0.0.0.0/0", "action": "permit", "command": "ping {target}"}
+    directives = Directives.new(
+        {"ping6": {"name": "Ping IPv6", "rules": [command], "field": {"description": "t"}}},
+        {"ping": {"name": "Ping", "rules": [command], "field": {"description": "t"}}},
+    )
+    with state.cache.pipeline() as pipeline:
+        pipeline.set("params", params)
+        pipeline.set("directives", directives)
+
+    devices = Devices(
+        {
+            "name": "router",
+            "address": "192.0.2.1",
+            "platform": "juniper",
+            "credential": {"username": "u", "password": "p"},
+            "directives": ["ping6", "ping"],
+        }
+    )
+    with state.cache.pipeline() as pipeline:
+        pipeline.set("devices", devices)
+        pipeline.set("ui_params", init_ui_params(params=params, devices=devices))
+    yield state
+
+
+@pytest.mark.parametrize("query_type", ("ping", "ping6"))
+def test_query_type_resolves_by_exact_id(overlapping_ids_state, query_type: str) -> None:
+    """A query type resolves to the directive with that id, not one that contains it."""
+    # Project
+    from hyperglass.models.api import Query
+
+    query = Query(queryLocation="router", queryTarget="192.0.2.2", queryType=query_type)
+
+    assert query.directive.id == query_type
