@@ -1,5 +1,6 @@
 """A completed BGP query never starts another SSH session."""
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -9,6 +10,15 @@ from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override
 from hyperglass.exceptions.public import DeviceTimeout
 from hyperglass.models.data.bgp_route import BGPRouteTable
 from netmiko.exceptions import ReadTimeout
+
+
+@pytest.fixture(autouse=True)
+def request_budget(monkeypatch):
+    from hyperglass.api import routes
+
+    params = SimpleNamespace(request_timeout=10)
+    monkeypatch.setattr(routes, "use_state", lambda _: params)
+    return params
 
 
 @pytest.mark.parametrize("platform", ["mikrotik_routeros", "frr"])
@@ -126,3 +136,63 @@ async def test_request_deadline_is_not_a_read_retry(monkeypatch):
     with pytest.raises(DeviceTimeout):
         await routes._execute_query(query)
     execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_late_read_fault_does_not_start_another_session(monkeypatch, request_budget):
+    from hyperglass.api import routes
+
+    request_budget.request_timeout = 2.05
+    query = mikrotik_query()
+    fault = read_fault(query)
+
+    async def late_fault(data):
+        await asyncio.sleep(0.1)
+        raise fault
+
+    execute = AsyncMock(side_effect=late_fault)
+    monkeypatch.setattr(routes, "execute", execute)
+    with pytest.raises(DeviceTimeout) as caught:
+        await routes._execute_query(query)
+    assert caught.value is fault
+    execute.assert_awaited_once()
+    assert delay_factor_override.get() is None
+
+
+@pytest.mark.asyncio
+async def test_retry_is_cancelled_at_shared_deadline(monkeypatch, request_budget):
+    from hyperglass.api import routes
+
+    request_budget.request_timeout = 2.1
+    calls = []
+    cancelled = asyncio.Event()
+
+    async def execute(data):
+        calls.append(asyncio.get_running_loop().time())
+        if len(calls) == 1:
+            await asyncio.sleep(0.03)
+            raise read_fault(data)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    monkeypatch.setattr(routes, "execute", execute)
+    started = asyncio.get_running_loop().time()
+    async with asyncio.timeout(3):
+        with pytest.raises(DeviceTimeout) as caught:
+            await routes._execute_query(mikrotik_query())
+    assert isinstance(caught.value.__cause__, TimeoutError)
+    assert len(calls) == 2
+    assert cancelled.is_set()
+    assert asyncio.get_running_loop().time() - started < request_budget.request_timeout
+    assert delay_factor_override.get() is None
+
+
+@pytest.mark.asyncio
+async def test_driver_timeout_keeps_its_type(monkeypatch):
+    from hyperglass.api import routes
+
+    monkeypatch.setattr(routes, "execute", AsyncMock(side_effect=TimeoutError("driver error")))
+    with pytest.raises(TimeoutError, match="driver error"):
+        await routes._execute_query(mikrotik_query())

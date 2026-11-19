@@ -5,7 +5,7 @@ import socket
 import threading
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -18,12 +18,12 @@ from hyperglass.state import use_state
 
 def trace():
     return TracerouteResult(
-        target="192.0.2.4", source="test",
+        target="1.1.1.1", source="test",
         hops=[
-            {"hop_number": 1, "ip_address": "192.0.2.1", "hostname": "supplied.example"},
-            {"hop_number": 2, "ip_address": "192.0.2.2"},
-            {"hop_number": 3, "ip_address": "192.0.2.2"},
-            {"hop_number": 4, "ip_address": "192.0.2.3"},
+            {"hop_number": 1, "ip_address": "1.1.1.1", "hostname": "supplied.example"},
+            {"hop_number": 2, "ip_address": "8.8.8.8"},
+            {"hop_number": 3, "ip_address": "8.8.8.8"},
+            {"hop_number": 4, "ip_address": "9.9.9.9"},
         ],
     )
 
@@ -34,14 +34,14 @@ async def test_ptr_deduplicates_missing_hosts_and_preserves_router_names(monkeyp
 
     def lookup(address):
         calls.append(address)
-        if address == "192.0.2.3":
+        if address == "9.9.9.9":
             raise socket.herror("no PTR")
         return "resolved.example", [], [address]
 
     monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)
     output = trace()
     await reverse_dns.enrich_hostnames(output)
-    assert sorted(calls) == ["192.0.2.2", "192.0.2.3"]
+    assert sorted(calls) == ["8.8.8.8", "9.9.9.9"]
     assert [hop.hostname for hop in output.hops] == [
         "supplied.example", "resolved.example", "resolved.example", None,
     ]
@@ -63,10 +63,10 @@ async def test_slow_resolver_has_no_unbounded_queue(monkeypatch):
         monkeypatch.setattr(reverse_dns, "PTR_LOOKUP_TIMEOUT", 0.02)
         monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)
         try:
-            assert await reverse_dns.lookup_hostname("192.0.2.2") is None
+            assert await reverse_dns.lookup_hostname("8.8.8.8") is None
             assert started.is_set()
             # The timed-out libc call still holds the only slot.
-            assert await reverse_dns.lookup_hostname("192.0.2.3") is None
+            assert await reverse_dns.lookup_hostname("9.9.9.9") is None
             assert executor._work_queue.qsize() == 0
         finally:
             release.set()
@@ -117,3 +117,34 @@ async def test_response_precedes_ptr_and_poll_receives_enriched_cache(monkeypatc
     assert cached["status"] == "complete"
     assert cached["output"]["hops"][1]["hostname"] == "resolved.example"
     enrich_ip.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("address", [
+    "10.0.0.1", "172.16.0.1", "192.168.1.1", "127.0.0.1", "169.254.1.1",
+    "100.64.0.1", "192.0.2.1", "0.0.0.0", "224.0.0.1", "240.0.0.1",  # noqa: S104 (PTR input)
+    "::", "::1", "fc00::1", "fe80::1", "ff02::1", "2001:db8::1",
+    "::ffff:10.0.0.1", "not-an-address",
+])
+async def test_nonpublic_hops_never_reach_resolver(monkeypatch, address):
+    lookup = Mock(side_effect=AssertionError("Internal DNS lookup"))
+    monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)
+    output = SimpleNamespace(hops=[SimpleNamespace(ip_address=address, hostname=None)])
+    assert reverse_dns._missing_addresses(output) == {}
+    await reverse_dns.enrich_hostnames(output)
+    assert await reverse_dns.lookup_hostname(address) is None
+    lookup.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("address,canonical", [
+    ("2606:4700:4700::1111", "2606:4700:4700::1111"),
+    ("::ffff:8.8.8.8", "8.8.8.8"),
+])
+async def test_public_ipv6_and_mapped_hops_resolve(monkeypatch, address, canonical):
+    lookup = Mock(return_value=("public.example", [], [canonical]))
+    monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)
+    output = SimpleNamespace(hops=[SimpleNamespace(ip_address=address, hostname=None)])
+    await reverse_dns.enrich_hostnames(output)
+    assert output.hops[0].hostname == "public.example"
+    lookup.assert_called_once_with(canonical)

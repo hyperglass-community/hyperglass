@@ -17,8 +17,23 @@ _executor = ThreadPoolExecutor(max_workers=PTR_WORKERS, thread_name_prefix="hype
 _slots = BoundedSemaphore(PTR_WORKERS)
 
 
+def _public_address(address):
+    """Return a canonical public unicast address, or None for an internal hop."""
+    try:
+        parsed = ip_address(address)
+    except ValueError:
+        return None
+    parsed = getattr(parsed, "ipv4_mapped", None) or parsed
+    if not parsed.is_global or parsed.is_multicast or parsed.is_reserved:
+        return None
+    return str(parsed)
+
+
 async def lookup_hostname(address: str):
     """Return a PTR hostname without blocking the event loop or queueing excess work."""
+    address = _public_address(address)
+    if address is None:
+        return None
     if not _slots.acquire(blocking=False):
         return None
     try:
@@ -43,9 +58,8 @@ def _missing_addresses(output):
     for hop in output.hops:
         if hop.hostname or not hop.ip_address:
             continue
-        try:
-            address = str(ip_address(hop.ip_address))
-        except ValueError:
+        address = _public_address(hop.ip_address)
+        if address is None:
             continue
         if address not in pending and len(pending) >= PTR_MAX_ADDRESSES:
             continue

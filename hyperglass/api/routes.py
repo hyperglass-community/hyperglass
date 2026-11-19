@@ -4,6 +4,7 @@
 import re
 import json
 import time
+import asyncio
 import ipaddress
 import typing as t
 from uuid import uuid4
@@ -17,7 +18,7 @@ from netmiko.exceptions import ReadTimeout
 
 # Project
 from hyperglass.log import log
-from hyperglass.state import HyperglassState
+from hyperglass.state import HyperglassState, use_state
 from hyperglass.exceptions import HyperglassError
 from hyperglass.exceptions.public import DeviceTimeout
 from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override, device_delay_factor
@@ -50,6 +51,18 @@ __all__ = (
 
 
 async def _execute_query(data: "Query") -> t.Any:
+    """Keep both device attempts inside one deadline, before the browser timeout."""
+    deadline = asyncio.timeout(use_state("params").request_timeout - 1)
+    try:
+        async with deadline:
+            return await _execute_with_retry(data, deadline)
+    except TimeoutError as error:
+        if not deadline.expired():
+            raise
+        raise DeviceTimeout(error=error, device=data.device) from error
+
+
+async def _execute_with_retry(data: "Query", deadline: asyncio.Timeout) -> t.Any:
     """Retry one MikroTik BGP read fault, never a completed zero-route result."""
     try:
         return await execute(data)
@@ -62,6 +75,10 @@ async def _execute_query(data: "Query") -> t.Any:
             in ("bgp_route", "bgp_aspath", "bgp_community")
             and isinstance(error.__cause__, ReadTimeout)
         ):
+            raise
+        # A new SSH session needs useful time to connect and read a response.
+        # Leave the final second for the existing timeout response instead.
+        if deadline.when() - asyncio.get_running_loop().time() < 1:
             raise
 
     factor = max(3, device_delay_factor(data.device) * 2)
@@ -205,7 +222,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
                 structured=data.device.structured_output or False,
             )
         else:
-            # Pass the request to the execution module once.
+            # Both attempts share the configured request deadline.
             output = await _execute_query(data)
 
         endtime = time.time()

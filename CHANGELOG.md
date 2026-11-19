@@ -82,8 +82,8 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 
 - Return the configured timeout response when a device query exceeds its request deadline ([#409](https://github.com/hyperglass-community/hyperglass/pull/409)).
 - Require explicit structured-output opt-in on every supported platform, including FRR, Juniper aliases and Arista ([#413](https://github.com/hyperglass-community/hyperglass/issues/413)).
-- Retry a built-in MikroTik BGP query once after a transport read fault with a higher delay factor. Complete genuine zero-route replies immediately ([#415](https://github.com/hyperglass-community/hyperglass/issues/415)).
-- Restore bounded PTR enrichment for missing traceroute hostnames after sending the initial response. Preserve router-provided names ([#414](https://github.com/hyperglass-community/hyperglass/issues/414)).
+- Retry a built-in MikroTik BGP query once after a transport read fault with a higher delay factor. Both attempts share one request deadline; skip the retry when less than one second remains. Complete genuine zero-route replies immediately ([#415](https://github.com/hyperglass-community/hyperglass/issues/415)).
+- Restore bounded PTR enrichment for missing traceroute hostnames after sending the initial response. Resolve only global unicast addresses and preserve router-provided names ([#414](https://github.com/hyperglass-community/hyperglass/issues/414)).
 - Accept Juniper route entries without a peer ASN while preserving route attributes ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)).
 - Treat BIRD text replies containing only banners and table headers as empty results ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
 - Target the BGP peer for lab ping and traceroute. Apply core link addresses before readiness checks, enable MikroTik and OS9 BGP peers, use Cumulus 5.4 NVUE syntax, and wait for OS9 host-key generation before startup configuration ([#419](https://github.com/hyperglass-community/hyperglass/pull/419), [#425](https://github.com/hyperglass-community/hyperglass/pull/425)).

@@ -19,12 +19,21 @@ PYPROJECT_PATTERN = re.compile(r"^version\s\=\s\"(.+)\"$")
 CONSTANTS = Path(__file__).parent / "hyperglass" / "constants.py"
 CONSTANT_PATTERN = re.compile(r"^__version__\s\=\s\"(.+)\"$")
 
-# Guides select a release tag; issue forms accept a tag or SHA. Neither embeds a version.
+COMPOSE = Path(__file__).parent / "compose.yaml"
+DOCKER_GUIDE = Path(__file__).parent / "docs/content/installation/docker.mdx"
+RELEASE_PIN_PATTERN = re.compile(
+    r"(?:ghcr\.io/hyperglass-community/hyperglass:|"
+    r"githubusercontent\.com/hyperglass-community/hyperglass/v|`v)"
+    r"(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?)"
+)
+
 UPGRADES = (
     ("package.json", PACKAGE_JSON, PACKAGE_JSON_PATTERN),
     ("docs/package.json", DOCS_PACKAGE_JSON, PACKAGE_JSON_PATTERN),
     ("pyproject.toml", PYPROJECT_TOML, PYPROJECT_PATTERN),
     ("constants.py", CONSTANTS, CONSTANT_PATTERN),
+    ("compose.yaml", COMPOSE, RELEASE_PIN_PATTERN),
+    ("docker.mdx", DOCKER_GUIDE, RELEASE_PIN_PATTERN),
 )
 
 cli = typer.Typer(name="version", no_args_is_help=True)
@@ -93,8 +102,7 @@ class Version:
             self._did_check = True
 
             for idx, line in enumerate(lines):
-                match = self.line_pattern.match(line)
-                if match:
+                for match in reversed(list(self.line_pattern.finditer(line))):
                     old_version = match.group(1).strip()
                     try:
                         old_version = int(old_version)
@@ -105,9 +113,8 @@ class Version:
 
                     if self.old_version != self.new_version:
                         start, end = match.span(1)
-                        lines[idx] = line[:start] + str(self.new_version) + line[end:]
+                        lines[idx] = lines[idx][:start] + str(self.new_version) + lines[idx][end:]
                         found_match = True
-                    break
 
             if self.old_version is None:
                 raise ValueError(f"Version pattern did not match {self.name}")
@@ -126,12 +133,21 @@ class Version:
 
 def update_versions(new_version: str) -> None:
     """Update hyperglass version in all package files."""
+    # Python uses PEP 440; npm versions and container tags use SemVer.
+    from packaging.version import Version as PackageVersion
+
+    parsed = PackageVersion(new_version)
+    release_version = parsed.base_version
+    if parsed.pre is not None:
+        label, number = parsed.pre
+        labels = {"a": "alpha", "b": "beta", "rc": "rc"}
+        release_version += f"-{labels[label]}.{number}"
     for name, file, pattern in UPGRADES:
         with Version(
             name=name,
             file=file,
             line_pattern=pattern,
-            new_version=new_version,
+            new_version=str(parsed) if file in (PYPROJECT_TOML, CONSTANTS) else release_version,
         ) as version:
             version.upgrade()
             typer.echo(str(version))
