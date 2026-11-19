@@ -26,6 +26,9 @@ def _public_address(address):
     parsed = getattr(parsed, "ipv4_mapped", None) or parsed
     if not parsed.is_global or parsed.is_multicast or parsed.is_reserved:
         return None
+    # Deprecated site-local space (fec0::/10) still reports as global.
+    if getattr(parsed, "is_site_local", False):
+        return None
     return str(parsed)
 
 

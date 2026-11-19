@@ -21,6 +21,7 @@ CONSTANT_PATTERN = re.compile(r"^__version__\s\=\s\"(.+)\"$")
 
 COMPOSE = Path(__file__).parent / "compose.yaml"
 DOCKER_GUIDE = Path(__file__).parent / "docs/content/installation/docker.mdx"
+UPGRADE_GUIDE = Path(__file__).parent / "docs/content/installation/upgrading.mdx"
 RELEASE_PIN_PATTERN = re.compile(
     r"(?:ghcr\.io/hyperglass-community/hyperglass:|"
     r"githubusercontent\.com/hyperglass-community/hyperglass/v|`v)"
@@ -34,6 +35,7 @@ UPGRADES = (
     ("constants.py", CONSTANTS, CONSTANT_PATTERN),
     ("compose.yaml", COMPOSE, RELEASE_PIN_PATTERN),
     ("docker.mdx", DOCKER_GUIDE, RELEASE_PIN_PATTERN),
+    ("upgrading.mdx", UPGRADE_GUIDE, RELEASE_PIN_PATTERN),
 )
 
 cli = typer.Typer(name="version", no_args_is_help=True)

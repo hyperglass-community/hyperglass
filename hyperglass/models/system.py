@@ -169,7 +169,10 @@ class HyperglassSettings(BaseSettings):
     @property
     def redis_connection_pool(self: "HyperglassSettings") -> t.Dict[str, t.Any]:
         """Get Redis ConnectionPool keyword arguments."""
-        return {"url": str(self.redis_dsn), "max_connections": at_least(8, self.worker_count)}
+        # The pool belongs to one worker process. Redis commands run in the
+        # default thread pool, which holds at most 32 threads, so the pool must
+        # not be smaller than that or a busy worker exhausts it.
+        return {"url": str(self.redis_dsn), "max_connections": at_least(32, self.worker_count)}
 
     @property
     def dev_url(self: "HyperglassSettings") -> str:

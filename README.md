@@ -53,7 +53,7 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 | Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. Explicit opt-in on every supported platform. |
 | Results | Structured traceroute | Parsed hops with per-probe RTT, loss and best, worst and last statistics per hop. |
 | Results | RPKI validation | Router-reported state, or external validation through Cloudflare or your own Routinator. |
-| Results | IP enrichment | ASN, organisation, country and IXP metadata, inline or asynchronous. Router-provided traceroute hostnames are preserved without supplemental reverse DNS. |
+| Results | IP enrichment | ASN, organisation, country and IXP metadata, inline or asynchronous. Router-provided traceroute hostnames are preserved. Hops without a hostname get a bounded reverse DNS lookup for public addresses. |
 | Results | Community policy | Deny or permit listed communities, or append friendly names to them. |
 | Results | Text output | Raw device output with configurable highlighting for devices that stay in text mode. |
 | Devices | 26 built-in platforms | Directives and parsers included. See [Supported platforms](#supported-platforms). |
@@ -130,6 +130,8 @@ mkdir -p /etc/hyperglass
 cp .samples/sample_devices.yaml /etc/hyperglass/devices.yaml
 docker compose up
 ```
+
+Compose pulls the published image that `compose.yaml` pins. To build the checkout instead, run `docker compose -f compose.yaml -f compose.build.yaml up --build`.
 
 Open `http://localhost:8001` once the containers are up. The sample device returns fake output. Then add your first real router with `hyperglass onboard device` inside the container.
 

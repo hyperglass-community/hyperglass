@@ -24,7 +24,7 @@ topology:
         - ip addr add 2001:db8:100::1/128 dev lo
     cumulus:
       kind: generic_vm
-      image: ${CUMULUS_IMAGE:=vrnetlab/nvidia_cumulus-vx:5.16.1}
+      image: ${CUMULUS_IMAGE:=vrnetlab/nvidia_cumulus-vx:5.4.0}
       mgmt-ipv4: 192.168.251.12
       memory: 5GiB
       cpu: 2

@@ -46,7 +46,7 @@ def version_module():
 
 def test_every_version_target_matches_current_source():
     module = version_module()
-    assert len(module.UPGRADES) == 6
+    assert len(module.UPGRADES) == 7
     for name, path, pattern in module.UPGRADES:
         expected = 4 if name == "docker.mdx" else 1
         matches = sum(len(pattern.findall(line)) for line in path.read_text().splitlines())

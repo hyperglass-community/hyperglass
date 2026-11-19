@@ -85,3 +85,20 @@ def test_unexpected_console_errors_still_stop_bootstrap(launcher):
     instance.bootstrap_spin()
     assert instance.bootstrap_failed
     assert not instance.running
+
+
+def test_key_wait_retries_only_the_key_not_generated_error(launcher):
+    instance = vm(launcher)
+
+    def command(value):
+        if value == "do show crypto key mypubkey rsa":
+            raise RuntimeError("% Error: Invalid input at '^' marker.")
+        return b"os9(conf)#"
+
+    instance.command = Mock(side_effect=command)
+    instance.bootstrap_spin()
+    assert instance.bootstrap_failed
+    assert not instance.running
+    polls = [call for call in instance.command.call_args_list
+             if call.args == ("do show crypto key mypubkey rsa",)]
+    assert len(polls) == 1

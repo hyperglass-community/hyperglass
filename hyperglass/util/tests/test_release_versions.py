@@ -39,7 +39,9 @@ def test_version_update_includes_all_deployment_pins(
     assert guide.count(f"/hyperglass/v{release_version}/") == 2
     assert f"`v{release_version}`" in guide
     assert f"ghcr.io/hyperglass-community/hyperglass:{release_version}" in guide
-    assert "3.0.0-rc.2" not in compose + guide
+    upgrade = (tmp_path / "docs/content/installation/upgrading.mdx").read_text()
+    assert f"`v{release_version}`" in upgrade
+    assert "3.0.0-rc.2" not in compose + guide + upgrade
     # Reapplying the same version must leave every file unchanged.
     contents = {path: path.read_bytes() for _, path, _ in upgrades}
     version.update_versions(requested)

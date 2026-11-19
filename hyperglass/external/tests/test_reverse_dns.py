@@ -123,7 +123,7 @@ async def test_response_precedes_ptr_and_poll_receives_enriched_cache(monkeypatc
 @pytest.mark.parametrize("address", [
     "10.0.0.1", "172.16.0.1", "192.168.1.1", "127.0.0.1", "169.254.1.1",
     "100.64.0.1", "192.0.2.1", "0.0.0.0", "224.0.0.1", "240.0.0.1",  # noqa: S104 (PTR input)
-    "::", "::1", "fc00::1", "fe80::1", "ff02::1", "2001:db8::1",
+    "::", "::1", "fc00::1", "fe80::1", "fec0::1", "ff02::1", "2001:db8::1",
     "::ffff:10.0.0.1", "not-an-address",
 ])
 async def test_nonpublic_hops_never_reach_resolver(monkeypatch, address):
