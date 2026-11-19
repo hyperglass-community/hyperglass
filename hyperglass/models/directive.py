@@ -190,6 +190,8 @@ class Rule(HyperglassModel):
 
 
 IPV6_ZONE_PATTERN = re.compile(r"[A-Za-z0-9-]+")
+# Not `is_link_local`: newer Python releases also count IPv4-mapped 169.254.0.0/16.
+IPV6_LINK_LOCAL = IPv6Network("fe80::/10")
 
 
 class RuleWithIP(Rule):
@@ -260,7 +262,7 @@ class RuleWithIP(Rule):
         return (
             getattr(self, "allow_link_local", False)
             and target.prefixlen == target.max_prefixlen
-            and target.network_address.is_link_local
+            and target.network_address in IPV6_LINK_LOCAL
         )
 
     def validate_target(self, target: str, *, multiple: bool) -> bool:
