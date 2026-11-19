@@ -90,6 +90,10 @@ SCRAPE_HELPERS = {
     "arcos": "arrcus_arcos",
 }
 
+# Connection drivers a device may set with `driver`. The `SupportedDriver` config type
+# and the driver allowlist are both derived from this tuple.
+SUPPORTED_DRIVERS = ("netmiko", "hyperglass_http_client")
+
 DRIVER_MAP = {
     "bird": "netmiko",
     "frr": "netmiko",
