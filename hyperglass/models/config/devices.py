@@ -22,7 +22,6 @@ from hyperglass.constants import (
     SCRAPE_HELPERS,
     LINUX_PLATFORMS,
     NETMIKO_DEVICE_TYPES,
-    DEFAULT_STRUCTURED_OUTPUT,
     SUPPORTED_STRUCTURED_OUTPUT,
 )
 from hyperglass.exceptions.private import ConfigError, UnsupportedDevice
@@ -304,7 +303,7 @@ class Device(HyperglassModelWithId, extra="allow"):
 
     @field_validator("structured_output", mode="before")
     def validate_structured_output(cls, value: bool, info: ValidationInfo) -> bool:
-        """Keep legacy table defaults and require opt-in for additional parsers."""
+        """Require explicit opt-in on every supported platform."""
 
         if value is True:
             if info.data.get("platform") not in SUPPORTED_STRUCTURED_OUTPUT:
@@ -315,7 +314,7 @@ class Device(HyperglassModelWithId, extra="allow"):
                     platform=info.data.get("platform"),
                 )
             return value
-        return value is None and info.data.get("platform") in DEFAULT_STRUCTURED_OUTPUT
+        return False
 
     @field_validator("directives", mode="before")
     def validate_directives(

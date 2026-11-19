@@ -18,7 +18,7 @@ The captured output uses Cumulus VX 5.4.0 with FRR `7.5+cl5.3.0u0`. It does not 
 
 Run hardware-dependent appliances inside an isolated lab VM without host device passthrough or host filesystem sharing.
 
-Supply a compatible Cumulus VX container image through `CUMULUS_IMAGE`. The topology defaults to `vrnetlab/nvidia_cumulus-vx:5.16.1`. The BGP peer image comes from `lab/images/core`.
+Supply a compatible Cumulus VX container image through `CUMULUS_IMAGE`. The topology defaults to `vrnetlab/nvidia_cumulus-vx:5.4.0`, the release that `configure.sh` and the captures use. Later NVUE releases use different address-family syntax. The BGP peer image comes from `lab/images/core`.
 
 From the repository root:
 

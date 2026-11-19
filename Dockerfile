@@ -11,13 +11,13 @@ ENV HYPERGLASS_DEV_MODE=false
 ENV HYPERGLASS_REDIS_HOST=redis
 ENV HYPERGLASS_DISABLE_UI=false
 ENV HYPERGLASS_CONTAINER=true
-COPY . .
 
 FROM base AS ui
 WORKDIR /opt/hyperglass/hyperglass/ui
 # hyperglass/ui/.npmrc pins store-dir to /opt/hyperglass/.pnpm-store so image
 # node_modules and the packaged store stay aligned through runtime UI builds.
 ENV PNPM_CONFIG_STORE_DIR=/opt/hyperglass/.pnpm-store
+COPY hyperglass/ui/package.json hyperglass/ui/pnpm-lock.yaml hyperglass/ui/pnpm-workspace.yaml hyperglass/ui/.npmrc ./
 # The glob patch that used to sit here is gone. It ran `npm --prefix
 # /usr/lib/node_modules/npm install glob@11.1.0`, which fails the build: installing
 # into npm's own tree makes npm reconcile npm's package.json, whose devDependencies
@@ -43,8 +43,15 @@ WORKDIR /opt/hyperglass
 # Install the pinned dependency set from the lockfile (the single source of
 # truth), then the package itself without re-resolving dependencies. The lock
 # includes the UI extra required by this full application image.
-RUN pip3 install --no-cache-dir --no-deps -r requirements.lock \
-  && pip3 install --no-cache-dir -e . --no-deps \
+COPY requirements.lock ./
+# Rye includes the editable project itself; install it only after copying source.
+RUN sed '/^-e file:\.$/d' requirements.lock > /tmp/hyperglass-dependencies.lock \
+  && pip3 install --no-cache-dir --no-deps -r /tmp/hyperglass-dependencies.lock \
+  && rm /tmp/hyperglass-dependencies.lock
+
+# Application edits do not invalidate either dependency installation layer.
+COPY . .
+RUN pip3 install --no-cache-dir -e . --no-deps \
   && rm -rf /root/.cache/pip \
     /usr/local/lib/python3.13/site-packages/pip \
     /usr/local/lib/python3.13/site-packages/pip-*.dist-info \

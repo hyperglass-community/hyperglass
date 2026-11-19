@@ -60,7 +60,7 @@ for N in $NODES; do
 done
 if [ "$EXISTING" = true ]; then
     for N in $NODES; do
-        "$PYTHON" scripts/start-node.py "$N"
+        "$PYTHON" scripts/start-node.py "$N" --management-only
     done
 elif [ -n "$DEV" ]; then
     case " frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 junos iol ioll2 " in
@@ -73,12 +73,6 @@ else
     echo "Starting the whole lab"
     sudo env HYPERGLASS_IMAGE="$IMAGE" containerlab deploy -t hyperglass-lab.clab.yml
 fi
-if [ "$EXISTING" != true ]; then
-    for N in $NODES; do
-        "$PYTHON" scripts/start-node.py "$N"
-    done
-fi
-
 echo "Waiting for the core router..."
 LIMIT=$(( $(date +%s) + 60 ))
 until docker exec clab-hyperglass-core gobgp global rib summary -a ipv4 >/dev/null 2>&1; do
@@ -91,6 +85,11 @@ done
 # was created (a prior single-device deploy can leave it with only some interfaces).
 for N in 1 2 3 4 5 6 7 8 9 10 11; do
     docker exec clab-hyperglass-core sh -c "ip addr add 10.250.$N.0/31 dev eth$N 2>/dev/null; ip addr add fd00:250:$N::/127 dev eth$N 2>/dev/null; true"
+done
+
+# Data-link checks need the core addresses on a fresh deploy and after restart.
+for N in $NODES; do
+    "$PYTHON" scripts/start-node.py "$N"
 done
 
 # Save the first-boot IOL configuration before any later restart uses NVRAM.

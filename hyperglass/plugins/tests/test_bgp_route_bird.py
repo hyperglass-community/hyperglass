@@ -2,6 +2,7 @@
 
 # Standard Library
 from pathlib import Path
+from types import SimpleNamespace
 
 # Third Party
 import pytest
@@ -66,3 +67,37 @@ def test_bird_large_community_and_med():
 
 def test_bird_empty_result():
     assert _process("empty.txt") is None
+
+
+@pytest.mark.parametrize("kind", ["bgp_route", "bgp_aspath", "bgp_community"])
+@pytest.mark.parametrize(
+    "text", ["BIRD 1.6.8 ready.\n", "BIRD 2.16.1 ready.\nTable master4:\n", ""]
+)
+def test_bird_text_empty_reply_is_not_a_banner(kind, text):
+    device = MockDevice(
+        name="bird", address="192.0.2.1", platform="bird", structured_output=False,
+        credential={"username": "lg", "password": ""},
+        attrs={"source4": "192.0.2.1", "source6": "2001:db8::1"},
+    )
+    plugin = BGPRoutePluginBird()
+    assert f"__hyperglass_bird_{kind}__" in plugin.directives
+    assert plugin.process(output=(text,), query=SimpleNamespace(device=device)) is None
+
+
+@pytest.mark.parametrize("name", ["route4.txt", "route6.txt", "aspath4.txt", "community4.txt"])
+def test_bird_text_routes_are_preserved(name):
+    device = SimpleNamespace(
+        platform="bird", structured_output=False, has_directives=lambda *args: True,
+    )
+    output = ((FIXTURES / name).read_text(),)
+    result = BGPRoutePluginBird().process(output=output, query=SimpleNamespace(device=device))
+    assert result == output
+
+
+def test_bird_unrecognized_text_is_not_discarded():
+    device = SimpleNamespace(
+        platform="bird", structured_output=False, has_directives=lambda *args: True,
+    )
+    output = ("BIRD 2.0.7 ready.\nAccess denied",)
+    result = BGPRoutePluginBird().process(output=output, query=SimpleNamespace(device=device))
+    assert result == output

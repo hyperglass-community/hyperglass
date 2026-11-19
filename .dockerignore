@@ -1,3 +1,7 @@
+# Repository metadata is not part of the application image.
+.git
+.github
+
 hyperglass/hyperglass/static
 **/node_modules/
 **/node_modules/**

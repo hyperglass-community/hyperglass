@@ -3,8 +3,10 @@
 # Standard Library
 import os
 import sys
+import math
 import typing as t
 import platform
+from pathlib import Path
 
 # Third Party
 import psutil as _psutil
@@ -62,15 +64,141 @@ def get_node_version() -> t.Optional[t.Tuple[int, int, int]]:
     return tuple((int(v) for v in version.split(".")))
 
 
-def cpu_count(multiplier: int = 0) -> int:
-    """Get server's CPU core count.
+# Overridable in tests.
+_CGROUP_ROOT = Path("/sys/fs/cgroup")
+_PROC_SELF_CGROUP = Path("/proc/self/cgroup")
 
-    Used to determine the number of web server workers.
+
+def _read(path: Path) -> t.Optional[str]:
+    try:
+        return path.read_text().strip()
+    except (OSError, ValueError):
+        return None
+
+
+def _quota_cpus(quota: int, period: int) -> t.Optional[int]:
+    if quota <= 0 or period <= 0:
+        return None
+    return max(math.ceil(quota / period), 1)
+
+
+def _visible_ancestors(root: Path, relative: str) -> t.List[Path]:
+    """Walk to the visible controller root without escaping the cgroup namespace."""
+    relative_path = Path(relative.lstrip("/"))
+    if ".." in relative_path.parts:
+        return [root]
+    directory = root / relative_path
+    directories = [directory]
+    while directory != root:
+        directory = directory.parent
+        directories.append(directory)
+    return directories
+
+
+def _cgroup_dirs() -> t.Tuple[t.List[Path], t.List[Path]]:
+    """Get candidate cgroup v2 and v1 CPU controller directories for this process."""
+    v2_dirs: t.List[Path] = []
+    v1_dirs: t.List[Path] = []
+    for line in (_read(_PROC_SELF_CGROUP) or "").splitlines():
+        parts = line.split(":", 2)
+        if len(parts) != 3:
+            continue
+        _, controllers, rel = parts
+        if controllers == "":
+            v2_dirs.extend(_visible_ancestors(_CGROUP_ROOT, rel))
+        elif "cpu" in controllers.split(","):
+            for mount in (controllers, "cpu,cpuacct", "cpu"):
+                v1_dirs.extend(_visible_ancestors(_CGROUP_ROOT / mount, rel))
+    # Inside a container the cgroup namespace makes the root the container's own cgroup.
+    v2_dirs.append(_CGROUP_ROOT)
+    return list(dict.fromkeys(v2_dirs)), list(dict.fromkeys(v1_dirs))
+
+
+def _cgroup_v2_limit(dirs: t.List[Path]) -> t.Tuple[bool, t.Optional[int]]:
+    """Read the smallest visible cgroup v2 quota. Returns (found, limit)."""
+    found = False
+    limits = []
+    for directory in dirs:
+        raw = _read(directory / "cpu.max")
+        if raw is None:
+            continue
+        found = True
+        try:
+            quota, period = raw.split()
+            if quota == "max":
+                continue
+            limit = _quota_cpus(int(quota), int(period))
+        except ValueError:
+            continue
+        if limit is not None:
+            limits.append(limit)
+    return found, min(limits, default=None)
+
+
+def _cgroup_v1_limit(dirs: t.List[Path]) -> t.Optional[int]:
+    """Read the smallest visible cgroup v1 CFS quota and period pair."""
+    limits = []
+    for directory in dirs:
+        quota = _read(directory / "cpu.cfs_quota_us")
+        period = _read(directory / "cpu.cfs_period_us")
+        if quota is None or period is None:
+            continue
+        try:
+            limit = _quota_cpus(int(quota), int(period))
+        except ValueError:
+            continue
+        if limit is not None:
+            limits.append(limit)
+    return min(limits, default=None)
+
+
+def _cgroup_cpu_limit() -> t.Optional[int]:
+    """Get the CPU limit from the process's cgroup CPU quota, if one is set.
+
+    Docker's ``--cpus`` and Kubernetes CPU limits set a CFS quota, not a CPU
+    affinity mask, so neither ``os.process_cpu_count()`` nor
+    ``os.sched_getaffinity()`` sees them. Returns ``None`` when no quota applies
+    or the cgroup files cannot be read.
     """
-    # Standard Library
-    import multiprocessing
+    v2_dirs, v1_dirs = _cgroup_dirs()
+    found, limit = _cgroup_v2_limit(v2_dirs)
+    if found:
+        return limit
+    return _cgroup_v1_limit(v1_dirs)
 
-    return multiprocessing.cpu_count() * multiplier
+
+def cpu_count(multiplier: int = 1) -> int:
+    """Get the number of CPUs this process may use, times ``multiplier``.
+
+    Starts from the CPUs in the process's affinity mask
+    (``os.process_cpu_count()`` on Python 3.13+, else ``os.sched_getaffinity()``,
+    else the host count), then lowers it to the cgroup CPU quota when one is
+    set. On bare metal without limits the result matches the host CPU count.
+    The result is never below 1.
+    """
+    n: t.Optional[int] = None
+
+    process_cpu_count = getattr(os, "process_cpu_count", None)
+    if callable(process_cpu_count):
+        n = process_cpu_count()
+
+    if n is None and hasattr(os, "sched_getaffinity"):
+        try:
+            n = len(os.sched_getaffinity(0))
+        except OSError:
+            pass
+
+    if n is None:
+        # Standard Library
+        import multiprocessing
+
+        n = multiprocessing.cpu_count()
+
+    limit = _cgroup_cpu_limit()
+    if limit is not None:
+        n = min(n, limit)
+
+    return max(n * multiplier, 1)
 
 
 def check_python() -> str:

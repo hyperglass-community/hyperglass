@@ -18,7 +18,7 @@
 
 Hyperglass is a network looking glass. It lets customers, peers and other engineers run BGP route, BGP community, BGP AS path, ping and traceroute queries from the routers you choose, through a web interface and a REST API, without touching the routers themselves. You decide which devices, commands, targets and result formats are public.
 
-The community-maintained Hyperglass project incorporates the Ultraglass implementation. The Python package, CLI, configuration paths, environment variables and service names remain `hyperglass`. The migration is tracked in [#390](https://github.com/hyperglass-community/hyperglass/issues/390); the release number remains undecided.
+The community-maintained Hyperglass project incorporates the Ultraglass implementation. The Python package, CLI, configuration paths, environment variables and service names remain `hyperglass`. The migration is tracked in [#390](https://github.com/hyperglass-community/hyperglass/issues/390); the migration release is 3.0.0.
 
 ## Add a router in four commands
 
@@ -50,10 +50,10 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 | Queries | Ping and traceroute | IPv4 and IPv6, sourced from the device's configured source addresses. |
 | Queries | Custom directives | Publish any device command with its own target rules, fixed-choice select fields, per-platform syntax and version-selected fallback commands. |
 | Queries | VRF queries | Built-in VRF command forms for 16 platforms. Set `vrf` on the device entry. |
-| Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. Enabled by default for FRR, Juniper and Arista; opt-in for additional platforms. |
+| Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. Explicit opt-in on every supported platform. |
 | Results | Structured traceroute | Parsed hops with per-probe RTT, loss and best, worst and last statistics per hop. |
 | Results | RPKI validation | Router-reported state, or external validation through Cloudflare or your own Routinator. |
-| Results | IP enrichment | ASN, organisation, country and IXP metadata, inline or asynchronous. Router-provided traceroute hostnames are preserved without supplemental reverse DNS. |
+| Results | IP enrichment | ASN, organisation, country and IXP metadata, inline or asynchronous. Router-provided traceroute hostnames are preserved. Hops without a hostname get a bounded reverse DNS lookup for public addresses. |
 | Results | Community policy | Deny or permit listed communities, or append friendly names to them. |
 | Results | Text output | Raw device output with configurable highlighting for devices that stay in text mode. |
 | Devices | 26 built-in platforms | Directives and parsers included. See [Supported platforms](#supported-platforms). |
@@ -84,7 +84,7 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 
 ## Supported platforms
 
-Hyperglass ships directives and parsers for these 26 platforms. Netmiko provides the device connectivity, so other Netmiko platforms work with custom directives. FRR, Juniper and Arista keep structured output enabled by default. Set `structured_output: true` to enable it on additional supported platforms. Set `structured_output: false` to force text output.
+Hyperglass ships directives and parsers for these 26 platforms. Netmiko provides the device connectivity, so other Netmiko platforms work with custom directives. Set `structured_output: true` to enable parsed output on each supported device. Omitted, `null` and `false` settings return text on every platform, including FRR, Juniper and Arista.
 
 | Platform | `platform` key | Structured BGP | Structured traceroute | Built-in VRF queries | Notes |
 | --- | --- | --- | --- | --- | --- |
@@ -130,6 +130,8 @@ mkdir -p /etc/hyperglass
 cp .samples/sample_devices.yaml /etc/hyperglass/devices.yaml
 docker compose up
 ```
+
+Compose pulls the published image that `compose.yaml` pins. To build the checkout instead, run `docker compose -f compose.yaml -f compose.build.yaml up --build`.
 
 Open `http://localhost:8001` once the containers are up. The sample device returns fake output. Then add your first real router with `hyperglass onboard device` inside the container.
 

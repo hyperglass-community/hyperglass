@@ -6,31 +6,115 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## 3.0.0-rc.2 - 2026-11-19
+
+This release candidate replaces 3.0.0-rc.1, which was not released. Lab testing of 3.0.0-rc.1 found defects that block it.
+
+This is a release candidate. Use it to test an upgrade from 2.0.4; do not treat it as a stable release. The image is `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2`. The `latest` tag does not move. Report a defect as a [new issue](https://github.com/hyperglass-community/hyperglass/issues/new/choose) that names this version.
+
+Hyperglass 3.0.0 incorporates the Ultraglass 3.6.2 implementation through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390). It adds router support, structured results, configuration controls, onboarding and runtime recovery. The Python package, CLI, configuration paths, environment variables and service names remain `hyperglass`. Ultraglass release numbers are separate from Hyperglass release numbers.
+
+### Upgrading from 2.0.4
+
+Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.2/docs/content/installation/upgrading.mdx). These changes can require a configuration change:
+
+- Structured output requires explicit `structured_output: true` on every supported platform, including FRR, Juniper aliases and Arista. Omitted, `null` and `false` settings return text.
+- Forwarding headers require a trusted proxy. Configure `web.client_ip.trusted_proxies` with the actual connecting proxy addresses. Set `web.client_ip.header` only for a single-address header that the trusted proxy overwrites; otherwise Hyperglass processes `X-Forwarded-For` from right to left.
+- My IP defaults to server-side detection. It returns `null` for non-public addresses, including private proxy addresses, without automatically contacting a public service. Select `web.my_ip: external` explicitly to use the external lookup, or `off` to hide the control.
+- `/api/dns` and `/api/aspath/enrich` are disabled by default. `web.dns_provider.name: server` and `web.aspath_enrichment: true` enable them.
+- Server DNS uses a fixed public resolver and returns public A/AAAA answers only. Internal DNS resolution is unsupported.
+- The default listen address is `::1`. A reverse proxy must use `[::1]:8001`, or `HYPERGLASS_HOST` must name another address.
+- Docker Compose publishes the application directly. For host nginx, set `HYPERGLASS_BIND_ADDRESS=127.0.0.1` and trust the proxy address seen inside the container. Keep the container listener at `HYPERGLASS_HOST=0.0.0.0`.
+- IP rules enforce `allow_loopback`, `allow_reserved` and `allow_unspecified`. These options default to `false`. Address and prefix inputs normalize before validation; `192.0.2.1/24`, for example, becomes `192.0.2.0/24`.
+- BIRD AS-path queries accept ASN sequences with `^`, `$` and `_`. OpenBGPD AS-path queries accept one ASN. Built-in BGP targets reject command syntax.
+- Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`.
+- Use `vyos_1_3` for legacy VyOS commands. Set device `os_version` for version-specific commands, including RouterOS 6 and classic IOS IPv6 traceroute.
+- VRF identifiers accept command-safe names or numbers. Numeric values normalize to strings; spaces and slashes remain invalid. A VRF device offers only applicable built-ins and configured custom directives.
+- Python 3.11 or later and Node.js 22.13 or later are required for a manual installation.
+- Docker Compose pulls the published image and runs Valkey 8 as the `redis` service. It no longer builds the checkout, so `docker compose build` has no effect; add `compose.build.yaml` for a source build. Existing `HYPERGLASS_REDIS_*` settings keep their meaning, and the bundled cache starts empty.
+- The automatic worker count follows CPU affinity and the container CPU quota, and stops at eight. Set `HYPERGLASS_WORKERS` to keep a higher count.
+- Custom directives quote substituted arguments on shell-backed platforms. Review templates that depend on shell expansion or that split one target into several arguments.
+
+### Security
+
+- Reject control characters and line separators in query targets, including targets accepted by custom directives. Restrict IPv6 zone identifiers to letters, digits and hyphens before command construction ([#392](https://github.com/hyperglass-community/hyperglass/pull/392)). Part of [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
+- Validate built-in directive targets again at the command boundary and quote shell-backed built-in arguments after target substitution ([#393](https://github.com/hyperglass-community/hyperglass/pull/393)).
+- Quote custom-directive arguments on shell-backed platforms, including fallback and VRF commands ([#407](https://github.com/hyperglass-community/hyperglass/pull/407)).
+- Limit the server DNS and ASN lookup endpoints with shared Redis request quotas, caches, concurrency leases and deadlines. Both endpoints are off by default; server DNS rejects non-public answers ([#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
+- Read forwarding headers only from the proxies in `web.client_ip.trusted_proxies` ([#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
+- Filter ArcOS BGP Route responses to the requested exact prefix in both text and structured modes. The device command still retrieves the full BGP instance. Malformed or incomplete responses return a parsing error instead of raw device output ([#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- Support bundles export metadata only. They no longer include free-form messages or exception values ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- Update Python, frontend and container dependencies from the migrated baseline, including patched image packages and transitive frontend dependencies ([#394](https://github.com/hyperglass-community/hyperglass/pull/394), [#395](https://github.com/hyperglass-community/hyperglass/pull/395)).
+
 ### Added
 
-- Transfer the Ultraglass 3.6.2 application baseline through the staged migration in [#390](https://github.com/hyperglass-community/hyperglass/issues/390), including structured results, router implementations, configuration, onboarding and support tools.
-- Transfer the documentation framework, guides and complete configuration example. Source release history remains in the [Ultraglass repository](https://github.com/WilhelmZA/ultraglass/blob/90e2f3ab260820f49cd99872d779dc8083d9e9b3/CHANGELOG.md); its release numbers are not Hyperglass release numbers.
+- Structured BGP tables and traceroute results across supported router platforms, with route attributes, hop timing and loss, communities and AS-path visualization. BGP stays text on platforms with traceroute-only structured support. See the [platform reference](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.2/docs/content/platforms.mdx) for per-platform capabilities ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- Built-in directives for `aruba_aoscx`, `arrcus_arcos`, `cumulus_linux`, `dell_force10`, `dell_os10`, `extreme_exos`, `extreme_vsp`, `fortinet`, `hp_comware`, `ipinfusion_ocnos`, `paloalto_panos`, `sonic` and `vyos_1_3` ([#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- VRF queries through built-in directives and device `vrf` settings ([#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
+- Named directive variables with fixed choices, required fields and optional command fragments. Selected values participate in query cache identity ([#293](https://github.com/hyperglass-community/hyperglass/issues/293), [#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
+- Device `os_version`, rule `fallback_command` and `fallback_os_version` settings for version-specific commands and fallback after a device rejects the primary command ([#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
+- Named BGP communities through `structured.communities.mode: name` and `names`, preserving unmatched community values ([#313](https://github.com/hyperglass-community/hyperglass/issues/313)).
+- Routinator as an external RPKI backend, alongside Cloudflare, with batched validation and provider-aware caches ([#398](https://github.com/hyperglass-community/hyperglass/pull/398)).
+- Optional BGP and traceroute IP/ASN enrichment, inline or asynchronous. Global controls can disable structured BGP or traceroute independently ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
+- Mixed-vendor query selection, directive-variable controls and server-side DNS resolution in the UI ([#174](https://github.com/hyperglass-community/hyperglass/issues/174), [#270](https://github.com/hyperglass-community/hyperglass/issues/270), [#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
+- The `hyperglass onboard` command, which creates and tests device entries, checks feature settings and scaffolds custom directives ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- Support bundle export for defect reports ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- Connection retry, readiness checks and state recovery for device transports ([#396](https://github.com/hyperglass-community/hyperglass/pull/396)).
+- `HYPERGLASS_WORKERS` to set an explicit worker count, device `connect_retries` to control SSH connection retries, and `disable_paging: false` to suppress driver paging commands ([#338](https://github.com/hyperglass-community/hyperglass/issues/338), [#396](https://github.com/hyperglass-community/hyperglass/pull/396)). Automatic sizing respects affinity and visible cgroup quotas, including inherited limits, and caps the worker count at eight, so a container on a high-core host no longer starts enough workers to exhaust its memory ([#356](https://github.com/hyperglass-community/hyperglass/issues/356), [#357](https://github.com/hyperglass-community/hyperglass/pull/357)).
+- Optional SSH session logs and rotating JSONL query samples containing selected raw and parsed output. Both are disabled by default ([#336](https://github.com/hyperglass-community/hyperglass/issues/336), [#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- A containerlab test lab under `lab/` ([#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- New documentation site content, platform guides, onboarding instructions and a complete configuration sample. Tests keep the embedded reference synchronized with the sample ([#403](https://github.com/hyperglass-community/hyperglass/pull/403)). Source release history remains in the [Ultraglass repository](https://github.com/WilhelmZA/ultraglass/blob/90e2f3ab260820f49cd99872d779dc8083d9e9b3/CHANGELOG.md).
+- [#304](https://github.com/thatmattlove/hyperglass/pull/304): Add FRR structured output for BGP Routes - @chriswiggins
+
+### Changed
+
+- Updated the Python package, runtime metadata, UI package and documentation package to 3.0.0-rc.2.
+- Python packaging and the container image install from locked requirements, and Click is constrained below 8.2 for Typer compatibility ([#394](https://github.com/hyperglass-community/hyperglass/pull/394), [#389](https://github.com/hyperglass-community/hyperglass/pull/389)).
+- The UI builds with pnpm 11 and Node.js 22.13 or later ([#395](https://github.com/hyperglass-community/hyperglass/pull/395)).
+- UI fonts are served locally. ASN links use bgp.tools, and the browser no longer calls CAIDA AS Rank ([#255](https://github.com/hyperglass-community/hyperglass/issues/255), [#312](https://github.com/hyperglass-community/hyperglass/issues/312)).
+- Browser Back returns to the populated query form. BGP tables paginate at 50 rows, and the AS-path graph shares ASN nodes across routes ([#286](https://github.com/hyperglass-community/hyperglass/issues/286), [#328](https://github.com/hyperglass-community/hyperglass/issues/328), [#345](https://github.com/hyperglass-community/hyperglass/issues/345)).
+- Slack and Teams deliveries use the configured webhook host, authentication, headers, timeout and TLS settings. Teams uses an Adaptive Card ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
+- HTTP devices receive default HTTP configuration when the `http` block is omitted. Unknown device keys produce warnings with spelling suggestions ([#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
+- Redis recovery verifies complete plugin registration and generation state. Recovery waits and output-plugin execution run outside the request event loop; state clearing preserves unrelated Redis keys ([#396](https://github.com/hyperglass-community/hyperglass/pull/396), [#398](https://github.com/hyperglass-community/hyperglass/pull/398)).
+- The Docker image is published to `ghcr.io/hyperglass-community/hyperglass` on version tags only. A vulnerability scan with a fixable HIGH or CRITICAL finding blocks the merge gate and publication ([#389](https://github.com/hyperglass-community/hyperglass/pull/389), [#404](https://github.com/hyperglass-community/hyperglass/pull/404), [#422](https://github.com/hyperglass-community/hyperglass/pull/422)).
+- Compose deploys the published image with Valkey 8 without requiring a source clone. `compose.build.yaml` enables source builds. Dependency layers remain cached when application source changes. The image excludes repository metadata ([#424](https://github.com/hyperglass-community/hyperglass/pull/424), [#420](https://github.com/hyperglass-community/hyperglass/pull/420)).
+- CI tests Python 3.11 and 3.12 with Redis and Valkey, the frontend, clean package installation and the real SSH transport. Publication uses the scanned image, and a weekly workflow scans the published image ([#389](https://github.com/hyperglass-community/hyperglass/pull/389), [#410](https://github.com/hyperglass-community/hyperglass/pull/410), [#424](https://github.com/hyperglass-community/hyperglass/pull/424)).
+- Renovate proposes dependency changes with release-age checks and maintainer review. Automerge is disabled; Python dependencies remain excluded from automated updates ([#411](https://github.com/hyperglass-community/hyperglass/pull/411)).
 
 ### Fixed
-- Reject control characters and line separators in query targets, including targets accepted by custom directives. Restrict IPv6 zone identifiers to letters, digits and hyphens before command construction. Part of [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
+
+- Return the configured timeout response when a device query exceeds its request deadline ([#409](https://github.com/hyperglass-community/hyperglass/pull/409)).
+- Require explicit structured-output opt-in on every supported platform, including FRR, Juniper aliases and Arista ([#413](https://github.com/hyperglass-community/hyperglass/issues/413)).
+- Retry a built-in MikroTik BGP query once after a transport read fault with a higher delay factor. Both attempts share one request deadline; skip the retry when less than one second remains. Complete genuine zero-route replies immediately ([#415](https://github.com/hyperglass-community/hyperglass/issues/415)).
+- Restore bounded PTR enrichment for missing traceroute hostnames after sending the initial response. Resolve only global unicast addresses, excluding site-local IPv6, and preserve router-provided names ([#414](https://github.com/hyperglass-community/hyperglass/issues/414)).
+- Accept Juniper route entries without a peer ASN while preserving route attributes ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)).
+- Treat BIRD text replies containing only banners and table headers as empty results ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
+- Target the BGP peer for lab ping and traceroute. Apply core link addresses before readiness checks, enable MikroTik and OS9 BGP peers, use Cumulus 5.4 NVUE syntax with a matching default lab image, and wait for OS9 host-key generation before startup configuration ([#419](https://github.com/hyperglass-community/hyperglass/pull/419), [#425](https://github.com/hyperglass-community/hyperglass/pull/425)).
+- Size each worker's Redis connection pool for its thread pool, so the eight-worker cap does not exhaust connections on a busy worker ([#420](https://github.com/hyperglass-community/hyperglass/pull/420)).
+- Cancel only the superseded CI run of the same pull request, so pull requests with the same branch name do not cancel each other ([#420](https://github.com/hyperglass-community/hyperglass/pull/420)).
+- Arista diagnostics enter privileged mode before ping; failed enable authentication returns an authentication error ([#353](https://github.com/hyperglass-community/hyperglass/issues/353)).
+- Parse Juniper confederations and ASDOT paths, including repeated BGP attribute blocks. Shared ASN parsing normalizes dotted ASNs ([#339](https://github.com/hyperglass-community/hyperglass/issues/339), [#333](https://github.com/hyperglass-community/hyperglass/issues/333)).
+- Handle RouterOS 6/7 command differences, timing-based interactive reads and repeated traceroute output. Valid zero-route MikroTik results complete without repeated SSH sessions ([#310](https://github.com/hyperglass-community/hyperglass/issues/310), [#379](https://github.com/hyperglass-community/hyperglass/pull/379)).
+- Load TNSR with Netmiko's generic SSH driver and suppress unsupported paging setup ([#317](https://github.com/hyperglass-community/hyperglass/issues/317)).
+- Resolve shared query types to each selected device's directive, fixing mixed-vendor selections ([#320](https://github.com/hyperglass-community/hyperglass/issues/320)).
+- Support legacy VyOS 1.3 commands through `vyos_1_3` ([#245](https://github.com/hyperglass-community/hyperglass/issues/245), [#331](https://github.com/hyperglass-community/hyperglass/issues/331)). Original command update by ServerForge.
+- Handle empty BIRD and FortiGate structured route results without returning device banners as routes. Preserve leading setup-command silence correctly in text output ([#287](https://github.com/hyperglass-community/hyperglass/issues/287), [#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- Reject malformed FRR/OpenBGPD JSON, accept empty Cisco AS paths, and derive Comware route origin from the final ASN ([#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
+- Restore Slack payload construction and webhook delivery ([#282](https://github.com/hyperglass-community/hyperglass/issues/282)).
+- Reuse a successful UI build when the configuration hash and exported version match. Report missing or unsupported Node.js versions clearly ([#278](https://github.com/hyperglass-community/hyperglass/issues/278), [#326](https://github.com/hyperglass-community/hyperglass/issues/326)).
+- Normalize logo width settings, remove duplicate text/table query choices, and document the correct `builtins` selection key ([#259](https://github.com/hyperglass-community/hyperglass/issues/259), [#283](https://github.com/hyperglass-community/hyperglass/issues/283), [#337](https://github.com/hyperglass-community/hyperglass/issues/337)).
 - [#280](https://github.com/thatmattlove/hyperglass/issues/280): Fix: `condition: None` caused error in directive @Jimmy01240397
 - [#306](https://github.com/thatmattlove/hyperglass/issues/306): Fix: allow integer values in ext_community_list_raw field for Arista BGP - @cooperwinser
 - [#311](https://github.com/thatmattlove/hyperglass/issues/311): Fix: device and directive errors.
 - [#315](https://github.com/thatmattlove/hyperglass/issues/315): Impossibile to use command "BGP Route" with Huawei NetEngine 8000 
-- [#315](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei
+- [#187](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei
 - [#325](https://github.com/thatmattlove/hyperglass/pull/325): Fix code block padding in the documentation - @jagardaniel
 - [#332](https://github.com/thatmattlove/hyperglass/pull/332): Fix custom proxy port support in SSH proxy tunnels @jessiebryan 
-
-### Updated
-
-- IP-based directives normalise addresses and prefixes before validation and command construction. For example, `192.0.2.1/24` becomes `192.0.2.0/24`.
-
-- [#245](https://github.com/thatmattlove/hyperglass/issues/245): v2.0.0 Vyos version platforms - Moved to latest LTS command set. - @ServerForge
 - [#292](https://github.com/thatmattlove/hyperglass/pull/292): Updates Mikrotik BGP route command so supernets are selected as well as exact matches. - @GrandArcher
 
-### Added
+### Removed
 
-- [#304](https://github.com/thatmattlove/hyperglass/pull/304): Add FRR structured output for BGP Routes - @chriswiggins
+- Remove the unused BGP community input plugin. Built-in syntax checks and directive rules still validate community targets.
 
 ## 2.0.4 - 2024-06-30
 
