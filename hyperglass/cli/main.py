@@ -222,7 +222,7 @@ def _devices(
 def _directives(
     search: t.Optional[str] = typer.Argument(None, help="Directive ID or Name Search Pattern"),
 ):
-    """Show all configured devices"""
+    """Show all configured directives"""
     # Third Party
     from rich.columns import Columns
     from rich._inspect import Inspect
@@ -277,7 +277,7 @@ def _plugins(
         False, "--output", show_default=False, is_flag=True, help="Show Output Plugins"
     ),
 ):
-    """Show all configured devices"""
+    """Show all registered plugins"""
     # Third Party
     from rich.columns import Columns
 
