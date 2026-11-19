@@ -97,3 +97,48 @@ def test_error_text_appended_when_template_lacks_error():
     err = public.AuthError(error=Exception("boom"), device=DEVICE)
     assert err.message.endswith(" (boom)")
     assert err.message.count("boom") == 1
+
+
+DEVICE_SETTINGS_ERROR = (
+    "TCP connection to device failed.\n"
+    "\n"
+    "Common causes of this problem are:\n"
+    "1. Incorrect hostname or IP address.\n"
+    "\n"
+    "Device settings: juniper_junos 192.0.2.1:22\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    (
+        (
+            DEVICE_SETTINGS_ERROR,
+            "TCP connection to device failed.\n\n"
+            "Common causes of this problem are:\n"
+            "1. Incorrect hostname or IP address.",
+        ),
+        (
+            "first line\n  Device settings: cisco_ios 2001:db8::1:22\nlast line",
+            "first line\nlast line",
+        ),
+        ("Device settings: cisco_ios 192.0.2.1:22", ""),
+        ("first line\nsecond line\n", "first line\nsecond line\n"),
+        ("", ""),
+    ),
+    ids=("trailing-line", "middle-line-ipv6", "only-line", "no-line", "empty"),
+)
+def test_strip_device_settings(error, expected):
+    """The netmiko "Device settings:" line is removed, and other text is kept."""
+    assert public._strip_device_settings(error) == expected
+
+
+@pytest.mark.parametrize(
+    "error_class", (public.ScrapeError, public.AuthError, public.RestError, public.DeviceTimeout)
+)
+def test_device_errors_strip_device_settings(error_class):
+    """Device errors never expose the device address from the netmiko message."""
+    err = error_class(error=Exception(DEVICE_SETTINGS_ERROR), device=DEVICE)
+    assert "Device settings:" not in err.message
+    assert "192.0.2.1" not in err.message
+    assert "TCP connection to device failed." in err.message

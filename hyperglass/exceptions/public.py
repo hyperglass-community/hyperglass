@@ -12,6 +12,16 @@ if TYPE_CHECKING:
     from hyperglass.models.config.devices import Device
 
 
+def _strip_device_settings(error: str) -> str:
+    """Remove the netmiko "Device settings:" line, which contains the device IP and port."""
+    if "Device settings:" not in error:
+        return error
+    lines = error.split("\n")
+    return "\n".join(
+        line for line in lines if not line.strip().startswith("Device settings:")
+    ).strip()
+
+
 class ScrapeError(
     PublicHyperglassError,
     template="connection_error",
@@ -21,16 +31,7 @@ class ScrapeError(
 
     def __init__(self, *, error: BaseException, device: "Device"):
         """Initialize parent error with sanitized error message."""
-        # Sanitize error message to remove sensitive information like IP/port
-        error_str = str(error)
-
-        # Remove device settings line that contains IP:port
-        if "Device settings:" in error_str:
-            lines = error_str.split("\n")
-            sanitized_lines = [
-                line for line in lines if not line.strip().startswith("Device settings:")
-            ]
-            error_str = "\n".join(sanitized_lines).strip()
+        error_str = _strip_device_settings(str(error))
 
         # If the error is empty after sanitization, provide a generic message
         if not error_str or error_str.isspace():
@@ -46,16 +47,7 @@ class AuthError(PublicHyperglassError, template="authentication_error", level="d
 
     def __init__(self, *, error: BaseException, device: "Device"):
         """Initialize parent error with sanitized error message."""
-        # Sanitize error message to remove sensitive information like IP/port
-        error_str = str(error)
-
-        # Remove device settings line that contains IP:port
-        if "Device settings:" in error_str:
-            lines = error_str.split("\n")
-            sanitized_lines = [
-                line for line in lines if not line.strip().startswith("Device settings:")
-            ]
-            error_str = "\n".join(sanitized_lines).strip()
+        error_str = _strip_device_settings(str(error))
 
         # If the error is empty after sanitization, provide a generic message
         if not error_str or error_str.isspace():
@@ -71,16 +63,7 @@ class RestError(PublicHyperglassError, template="connection_error", level="dange
 
     def __init__(self, *, error: BaseException, device: "Device"):
         """Initialize parent error with sanitized error message."""
-        # Sanitize error message to remove sensitive information like IP/port
-        error_str = str(error)
-
-        # Remove device settings line that contains IP:port
-        if "Device settings:" in error_str:
-            lines = error_str.split("\n")
-            sanitized_lines = [
-                line for line in lines if not line.strip().startswith("Device settings:")
-            ]
-            error_str = "\n".join(sanitized_lines).strip()
+        error_str = _strip_device_settings(str(error))
 
         # If the error is empty after sanitization, provide a generic message
         if not error_str or error_str.isspace():
@@ -94,16 +77,7 @@ class DeviceTimeout(PublicHyperglassError, template="request_timeout", level="da
 
     def __init__(self, *, error: BaseException, device: "Device"):
         """Initialize parent error with sanitized error message."""
-        # Sanitize error message to remove sensitive information like IP/port
-        error_str = str(error)
-
-        # Remove device settings line that contains IP:port
-        if "Device settings:" in error_str:
-            lines = error_str.split("\n")
-            sanitized_lines = [
-                line for line in lines if not line.strip().startswith("Device settings:")
-            ]
-            error_str = "\n".join(sanitized_lines).strip()
+        error_str = _strip_device_settings(str(error))
 
         # If the error is empty after sanitization, provide a generic message
         if not error_str or error_str.isspace():
