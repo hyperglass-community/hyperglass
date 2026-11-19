@@ -81,9 +81,6 @@ class Structured(HyperglassModel):
     def is_async_enrichment_enabled(self, output: t.Any) -> bool:
         """Return whether an output should be enriched after the initial response."""
         config = self.ip_enrichment
-        if config.mode != "async":
-            return False
-
         from hyperglass.models.data.bgp_route import BGPRouteTable
         from hyperglass.models.data.traceroute import TracerouteResult
 
@@ -93,11 +90,22 @@ class Structured(HyperglassModel):
         is_traceroute_output = isinstance(output, TracerouteResult) or (
             isinstance(output, dict) and isinstance(output.get("hops"), list)
         )
+        hops = output.get("hops", []) if isinstance(output, dict) else getattr(output, "hops", [])
+        missing_hostname = any(
+            (hop.get("ip_address") and not hop.get("hostname"))
+            if isinstance(hop, dict)
+            else (hop.ip_address and not hop.hostname)
+            for hop in hops
+        )
 
         return (
-            is_bgp_output and config.enrich_bgproute and self.enable_for_bgp_route is not False
+            config.mode == "async"
+            and is_bgp_output
+            and config.enrich_bgproute
+            and self.enable_for_bgp_route is not False
         ) or (
             is_traceroute_output
             and config.enrich_traceroute
             and self.enable_for_traceroute is not False
+            and (config.mode == "async" or missing_hostname)
         )

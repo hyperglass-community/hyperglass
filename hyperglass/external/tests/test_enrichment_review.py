@@ -50,7 +50,7 @@ async def test_output_plugins_run_outside_event_loop():
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_traceroute_never_performs_supplemental_reverse_dns(monkeypatch, enabled):
+def test_inline_traceroute_does_not_wait_for_reverse_dns(monkeypatch, enabled):
     use_state().cache.set(
         "params", Params(structured={"ip_enrichment": {"enrich_traceroute": enabled}})
     )
@@ -63,7 +63,10 @@ def test_traceroute_never_performs_supplemental_reverse_dns(monkeypatch, enabled
     output = TracerouteResult(
         target="192.0.2.2",
         source="test",
-        hops=[{"hop_number": 1, "ip_address": "192.0.2.1", "hostname": "router.example"}],
+        hops=[
+            {"hop_number": 1, "ip_address": "192.0.2.1", "hostname": "router.example"},
+            {"hop_number": 2, "ip_address": "192.0.2.2"},
+        ],
     )
     assert ZTracerouteIpEnrichment().process(output=output, query=None) is output
     assert output.hops[0].hostname == "router.example"

@@ -3,6 +3,7 @@
 # flake8: noqa
 # Standard Library
 from pathlib import Path
+import re
 from unittest.mock import patch
 
 # Third Party
@@ -96,6 +97,22 @@ def test_juniper_bgp_route_asdot():
     result = _parse(sample)
 
     assert result.routes[0].as_path == [1299, 4259840100]
+
+
+@pytest.mark.parametrize("replacement", ["", "<peer-as/>", "<peer-as></peer-as>"])
+def test_juniper_route_without_peer_as_keeps_route_data(replacement):
+    original = DIRECT.read_text()
+    sample, count = re.subn(r"<peer-as>.*?</peer-as>", replacement, original, flags=re.DOTALL)
+    assert count > 0
+    assert _parse(sample).model_dump() == _parse(original).model_dump()
+
+
+def test_juniper_invalid_peer_as_is_not_silently_accepted():
+    sample = re.sub(
+        r"<peer-as>.*?</peer-as>", "<peer-as>invalid</peer-as>", DIRECT.read_text(), flags=re.DOTALL
+    )
+    with pytest.raises(ParsingError):
+        _parse(sample)
 
 
 def test_juniper_bgp_route_confederation():

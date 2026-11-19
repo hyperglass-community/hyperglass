@@ -13,11 +13,14 @@ from datetime import UTC, datetime
 from litestar import Request, Response, get, post
 from litestar.di import Provide
 from litestar.background_tasks import BackgroundTask
+from netmiko.exceptions import ReadTimeout
 
 # Project
 from hyperglass.log import log
 from hyperglass.state import HyperglassState
 from hyperglass.exceptions import HyperglassError
+from hyperglass.exceptions.public import DeviceTimeout
+from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override, device_delay_factor
 from hyperglass.models.api import Query
 from hyperglass.models.data import OutputDataModel
 from hyperglass.util.typing import is_type
@@ -47,8 +50,29 @@ __all__ = (
 
 
 async def _execute_query(data: "Query") -> t.Any:
-    """Execute once; a valid empty route table is a completed query."""
-    return await execute(data)
+    """Retry one MikroTik BGP read fault, never a completed zero-route result."""
+    try:
+        return await execute(data)
+    except DeviceTimeout as error:
+        directive = getattr(data, "directive", None)
+        if not (
+            data.device.platform in ("mikrotik_routeros", "mikrotik_switchos")
+            and getattr(directive, "_hyperglass_builtin", False)
+            and getattr(directive, "query_kind", None)
+            in ("bgp_route", "bgp_aspath", "bgp_community")
+            and isinstance(error.__cause__, ReadTimeout)
+        ):
+            raise
+
+    factor = max(3, device_delay_factor(data.device) * 2)
+    token = delay_factor_override.set(factor)
+    try:
+        log.bind(device=data.device.name, delay_factor=factor).warning(
+            "Retrying MikroTik BGP query after an incomplete transport read"
+        )
+        return await execute(data)
+    finally:
+        delay_factor_override.reset(token)
 
 
 @post("/api/aspath/enrich", guards=[lookup_guard], request_max_body_size=8192)
@@ -269,5 +293,8 @@ async def _run_query_background_tasks(
 ) -> None:
     """Run optional enrichment and webhook work after sending the response."""
     if enrichment_output is not None and enrichment_generation is not None:
-        await enrich_query_output(enrichment_output, cache, cache_key, enrichment_generation)
+        await enrich_query_output(
+            enrichment_output, cache, cache_key, enrichment_generation,
+            hostnames_only=params.structured.ip_enrichment.mode != "async",
+        )
     await send_webhook(params=params, data=data, request=request, timestamp=timestamp)

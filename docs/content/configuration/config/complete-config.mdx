@@ -267,8 +267,8 @@ Controls how Hyperglass processes and displays structured data from network devi
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
-| `structured.enable_for_traceroute` | Boolean | `true` | Set `false` to return text traceroute on every device. Otherwise the device's structured-output setting applies. FRR, Juniper and Arista default to structured output; additional platforms require opt-in. |
-| `structured.enable_for_bgp_route` | Boolean | `true` | Set `false` to return text BGP routes on every device. Otherwise the device's structured-output setting applies. FRR, Juniper and Arista default to structured output; additional platforms require opt-in. |
+| `structured.enable_for_traceroute` | Boolean | `true` | Set `false` to return text traceroute on every device. Otherwise the device's structured-output setting applies. Every platform requires explicit opt-in. |
+| `structured.enable_for_bgp_route` | Boolean | `true` | Set `false` to return text BGP routes on every device. Otherwise the device's structured-output setting applies. Every platform requires explicit opt-in. |
 
 #### Example: Structured Output Configuration
 ```yaml filename="config.yaml"

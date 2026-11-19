@@ -70,7 +70,9 @@ async def send_webhook(
         )
 
 
-async def enrich_query_output(output: t.Any, cache: t.Any, cache_key: str, generation: str) -> None:
+async def enrich_query_output(
+    output: t.Any, cache: t.Any, cache_key: str, generation: str, *, hostnames_only: bool = False
+) -> None:
     """Enrich a structured query result and update its cached representation."""
     from hyperglass.models.data.bgp_route import BGPRouteTable
     from hyperglass.models.data.traceroute import TracerouteResult
@@ -85,7 +87,12 @@ async def enrich_query_output(output: t.Any, cache: t.Any, cache_key: str, gener
                 ZTracerouteIpEnrichment,
             )
 
-            await ZTracerouteIpEnrichment().enrich(output)
+            if hostnames_only:
+                from hyperglass.external.reverse_dns import enrich_hostnames
+
+                await enrich_hostnames(output)
+            else:
+                await ZTracerouteIpEnrichment().enrich(output)
     except Exception:
         status = "failed"
         log.exception("Failed to asynchronously enrich query output")

@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## 3.0.0-rc.2 - Unreleased
+## 3.0.0-rc.2 - 2026-11-19
 
 This release candidate replaces 3.0.0-rc.1, which was not released. Lab testing of 3.0.0-rc.1 found defects that block it.
 
@@ -18,7 +18,7 @@ Hyperglass 3.0.0 incorporates the Ultraglass 3.6.2 implementation through the st
 
 Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migrating from Hyperglass 2.0.4](https://github.com/hyperglass-community/hyperglass/blob/v3.0.0-rc.2/docs/content/installation/upgrading.mdx). These changes can require a configuration change:
 
-- This candidate enables structured output by default on FRR, Juniper and Arista. Other supported platforms require `structured_output: true`. Set `structured_output: false` explicitly to force text. The default-on behaviour is a migration regression against Ultraglass's opt-in policy; see Known issues below.
+- Structured output requires explicit `structured_output: true` on every supported platform, including FRR, Juniper aliases and Arista. Omitted, `null` and `false` settings return text.
 - Forwarding headers require a trusted proxy. Configure `web.client_ip.trusted_proxies` with the actual connecting proxy addresses. Set `web.client_ip.header` only for a single-address header that the trusted proxy overwrites; otherwise Hyperglass processes `X-Forwarded-For` from right to left.
 - My IP defaults to server-side detection. It returns `null` for non-public addresses, including private proxy addresses, without automatically contacting a public service. Select `web.my_ip: external` explicitly to use the external lookup, or `off` to hide the control.
 - `/api/dns` and `/api/aspath/enrich` are disabled by default. `web.dns_provider.name: server` and `web.aspath_enrichment: true` enable them.
@@ -36,6 +36,7 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 
 - Reject control characters and line separators in query targets, including targets accepted by custom directives. Restrict IPv6 zone identifiers to letters, digits and hyphens before command construction ([#392](https://github.com/hyperglass-community/hyperglass/pull/392)). Part of [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
 - Validate built-in directive targets again at the command boundary and quote shell-backed built-in arguments after target substitution ([#393](https://github.com/hyperglass-community/hyperglass/pull/393)).
+- Quote custom-directive arguments on shell-backed platforms, including fallback and VRF commands ([#407](https://github.com/hyperglass-community/hyperglass/pull/407)).
 - Limit the server DNS and ASN lookup endpoints with shared Redis request quotas, caches, concurrency leases and deadlines. Both endpoints are off by default; server DNS rejects non-public answers ([#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
 - Read forwarding headers only from the proxies in `web.client_ip.trusted_proxies` ([#399](https://github.com/hyperglass-community/hyperglass/pull/399)).
 - Filter ArcOS BGP Route responses to the requested exact prefix in both text and structured modes. The device command still retrieves the full BGP instance. Malformed or incomplete responses return a parsing error instead of raw device output ([#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
@@ -56,7 +57,7 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 - The `hyperglass onboard` command, which creates and tests device entries, checks feature settings and scaffolds custom directives ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
 - Support bundle export for defect reports ([#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
 - Connection retry, readiness checks and state recovery for device transports ([#396](https://github.com/hyperglass-community/hyperglass/pull/396)).
-- `HYPERGLASS_WORKERS` to set an explicit worker count, device `connect_retries` to control SSH connection retries, and `disable_paging: false` to suppress driver paging commands ([#338](https://github.com/hyperglass-community/hyperglass/issues/338), [#396](https://github.com/hyperglass-community/hyperglass/pull/396)). Automatic worker sizing still uses host CPU count.
+- `HYPERGLASS_WORKERS` to set an explicit worker count, device `connect_retries` to control SSH connection retries, and `disable_paging: false` to suppress driver paging commands ([#338](https://github.com/hyperglass-community/hyperglass/issues/338), [#396](https://github.com/hyperglass-community/hyperglass/pull/396)). Automatic sizing respects affinity and visible cgroup quotas, including inherited limits, and caps the worker count at eight ([#357](https://github.com/hyperglass-community/hyperglass/pull/357)).
 - Optional SSH session logs and rotating JSONL query samples containing selected raw and parsed output. Both are disabled by default ([#336](https://github.com/hyperglass-community/hyperglass/issues/336), [#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
 - A containerlab test lab under `lab/` ([#400](https://github.com/hyperglass-community/hyperglass/pull/400), [#401](https://github.com/hyperglass-community/hyperglass/pull/401)).
 - New documentation site content, platform guides, onboarding instructions and a complete configuration sample. Tests keep the embedded reference synchronized with the sample ([#403](https://github.com/hyperglass-community/hyperglass/pull/403)). Source release history remains in the [Ultraglass repository](https://github.com/WilhelmZA/ultraglass/blob/90e2f3ab260820f49cd99872d779dc8083d9e9b3/CHANGELOG.md).
@@ -72,11 +73,20 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 - Slack and Teams deliveries use the configured webhook host, authentication, headers, timeout and TLS settings. Teams uses an Adaptive Card ([#398](https://github.com/hyperglass-community/hyperglass/pull/398), [#402](https://github.com/hyperglass-community/hyperglass/pull/402)).
 - HTTP devices receive default HTTP configuration when the `http` block is omitted. Unknown device keys produce warnings with spelling suggestions ([#397](https://github.com/hyperglass-community/hyperglass/pull/397)).
 - Redis recovery verifies complete plugin registration and generation state. Recovery waits and output-plugin execution run outside the request event loop; state clearing preserves unrelated Redis keys ([#396](https://github.com/hyperglass-community/hyperglass/pull/396), [#398](https://github.com/hyperglass-community/hyperglass/pull/398)).
-- The Docker image is published to `ghcr.io/hyperglass-community/hyperglass` on version tags only. A vulnerability scan with a fixed HIGH or CRITICAL finding blocks publication ([#389](https://github.com/hyperglass-community/hyperglass/pull/389), [#404](https://github.com/hyperglass-community/hyperglass/pull/404)).
-- CI tests Python 3.11 and 3.12, the frontend and clean package installation. Publication uses the scanned image, and a weekly workflow scans the published image ([#389](https://github.com/hyperglass-community/hyperglass/pull/389)).
+- The Docker image is published to `ghcr.io/hyperglass-community/hyperglass` on version tags only. A vulnerability scan with a fixable HIGH or CRITICAL finding blocks the merge gate and publication ([#389](https://github.com/hyperglass-community/hyperglass/pull/389), [#404](https://github.com/hyperglass-community/hyperglass/pull/404), [#422](https://github.com/hyperglass-community/hyperglass/pull/422)).
+- Compose deploys the published image with Valkey 8 without requiring a source clone. `compose.build.yaml` enables source builds. Dependency layers remain cached when application source changes ([#424](https://github.com/hyperglass-community/hyperglass/pull/424)).
+- CI tests Python 3.11 and 3.12 with Redis and Valkey, the frontend, clean package installation and the real SSH transport. Publication uses the scanned image, and a weekly workflow scans the published image ([#389](https://github.com/hyperglass-community/hyperglass/pull/389), [#410](https://github.com/hyperglass-community/hyperglass/pull/410), [#424](https://github.com/hyperglass-community/hyperglass/pull/424)).
+- Renovate proposes dependency changes with release-age checks and maintainer review. Automerge is disabled; Python dependencies remain excluded from automated updates ([#411](https://github.com/hyperglass-community/hyperglass/pull/411)).
 
 ### Fixed
 
+- Return the configured timeout response when a device query exceeds its request deadline ([#409](https://github.com/hyperglass-community/hyperglass/pull/409)).
+- Require explicit structured-output opt-in on every supported platform, including FRR, Juniper aliases and Arista ([#413](https://github.com/hyperglass-community/hyperglass/issues/413)).
+- Retry a built-in MikroTik BGP query once after a transport read fault with a higher delay factor. Complete genuine zero-route replies immediately ([#415](https://github.com/hyperglass-community/hyperglass/issues/415)).
+- Restore bounded PTR enrichment for missing traceroute hostnames after sending the initial response. Preserve router-provided names ([#414](https://github.com/hyperglass-community/hyperglass/issues/414)).
+- Accept Juniper route entries without a peer ASN while preserving route attributes ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)).
+- Treat BIRD text replies containing only banners and table headers as empty results ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
+- Target the BGP peer for lab ping and traceroute. Apply core link addresses before readiness checks, enable MikroTik and OS9 BGP peers, use Cumulus 5.4 NVUE syntax, and wait for OS9 host-key generation before startup configuration ([#419](https://github.com/hyperglass-community/hyperglass/pull/419), [#425](https://github.com/hyperglass-community/hyperglass/pull/425)).
 - Arista diagnostics enter privileged mode before ping; failed enable authentication returns an authentication error ([#353](https://github.com/hyperglass-community/hyperglass/issues/353)).
 - Parse Juniper confederations and ASDOT paths, including repeated BGP attribute blocks. Shared ASN parsing normalizes dotted ASNs ([#339](https://github.com/hyperglass-community/hyperglass/issues/339), [#333](https://github.com/hyperglass-community/hyperglass/issues/333)).
 - Handle RouterOS 6/7 command differences, timing-based interactive reads and repeated traceroute output. Valid zero-route MikroTik results complete without repeated SSH sessions ([#310](https://github.com/hyperglass-community/hyperglass/issues/310), [#379](https://github.com/hyperglass-community/hyperglass/pull/379)).
@@ -102,16 +112,6 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 ### Removed
 
 - Remove the unused BGP community input plugin. Built-in syntax checks and directive rules still validate community targets.
-
-### Known issues
-
-- A device query that exceeds the request timeout returns HTTP 500 instead of the timeout message ([#408](https://github.com/hyperglass-community/hyperglass/issues/408)).
-- Structured output must be opt-in on every platform, as implemented in Ultraglass. This candidate incorrectly restores automatic structured output on FRR, Juniper and Arista. Set `structured_output: false` on those devices to retain text until [#413](https://github.com/hyperglass-community/hyperglass/issues/413) restores the opt-in policy.
-- Supplemental traceroute reverse-DNS lookup was removed during migration. Router-provided hostnames remain, but hops without a hostname no longer receive one through enrichment. [#414](https://github.com/hyperglass-community/hyperglass/issues/414) tracks the fix.
-- MikroTik BGP queries no longer retry an empty result with a higher delay factor. [#415](https://github.com/hyperglass-community/hyperglass/issues/415) tracks recovery of transient results while preserving immediate completion for genuine zero-route results.
-- Custom directives with permissive rules on shell-backed platforms remain unquoted. Use anchored allowlists. [#407](https://github.com/hyperglass-community/hyperglass/pull/407) supplies the remaining fix for [#383](https://github.com/hyperglass-community/hyperglass/issues/383).
-- Automatic worker sizing still ignores container CPU limits. Set `HYPERGLASS_WORKERS` explicitly; [#356](https://github.com/hyperglass-community/hyperglass/issues/356) remains open.
-- The Juniper structured parser still requires a peer ASN, so responses that omit it can fail ([#273](https://github.com/hyperglass-community/hyperglass/issues/273)). BIRD text-mode queries can still return a banner for an empty result ([#166](https://github.com/hyperglass-community/hyperglass/issues/166)).
 
 ## 2.0.4 - 2024-06-30
 

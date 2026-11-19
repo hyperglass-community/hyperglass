@@ -9,6 +9,7 @@ from hyperglass.log import log
 from hyperglass.state import use_state
 from hyperglass.plugins._output import OutputPlugin
 from hyperglass.models.data.traceroute import TracerouteResult
+from hyperglass.external.reverse_dns import enrich_hostnames
 
 if t.TYPE_CHECKING:
     from hyperglass.models.data import OutputDataModel
@@ -23,10 +24,12 @@ class ZTracerouteIpEnrichment(OutputPlugin):
     directives: t.Sequence[str] = ()
     common: bool = True
 
-    async def enrich(self, output: TracerouteResult) -> None:
-        """Enrich IP and ASN metadata without supplemental reverse DNS requests."""
+    async def enrich(self, output: TracerouteResult, *, include_hostnames: bool = True) -> None:
+        """Enrich metadata, with bounded PTR lookups reserved for background work."""
         await output.enrich_with_ip_enrichment()
         await output.enrich_asn_organizations()
+        if include_hostnames:
+            await enrich_hostnames(output)
 
     def process(self, *, output: "OutputDataModel", query: "Query") -> "OutputDataModel":
         """Apply optional enrichment in the output-processing worker thread."""
@@ -36,7 +39,7 @@ class ZTracerouteIpEnrichment(OutputPlugin):
         if not config.enrich_traceroute or config.mode == "async":
             return output
         try:
-            asyncio.run(self.enrich(output))
+            asyncio.run(self.enrich(output, include_hostnames=False))
         except Exception as error:
             log.bind(error=str(error)).error("Traceroute enrichment failed")
         return output
