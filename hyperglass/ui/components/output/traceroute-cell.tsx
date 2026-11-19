@@ -1,5 +1,7 @@
 import { MonoField, ASNField, LatencyField, LossField, HostnameField } from './traceroute-fields';
 
+import { formatHopIP } from '~/util';
+
 import type { TracerouteCellRenderProps } from '~/types';
 
 interface TracerouteCellProps {
@@ -11,16 +13,12 @@ export const TracerouteCell = (props: TracerouteCellProps): JSX.Element => {
   const { data, rawData } = props;
   const cellId = data.column.id as keyof TracerouteHop;
 
-  // For IP address field, prefer display_ip if available (for truncated IPv6)
+  // For IP address field, prefer display_ip if available (for truncated IPv6). Shared with the
+  // copy-to-clipboard text.
   const getIPValue = () => {
-    if (cellId === 'ip_address') {
-      const hop = data.row?.original as TracerouteHop | undefined;
-      if (hop?.display_ip) {
-        return hop.display_ip;
-      }
-      if (hop?.ip_address) {
-        return hop.ip_address;
-      }
+    const hop = data.row?.original as TracerouteHop | undefined;
+    if (cellId === 'ip_address' && hop) {
+      return formatHopIP(hop);
     }
     return data.value;
   };

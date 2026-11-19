@@ -1,5 +1,12 @@
 import { Text, Tooltip, Badge, Link } from '@chakra-ui/react';
 import { Else, If, Then } from 'react-if';
+import {
+  TRACEROUTE_BLANK,
+  TRACEROUTE_NO_RTT,
+  formatHopASN,
+  formatHopHostname,
+  formatHopRTT,
+} from '~/util';
 
 import type { TextProps } from '@chakra-ui/react';
 
@@ -50,23 +57,18 @@ export const MonoField = (props: MonoFieldProps): JSX.Element => {
 export const ASNField = (props: ASNFieldProps): JSX.Element => {
   const { asn, org, ...rest } = props;
 
-  if (!asn || asn === 'None' || asn === 'null') {
+  // Shared with the copy-to-clipboard text: "12345" or "IXP", or null when missing.
+  const asnDisplay = formatHopASN(asn);
+
+  if (asnDisplay === null) {
     return (
       <Text as="span" fontSize="sm" color="gray.500" {...rest}>
-        —
+        {TRACEROUTE_BLANK}
       </Text>
     );
   }
 
-  // Display ASN. If this hop is an IXP (asn === 'IXP') and we have the
-  // IXP name in `org`, show the IXP name instead of the literal "IXP" so
-  // the visualiser renders a friendly label. Keep the tooltip labeled as
-  // "IXP - <name>" for clarity.
-  let asnDisplay = asn; // default: "12345" or "IXP"
-  // For table display we want IXPs to appear as the literal "IXP".
-  if (asn === 'IXP') {
-    asnDisplay = 'IXP';
-  }
+  // Keep the tooltip labeled as "IXP - <name>" for exchange-point hops.
   const tooltipLabel =
     org && org !== 'None'
       ? asn === 'IXP'
@@ -99,12 +101,13 @@ export const ASNField = (props: ASNFieldProps): JSX.Element => {
 };
 
 export const HostnameField = (props: HostnameFieldProps): JSX.Element => {
-  const { hostname, ...rest } = props;
+  const { hostname: rawHostname, ...rest } = props;
+  const hostname = formatHopHostname(rawHostname);
 
-  if (!hostname || hostname === 'None' || hostname === 'null') {
+  if (hostname === null) {
     return (
       <Text as="span" fontSize="sm" color="gray.500" {...rest}>
-        —
+        {TRACEROUTE_BLANK}
       </Text>
     );
   }
@@ -120,11 +123,12 @@ export const HostnameField = (props: HostnameFieldProps): JSX.Element => {
 
 export const LatencyField = (props: LatencyFieldProps): JSX.Element => {
   const { rtt, ...rest } = props;
+  const rttDisplay = formatHopRTT(rtt);
 
-  if (rtt === null || rtt === undefined) {
+  if (rtt === null || rtt === undefined || rttDisplay === null) {
     return (
       <Text as="span" fontSize="sm" color="gray.500" {...rest}>
-        *
+        {TRACEROUTE_NO_RTT}
       </Text>
     );
   }
@@ -138,7 +142,7 @@ export const LatencyField = (props: LatencyFieldProps): JSX.Element => {
 
   return (
     <Text as="span" fontSize="sm" fontFamily="mono" color={getLatencyColor(rtt)} {...rest}>
-      {rtt.toFixed(1)}ms
+      {rttDisplay}
     </Text>
   );
 };
