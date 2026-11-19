@@ -220,13 +220,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Fails on HIGH or CRITICAL findings that have a fixed version. The step
-      # does not fail the job yet, so existing findings do not block every pull
-      # request, but the publish job refuses to push an image that fails the
-      # scan. Remove `continue-on-error` to make the scan a merge gate.
+      # Fixable HIGH or CRITICAL findings fail the image job and required CI gate.
       - name: Scan image for vulnerabilities
         id: scan
-        continue-on-error: true
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
@@ -239,10 +235,10 @@ jobs:
             hyperglass:scan
 
       - name: Report scan result
-        if: ${{ steps.scan.outcome != 'success' }}
+        if: ${{ failure() && steps.scan.outcome == 'failure' }}
         run: |
-          echo "::warning title=Image vulnerability scan::The image has fixable HIGH or CRITICAL vulnerabilities. It is not published."
-          echo "The image has fixable HIGH or CRITICAL vulnerabilities. See the scan step log. The image is not published." >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=Image vulnerability scan::The scan failed. See the scan step log. The image cannot pass CI or be published."
+          echo "The image vulnerability scan failed. See the scan step log. The image cannot pass CI or be published." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Export scanned image
         id: export
