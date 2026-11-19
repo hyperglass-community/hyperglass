@@ -147,3 +147,37 @@ def test_juniper_bgp_route_unexpected_error():
             parse_juniper([OTC.read_text()])
 
     assert isinstance(exc.value.__cause__, AttributeError)
+
+
+ROUTE6 = Path(__file__).parent / "fixtures" / "juniper-live" / "route6.xml"
+
+EMPTY_TABLE = """<rpc-reply xmlns:junos="http://xml.juniper.net/junos/26.2R1.7/junos">
+    <route-information xmlns="http://xml.juniper.net/junos/26.2R0/junos-routing">
+        <route-table>
+            <table-name>inet.0</table-name>
+            <destination-count>0</destination-count>
+            <total-route-count>0</total-route-count>
+            <active-route-count>0</active-route-count>
+            <holddown-route-count>0</holddown-route-count>
+            <hidden-route-count>0</hidden-route-count>
+        </route-table>
+    </route-information>
+</rpc-reply>"""
+
+NO_TABLE = """<rpc-reply xmlns:junos="http://xml.juniper.net/junos/26.2R1.7/junos">
+    <route-information xmlns="http://xml.juniper.net/junos/26.2R0/junos-routing">
+    </route-information>
+</rpc-reply>"""
+
+
+@pytest.mark.parametrize("empty", [EMPTY_TABLE, NO_TABLE], ids=["no-rt", "no-route-table"])
+def test_juniper_empty_ipv4_keeps_ipv6_table(empty):
+    """An empty IPv4 reply must not stop the IPv6 reply from being parsed (#448)."""
+    ipv6 = ROUTE6.read_text()
+    expected = parse_juniper([ipv6])
+
+    table = parse_juniper([empty, ipv6])
+
+    assert table is not None
+    assert table.count > 0
+    assert [route.prefix for route in table.routes] == [route.prefix for route in expected.routes]

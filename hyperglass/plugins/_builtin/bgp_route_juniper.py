@@ -88,10 +88,10 @@ def parse_juniper(output: Sequence[str]) -> "OutputDataModel":  # noqa: C901
                 parsed_base = parsed["route-information"]
 
             if "route-table" not in parsed_base:
-                return result
+                continue
 
             if "rt" not in parsed_base["route-table"]:
-                return result
+                continue
 
             parsed = parsed_base["route-table"]
             validated = JuniperBGPTable(**parsed)
