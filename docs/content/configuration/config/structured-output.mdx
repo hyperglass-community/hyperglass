@@ -115,7 +115,7 @@ structured:
 <Callout type="info" emoji="ℹ️">
     **IP Enrichment Lookups**
 
-    Hyperglass looks up enrichment data from BGP.tools over WHOIS (TCP port 43) at query time. Each worker process keeps lookup results in memory until it restarts. Hyperglass writes no enrichment cache to disk.
+    Hyperglass looks up enrichment data from BGP.tools over WHOIS (TCP port 43) at query time. Each worker process caches IP lookup results in memory for 5 minutes, up to 4,096 addresses. ASN organisation names learned from those lookups stay in memory until the worker restarts. Hyperglass writes no enrichment cache to disk.
 </Callout>
 
 #### Enable IP Enrichment for Traceroute

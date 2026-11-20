@@ -2,6 +2,7 @@
 
 # Standard Library
 import typing as t
+import asyncio
 
 # Third Party
 from pydantic import PrivateAttr
@@ -25,8 +26,13 @@ class ZBgpRouteEnrichment(OutputPlugin):
     directives: t.Sequence[str] = ()
     common: bool = True
 
+    async def enrich(self, output: BGPRouteTable) -> None:
+        """Run both AS path and next-hop enrichment."""
+        await output.enrich_as_path_organizations()
+        await output.enrich_with_ip_enrichment()
+
     def process(self, *, output: "OutputDataModel", query: "Query") -> "OutputDataModel":
-        """Enrich structured BGP route data with ASN organization information."""
+        """Enrich structured BGP route data in the output-processing worker thread."""
 
         if not isinstance(output, BGPRouteTable):
             return output
@@ -53,29 +59,9 @@ class ZBgpRouteEnrichment(OutputPlugin):
 
             _log.info(f"Starting ASN and next-hop enrichment for {len(output.routes)} BGP routes")
 
-            # Run enrichment in event loop
-            import asyncio
-
-            async def enrich_all():
-                """Run both AS path and next-hop enrichment."""
-                await output.enrich_as_path_organizations()
-                await output.enrich_with_ip_enrichment()
-
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # We're inside an event loop; create task
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(lambda: asyncio.run(enrich_all()))
-                        future.result()
-                else:
-                    # No loop running, we can use asyncio.run directly
-                    asyncio.run(enrich_all())
-            except RuntimeError:
-                # Fallback if we can't determine loop state
-                asyncio.run(enrich_all())
+            # Output plugins run in a worker thread with no event loop (see
+            # `Connection.response`), so this does not block the request loop.
+            asyncio.run(self.enrich(output))
 
             enriched_asn_count = len(output.asn_organizations)
             enriched_nexthop_count = sum(1 for r in output.routes if r.next_hop_org)

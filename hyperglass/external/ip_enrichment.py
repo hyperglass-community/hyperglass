@@ -16,10 +16,129 @@ from threading import Lock
 from hyperglass.log import log
 from hyperglass.settings import Settings
 
+if t.TYPE_CHECKING:
+    from ipaddress import IPv4Address, IPv6Address
+
 IPLookup = t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]
 IP_CACHE_MAXSIZE = 4096
 IP_CACHE_TTL = 300.0
+WHOIS_HOST = "bgp.tools"
+WHOIS_PORT = 43
+WHOIS_TIMEOUT = 10
+WHOIS_BULK_TIMEOUT = 15
 WHOIS_MAX_BYTES = 512 * 1024
+WHOIS_RECV_SIZE = 8192
+NO_RESULT: IPLookup = (None, None, None)
+
+
+def _is_lookup_candidate(address: t.Union["IPv4Address", "IPv6Address"]) -> bool:
+    """Whether an address can have public routing data worth sending to bgp.tools.
+
+    Unspecified (`0.0.0.0`, `::`) and multicast addresses are excluded explicitly: the
+    standard library classifies multicast as global, and whether it classifies the
+    unspecified addresses as private differs between Python releases.
+    """
+    return not (
+        address.is_private
+        or address.is_reserved
+        or address.is_loopback
+        or address.is_unspecified
+        or address.is_multicast
+    )
+
+
+def _parse_asn(text: str) -> t.Optional[int]:
+    """Read an ASN column, ignoring headers and malformed values."""
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
+def _store_whois_row(
+    out: t.Dict[str, IPLookup],
+    asn: t.Optional[int],
+    address: t.Optional[str],
+    prefix: t.Optional[str],
+    org: t.Optional[str],
+) -> None:
+    """Index a parsed row by the queried address, or by ASN for ASN rows."""
+    if address:
+        out[address] = (asn, org, prefix)
+    elif asn is not None:
+        out[f"AS{asn}"] = (asn, org, prefix)
+        out[str(asn)] = (asn, org, prefix)
+
+
+def parse_whois_response(raw: str) -> t.Dict[str, IPLookup]:
+    """Parse a bgp.tools bulk WHOIS response.
+
+    Two formats are handled:
+
+    - Pipe-separated, as bgp.tools returns it:
+      `AS | IP | BGP Prefix | CC | Registry | Allocated | AS Name`. ASN queries leave the
+      IP and prefix columns empty and are indexed as `AS<n>` and `<n>`.
+    - Whitespace-separated: `ASN IP PREFIX [NAME...]`.
+
+    Returns a mapping of query key to `(asn, name, prefix)`.
+    """
+    out: t.Dict[str, IPLookup] = {}
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if "|" in line:
+            cols = [c.strip() for c in line.split("|")]
+            asn = _parse_asn(cols[0])
+            address = cols[1] if len(cols) > 1 else None
+            prefix = (cols[2] or None) if len(cols) > 2 else None
+            _store_whois_row(out, asn, address, prefix, cols[-1])
+        else:
+            words = line.split()
+            if len(words) < 3:
+                continue
+            asn = _parse_asn(words[0])
+            org = " ".join(words[3:]) if len(words) > 3 else None
+            _store_whois_row(out, asn, words[1], words[2], org)
+    return out
+
+
+def _map_whois_results(queries: t.List[str], out: t.Dict[str, IPLookup]) -> t.Dict[str, IPLookup]:
+    """Map parsed rows back to the keys the caller asked for."""
+    mapped: t.Dict[str, IPLookup] = {}
+    for query in queries:
+        sent = f"AS{query}" if query.isdigit() else query
+        mapped[query] = out.get(sent) or out.get(query) or NO_RESULT
+    return mapped
+
+
+def _whois_blocking(queries: t.List[str], timeout: float) -> t.Dict[str, IPLookup]:
+    """Send one bulk WHOIS query to bgp.tools and parse the response.
+
+    Any connection error maps every query to `NO_RESULT`.
+    """
+    send_keys = [f"AS{q}" if q.isdigit() else q for q in queries]
+    payload = "begin\n" + "\n".join(send_keys) + "\nend\n"
+    try:
+        with socket.create_connection((WHOIS_HOST, WHOIS_PORT), timeout=timeout) as s:
+            s.settimeout(timeout)
+            s.sendall(payload.encode("utf-8"))
+            parts = []
+            remaining = WHOIS_MAX_BYTES
+            try:
+                while remaining > 0:
+                    chunk = s.recv(min(WHOIS_RECV_SIZE, remaining))
+                    if not chunk:
+                        break
+                    parts.append(chunk)
+                    remaining -= len(chunk)
+            except socket.timeout:
+                pass
+    except Exception as error:
+        log.debug("bgp.tools WHOIS lookup failed: {}", error)
+        return dict.fromkeys(queries, NO_RESULT)
+    raw = b"".join(parts).decode("utf-8", errors="replace")
+    return _map_whois_results(queries, parse_whois_response(raw))
 
 
 def _is_ixp(asn: t.Optional[int], name: t.Optional[str]) -> bool:
@@ -97,212 +216,25 @@ class IPEnrichmentService:
             return IPInfo(ip, asn=asn, asn_name=asn_name, prefix=prefix)
         return IPInfo(ip, asn=0, asn_name="Unknown")
 
-    async def _query_bgp_tools_for_ip(  # noqa: C901 - preserve WHOIS format fallbacks
-        self, ip_str: str
-    ) -> t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]:
+    async def _query_bgp_tools_for_ip(self, ip_str: str) -> IPLookup:
         """Query bgp.tools for a single IP.
 
         Returns (asn_int, asn_name, prefix) or (None, None, None) on failure.
         """
-        # Check cache first
         cached = self._cached_ip(ip_str)
         if cached is not None:
             return cached
+        resp_map = await asyncio.to_thread(_whois_blocking, [ip_str], WHOIS_TIMEOUT)
+        result = resp_map.get(ip_str, NO_RESULT)
+        self._cache_ip(ip_str, result)
+        return result
 
-        # Use TCP WHOIS on bgp.tools:43
-        def _whois_blocking(  # noqa: C901 - handle both WHOIS response formats
-            single_ips: t.List[str],
-        ) -> t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]]:
-            out: t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]] = {}
-            host = "bgp.tools"
-            port = 43
-            send_keys = [f"AS{q}" if q.isdigit() else q for q in single_ips]
-            payload = "begin\n" + "\n".join(send_keys) + "\nend\n"
-            try:
-                with socket.create_connection((host, port), timeout=10) as s:
-                    s.settimeout(10)
-                    s.sendall(payload.encode("utf-8"))
-                    parts = []
-                    remaining = WHOIS_MAX_BYTES
-                    try:
-                        while remaining > 0:
-                            chunk = s.recv(min(4096, remaining))
-                            if not chunk:
-                                break
-                            parts.append(chunk)
-                            remaining -= len(chunk)
-                    except socket.timeout:
-                        pass
+    async def _query_bgp_tools_bulk(self, queries: t.List[str]) -> t.Dict[str, IPLookup]:
+        """Query bgp.tools for multiple IPs or ASNs using a single connection.
 
-                    raw = b"".join(parts).decode("utf-8", errors="replace")
-                    # Parse pipe-separated ASN, address, prefix, country, registry and name.
-                    for line in raw.splitlines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        if "|" in line:
-                            cols = [c.strip() for c in line.split("|")]
-                            try:
-                                asn = int(cols[0]) if cols[0].isdigit() else None
-                            except Exception:
-                                asn = None
-                            ipcol = cols[1] if len(cols) > 1 else None
-                            prefix = cols[2] if len(cols) > 2 else None
-                            org = cols[-1] if len(cols) > 0 else None
-                            if ipcol:
-                                out[ipcol] = (asn, org, prefix)
-                            else:
-                                if asn is not None:
-                                    out_key1 = f"AS{asn}"
-                                    out_key2 = str(asn)
-                                    out[out_key1] = (asn, org, prefix)
-                                    out[out_key2] = (asn, org, prefix)
-                        else:
-                            # Fallback parsing
-                            parts_line = line.split()
-                            if len(parts_line) >= 3:
-                                try:
-                                    asn = int(parts_line[0])
-                                except Exception:
-                                    asn = None
-                                ipcol = parts_line[1]
-                                prefix = parts_line[2]
-                                org = " ".join(parts_line[3:]) if len(parts_line) > 3 else None
-                                if ipcol:
-                                    out[ipcol] = (asn, org, prefix)
-                                else:
-                                    if asn is not None:
-                                        out_key1 = f"AS{asn}"
-                                        out_key2 = str(asn)
-                                        out[out_key1] = (asn, org, prefix)
-                                        out[out_key2] = (asn, org, prefix)
-
-                    # Map results back to original query keys
-                    mapped: t.Dict[
-                        str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]
-                    ] = {}
-                    for orig, sent in zip(single_ips, send_keys):
-                        if sent in out:
-                            mapped[orig] = out[sent]
-                        elif orig in out:
-                            mapped[orig] = out[orig]
-                        else:
-                            if orig.isdigit():
-                                if f"AS{orig}" in out:
-                                    mapped[orig] = out[f"AS{orig}"]
-                                elif orig in out:
-                                    mapped[orig] = out[orig]
-                                else:
-                                    mapped[orig] = (None, None, None)
-                            else:
-                                mapped[orig] = (None, None, None)
-                    return mapped
-            except Exception:
-                for ip in single_ips:
-                    out[ip] = (None, None, None)
-                return out
-
-        loop = asyncio.get_running_loop()
-        resp_map = await loop.run_in_executor(None, _whois_blocking, [ip_str])
-        asn, org, prefix = resp_map.get(ip_str, (None, None, None))
-        # Cache result
-        self._cache_ip(ip_str, (asn, org, prefix))
-        return (asn, org, prefix)
-
-    async def _query_bgp_tools_bulk(  # noqa: C901 - preserve WHOIS format fallbacks
-        self, ips: t.List[str]
-    ) -> t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]]:
-        """Query bgp.tools for multiple IPs using a single connection.
-
-        Returns a mapping ip -> (asn, asn_name, prefix).
+        Returns a mapping query -> (asn, asn_name, prefix).
         """
-
-        def _whois_bulk_blocking(  # noqa: C901 - handle both WHOIS response formats
-            bulk_ips: t.List[str],
-        ) -> t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]]:
-            host = "bgp.tools"
-            port = 43
-            out: t.Dict[str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]] = {}
-            send_keys = [f"AS{q}" if q.isdigit() else q for q in bulk_ips]
-            payload = "begin\n" + "\n".join(send_keys) + "\nend\n"
-            try:
-                with socket.create_connection((host, port), timeout=15) as s:
-                    s.settimeout(15)
-                    s.sendall(payload.encode("utf-8"))
-                    parts = []
-                    remaining = WHOIS_MAX_BYTES
-                    try:
-                        while remaining > 0:
-                            chunk = s.recv(min(8192, remaining))
-                            if not chunk:
-                                break
-                            parts.append(chunk)
-                            remaining -= len(chunk)
-                    except socket.timeout:
-                        pass
-
-                    raw = b"".join(parts).decode("utf-8", errors="replace")
-                    for line in raw.splitlines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        if "|" in line:
-                            cols = [c.strip() for c in line.split("|")]
-                            try:
-                                asn = int(cols[0]) if cols[0].isdigit() else None
-                            except Exception:
-                                asn = None
-                            ipcol = cols[1] if len(cols) > 1 else None
-                            prefix = cols[2] if len(cols) > 2 else None
-                            org = cols[-1] if len(cols) > 0 else None
-                            if ipcol:
-                                out[ipcol] = (asn, org, prefix)
-                            else:
-                                if asn is not None:
-                                    out_key1 = f"AS{asn}"
-                                    out_key2 = str(asn)
-                                    out[out_key1] = (asn, org, prefix)
-                                    out[out_key2] = (asn, org, prefix)
-                        else:
-                            parts_line = line.split()
-                            if len(parts_line) >= 3:
-                                try:
-                                    asn = int(parts_line[0])
-                                except Exception:
-                                    asn = None
-                                ipcol = parts_line[1]
-                                prefix = parts_line[2]
-                                org = " ".join(parts_line[3:]) if len(parts_line) > 3 else None
-                                out[ipcol] = (asn, org, prefix)
-
-                    # Map results back to original query keys
-                    mapped: t.Dict[
-                        str, t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]
-                    ] = {}
-                    for orig, sent in zip(bulk_ips, send_keys):
-                        if sent in out:
-                            mapped[orig] = out[sent]
-                        elif orig in out:
-                            mapped[orig] = out[orig]
-                        else:
-                            if orig.isdigit():
-                                if f"AS{orig}" in out:
-                                    mapped[orig] = out[f"AS{orig}"]
-                                elif orig in out:
-                                    mapped[orig] = out[orig]
-                                else:
-                                    mapped[orig] = (None, None, None)
-                            else:
-                                mapped[orig] = (None, None, None)
-                    return mapped
-            except Exception:
-                for ip in bulk_ips:
-                    out[ip] = (None, None, None)
-                return out
-
-        loop = asyncio.get_running_loop()
-        resp = await loop.run_in_executor(None, _whois_bulk_blocking, ips)
-        return resp
+        return await asyncio.to_thread(_whois_blocking, queries, WHOIS_BULK_TIMEOUT)
 
     async def lookup_ips_bulk(self, ips: t.List[str]) -> t.Dict[str, IPInfo]:
         """Bulk lookup for multiple IPs using BGP.TOOLS."""
@@ -318,8 +250,7 @@ class IPEnrichmentService:
                 results[ip] = IPInfo(ip)
                 continue
 
-            # Check for private/reserved addresses
-            if target_ip.is_private or target_ip.is_reserved or target_ip.is_loopback:
+            if not _is_lookup_candidate(target_ip):
                 results[ip] = IPInfo(ip, asn=0, asn_name="Private", prefix="Private Network")
                 continue
 
@@ -354,10 +285,9 @@ class IPEnrichmentService:
                 log.debug(f"Invalid IP address: {ip_str}")
             return IPInfo(ip_str)
 
-        # Check private/reserved addresses
-        if target_ip.is_private or target_ip.is_reserved or target_ip.is_loopback:
+        if not _is_lookup_candidate(target_ip):
             if Settings.debug:
-                log.debug(f"IP {ip_str} is in private/reserved range")
+                log.debug(f"IP {ip_str} is not publicly routable")
             return IPInfo(ip_str, asn=0, asn_name="Private", prefix="Private Network")
 
         # Query bgp.tools for the IP
@@ -456,7 +386,7 @@ async def lookup_asns_bulk(  # noqa: C901 - preserve partial-result handling
             missing.append(asn)
 
     # If we have missing ASNs, try a live bgp.tools WHOIS bulk query to fetch org names
-    if missing and hasattr(_service, "_query_bgp_tools_bulk"):
+    if missing:
         try:
             log.debug("lookup_asns_bulk: querying bgp.tools for missing ASNs: {}", missing)
             queries = [f"AS{a}" for a in missing]
@@ -491,26 +421,27 @@ async def lookup_asns_bulk(  # noqa: C901 - preserve partial-result handling
     return results
 
 
-async def refresh_ip_enrichment_data() -> bool:
-    """Manually refresh IP enrichment data."""
-    log.info("Manual refresh requested")
-    # Since we no longer cache data, just return True to indicate the feature is available
-    return True
-
-
 def get_data_status() -> dict:
-    """Get status information about IP enrichment data."""
-    status = {
+    """Get status information about IP enrichment data.
+
+    IP lookups are cached per worker process for `IP_CACHE_TTL` seconds, up to
+    `IP_CACHE_MAXSIZE` addresses. ASN names learned from lookups are kept for the life of
+    the process.
+    """
+    now = time.monotonic()
+    with _service._cache_lock:
+        cached_ips = sum(1 for expires, _ in _service._ip_cache.values() if expires > now)
+    return {
         "mode": "real-time",
         "data_source": "BGP.TOOLS",
-        "cache_enabled": False,
-        "last_update": "Real-time lookups via BGP.TOOLS",
+        "cache_enabled": True,
+        "cache_ttl": IP_CACHE_TTL,
+        "cache_max_entries": IP_CACHE_MAXSIZE,
         "data_counts": {
-            "cached_ips": len(_service._ip_cache),
+            "cached_ips": cached_ips,
             "cached_asns": len(_service.asn_info),
         },
     }
-    return status
 
 
 # Compatibility functions for existing code
@@ -543,6 +474,7 @@ def default_ip_targets(*targets: str) -> t.Tuple[TargetData, t.List[str]]:
 
             # Check for special address types
             special_types = [
+                (target_ip.is_unspecified, "Unspecified Address"),
                 (target_ip.is_loopback, "Loopback Address"),
                 (target_ip.is_multicast, "Multicast Address"),
                 (target_ip.is_link_local, "Link Local Address"),
@@ -565,7 +497,7 @@ def default_ip_targets(*targets: str) -> t.Tuple[TargetData, t.List[str]]:
                     is_special = True
                     break
 
-            if not is_special and (target_ip.is_global or target_ip.is_unspecified):
+            if not is_special and target_ip.is_global:
                 query_targets.append(target)
             elif not is_special:
                 # Other non-global addresses
