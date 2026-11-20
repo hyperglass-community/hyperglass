@@ -173,4 +173,6 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Changes s
 
 Hyperglass was created by [Matt Love](https://github.com/thatmattlove) as [thatmattlove/hyperglass](https://github.com/thatmattlove/hyperglass). The community project continues that work under the [Clear BSD License](LICENSE).
 
+[CONTRIBUTORS.md](CONTRIBUTORS.md) names the people whose code, pull requests, reports and reviews are part of each release.
+
 Hyperglass uses [Netmiko](https://github.com/ktbyers/netmiko), [Litestar](https://litestar.dev), [Pydantic](https://docs.pydantic.dev/latest/), [React](https://react.dev/), [Next.js](https://nextjs.org/), [Chakra UI](https://chakra-ui.com/), [React Flow](https://reactflow.dev/), and [BGP.tools](https://bgp.tools/).

@@ -105,9 +105,9 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 - Normalize logo width settings, remove duplicate text/table query choices, and document the correct `builtins` selection key ([#259](https://github.com/hyperglass-community/hyperglass/issues/259), [#283](https://github.com/hyperglass-community/hyperglass/issues/283), [#337](https://github.com/hyperglass-community/hyperglass/issues/337)).
 - [#280](https://github.com/thatmattlove/hyperglass/issues/280): Fix: `condition: None` caused error in directive @Jimmy01240397
 - [#306](https://github.com/thatmattlove/hyperglass/issues/306): Fix: allow integer values in ext_community_list_raw field for Arista BGP - @cooperwinser
-- [#311](https://github.com/thatmattlove/hyperglass/issues/311): Fix: device and directive errors.
-- [#315](https://github.com/thatmattlove/hyperglass/issues/315): Impossibile to use command "BGP Route" with Huawei NetEngine 8000 
-- [#187](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei
+- [#311](https://github.com/thatmattlove/hyperglass/issues/311): Fix: device and directive errors. - @Computroniks
+- [#315](https://github.com/thatmattlove/hyperglass/issues/315): Impossibile to use command "BGP Route" with Huawei NetEngine 8000 - @JelsonRodrigues
+- [#187](https://github.com/thatmattlove/hyperglass/issues/187): Error in bgp_router query on Huawei - @JelsonRodrigues
 - [#325](https://github.com/thatmattlove/hyperglass/pull/325): Fix code block padding in the documentation - @jagardaniel
 - [#332](https://github.com/thatmattlove/hyperglass/pull/332): Fix custom proxy port support in SSH proxy tunnels @jessiebryan 
 - [#292](https://github.com/thatmattlove/hyperglass/pull/292): Updates Mikrotik BGP route command so supernets are selected as well as exact matches. - @GrandArcher
@@ -115,6 +115,15 @@ Back up `config.yaml`, `devices.yaml` and `directives.yaml`, then read [Migratin
 ### Removed
 
 - Remove the unused BGP community input plugin. Built-in syntax checks and directive rules still validate community targets.
+
+### Contributors
+
+- @jsenecal wrote the automatic worker sizing ([#357](https://github.com/hyperglass-community/hyperglass/pull/357)), the real SSH transport tests ([#410](https://github.com/hyperglass-community/hyperglass/pull/410)) and the Renovate configuration ([#411](https://github.com/hyperglass-community/hyperglass/pull/411)). These were merged inside [#420](https://github.com/hyperglass-community/hyperglass/pull/420).
+- @CarlosSuporteISP wrote the Huawei and MikroTik structured output in [#340](https://github.com/hyperglass-community/hyperglass/pull/340). The migration transferred that work in [#398](https://github.com/hyperglass-community/hyperglass/pull/398) and [#400](https://github.com/hyperglass-community/hyperglass/pull/400).
+- @ant-atsyganov wrote the mixed-vendor query type resolution in [Ultraglass #17](https://github.com/WilhelmZA/ultraglass/pull/17), transferred in [#399](https://github.com/hyperglass-community/hyperglass/pull/399).
+- @bronson-calif reported the command injection defect in [#383](https://github.com/hyperglass-community/hyperglass/issues/383) and proposed the first fix in [#382](https://github.com/hyperglass-community/hyperglass/pull/382).
+- @ndegwairungu, @LucaTheHacker, @pva, @mconf248, @sinuscosinustan, @AleksBelytskyi, @Rishi556, @tobiaspal and @ttiot proposed fixes that this release carries in another pull request.
+- [CONTRIBUTORS.md](CONTRIBUTORS.md) lists every contributor, superseded pull request and issue reporter for this release.
 
 ## 2.0.4 - 2024-06-30
 
