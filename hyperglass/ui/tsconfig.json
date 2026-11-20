@@ -6,6 +6,7 @@
     "strict": true,
     "baseUrl": "." /* Base directory to resolve non-absolute module names. */,
     "paths": {
+      "~/__tests__/*": ["__tests__/*"],
       "~/components": ["components/index"],
       "~/components/*": ["components/*"],
       "~/context": ["context/index"],
