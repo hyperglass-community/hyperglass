@@ -66,7 +66,7 @@ def query_context(monkeypatch):
         name="test-device",
         platform="frr",
         attrs={},
-        directives=SimpleNamespace(matching=lambda _: [directive]),
+        directives=SimpleNamespace(filter=lambda _: [directive]),
         has_directives=lambda _: True,
     )
 

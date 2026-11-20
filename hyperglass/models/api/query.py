@@ -127,7 +127,9 @@ class Query(BaseModel):
         state = use_state()
         self._state = state
 
-        query_directives = self.device.directives.matching(self.query_type)
+        # Resolve by exact id. matching() is a case-insensitive substring search, so a
+        # query for `ping` also matched a custom `ping6` and [0] could pick either.
+        query_directives = self.device.directives.filter(self.query_type)
 
         if len(query_directives) < 1:
             # Builtin directives are vendor-specific by `id` but share a `name` across
@@ -222,7 +224,7 @@ class Query(BaseModel):
         # Decide which top-level structured enable flag to consult
         directive = getattr(self, "directive", None)
         if directive is None:
-            matches = device.directives.matching(self.query_type)
+            matches = device.directives.filter(self.query_type)
             directive = matches[0] if len(matches) else None
         query_kind = getattr(directive, "query_kind", self.query_type)
         feature_flag_name = {
