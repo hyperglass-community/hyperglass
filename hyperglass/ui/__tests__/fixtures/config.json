@@ -1,0 +1,424 @@
+{
+  "cache": {
+    "showText": true,
+    "timeout": 120
+  },
+  "content": {
+    "credit": "\nPowered by [**Hyperglass**](https://github.com/hyperglass-community/hyperglass), version 3.0.0rc2. Source code licensed [_BSD 3-Clause Clear_](https://github.com/hyperglass-community/hyperglass/blob/main/LICENSE).\n",
+    "greeting": ""
+  },
+  "developerMode": false,
+  "devices": [
+    {
+      "group": "North America",
+      "locations": [
+        {
+          "avatar": null,
+          "description": null,
+          "directives": [
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_juniper_bgp_route__",
+              "info": null,
+              "name": "BGP Route",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "AS Path Regular Expression",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_juniper_bgp_aspath__",
+              "info": null,
+              "name": "BGP AS Path",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "BGP Community String",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_juniper_bgp_community__",
+              "info": null,
+              "name": "BGP Community",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_juniper_ping__",
+              "info": null,
+              "name": "Ping",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_juniper_traceroute__",
+              "info": null,
+              "name": "Traceroute",
+              "options": null,
+              "variables": []
+            }
+          ],
+          "group": "North America",
+          "id": "router_one",
+          "name": "Router One"
+        },
+        {
+          "avatar": null,
+          "description": null,
+          "directives": [
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_arista_eos_bgp_route__",
+              "info": null,
+              "name": "BGP Route",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "AS Path Regular Expression",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_arista_eos_bgp_aspath__",
+              "info": null,
+              "name": "BGP AS Path",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "BGP Community String",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_arista_eos_bgp_community__",
+              "info": null,
+              "name": "BGP Community",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_arista_eos_ping__",
+              "info": null,
+              "name": "Ping",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_arista_eos_traceroute__",
+              "info": null,
+              "name": "Traceroute",
+              "options": null,
+              "variables": []
+            }
+          ],
+          "group": "North America",
+          "id": "router_two",
+          "name": "Router Two"
+        }
+      ]
+    },
+    {
+      "group": "Europe",
+      "locations": [
+        {
+          "avatar": null,
+          "description": null,
+          "directives": [
+            {
+              "description": "Community",
+              "fieldType": "select",
+              "groups": [],
+              "id": "peer_communities",
+              "info": null,
+              "name": "Peer Communities",
+              "options": [
+                {
+                  "description": "Peer routes",
+                  "name": null,
+                  "value": "65000:1"
+                },
+                {
+                  "description": "Customer routes",
+                  "name": null,
+                  "value": "65000:2"
+                }
+              ],
+              "variables": []
+            },
+            {
+              "description": "AS Path Regular Expression",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_frr_bgp_aspath__",
+              "info": null,
+              "name": "BGP AS Path",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "BGP Community String",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_frr_bgp_community__",
+              "info": null,
+              "name": "BGP Community",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_frr_bgp_route__",
+              "info": null,
+              "name": "BGP Route",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_frr_ping__",
+              "info": null,
+              "name": "Ping",
+              "options": null,
+              "variables": []
+            },
+            {
+              "description": "IP Address, Prefix, or Hostname",
+              "fieldType": "text",
+              "groups": [],
+              "id": "__hyperglass_frr_traceroute__",
+              "info": null,
+              "name": "Traceroute",
+              "options": null,
+              "variables": []
+            }
+          ],
+          "group": "Europe",
+          "id": "router_three",
+          "name": "Router Three"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "authenticationError": "Authentication error occurred.",
+    "connectionError": "Error connecting to {device_name}: {error}",
+    "deviceCommandError": "The device rejected the query command.",
+    "featureNotEnabled": "{feature} is not enabled.",
+    "general": "Something went wrong.",
+    "invalidField": "{input} is an invalid {field}.",
+    "invalidInput": "{target} is not valid.",
+    "invalidQuery": "{target} is not a valid {query_type} target.",
+    "noInput": "{field} must be specified.",
+    "noOutput": "The query completed, but no matching results were found.",
+    "noResponse": "No response.",
+    "notFound": "{type} '{name}' not found.",
+    "requestTimeout": "Request timed out.",
+    "targetNotAllowed": "{target} is not allowed."
+  },
+  "orgName": "Example Network",
+  "parsedDataFields": [
+    [
+      "Prefix",
+      "prefix",
+      "left"
+    ],
+    [
+      "Active",
+      "active",
+      null
+    ],
+    [
+      "RPKI State",
+      "rpki_state",
+      "center"
+    ],
+    [
+      "AS Path",
+      "as_path",
+      "left"
+    ],
+    [
+      "Next Hop",
+      "next_hop",
+      "left"
+    ],
+    [
+      "Origin",
+      "source_as",
+      null
+    ],
+    [
+      "Weight",
+      "weight",
+      "center"
+    ],
+    [
+      "Local Preference",
+      "local_preference",
+      "center"
+    ],
+    [
+      "MED",
+      "med",
+      "center"
+    ],
+    [
+      "Communities",
+      "communities",
+      "center"
+    ],
+    [
+      "Originator",
+      "source_rid",
+      "right"
+    ],
+    [
+      "Peer",
+      "peer_rid",
+      "right"
+    ],
+    [
+      "Age",
+      "age",
+      "right"
+    ]
+  ],
+  "primaryAsn": "65000",
+  "requestTimeout": 90,
+  "siteDescription": "Example Network Network Looking Glass",
+  "siteTitle": "hyperglass",
+  "version": "3.0.0rc2",
+  "web": {
+    "aspathEnrichment": false,
+    "credit": {
+      "enable": true
+    },
+    "customHtml": null,
+    "customJavascript": null,
+    "dnsProvider": {
+      "name": "cloudflare",
+      "url": "https://cloudflare-dns.com/dns-query"
+    },
+    "greeting": {
+      "button": "Continue",
+      "enable": false,
+      "file": null,
+      "required": false,
+      "title": "Welcome"
+    },
+    "highlight": [],
+    "links": [
+      {
+        "order": 0,
+        "showIcon": true,
+        "side": "left",
+        "title": "PeeringDB",
+        "url": "https://www.peeringdb.com/asn/65000"
+      }
+    ],
+    "locationDisplayMode": "auto",
+    "logo": {
+      "dark": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-dark.svg",
+      "darkFormat": ".svg",
+      "favicon": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-icon.svg",
+      "height": null,
+      "light": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-light.svg",
+      "lightFormat": ".svg",
+      "width": "50%"
+    },
+    "menus": [
+      {
+        "content": "\nBy using hyperglass, you agree to be bound by the following terms of use:\n\nAll queries executed on this page are logged for analysis and troubleshooting. Users are prohibited from automating queries, or attempting to process queries in bulk. This service is provided on a best effort basis, and Example Network makes no availability or performance warranties or guarantees whatsoever.\n",
+        "order": 0,
+        "side": "left",
+        "title": "Terms"
+      },
+      {
+        "content": "\n##### BGP Route\n\nPerforms BGP table lookup based on IPv4/IPv6 prefix.\n\n---\n\n##### BGP Community\n\nPerforms BGP table lookup based on [Extended](https://tools.ietf.org/html/rfc4360) or [Large](https://tools.ietf.org/html/rfc8195) community value.\n\n---\n\n##### BGP AS Path\n\nPerforms BGP table lookup based on `AS_PATH` regular expression.\n\n---\n\n##### Ping\n\nSends 5 ICMP echo requests to the target.\n\n---\n\n##### Traceroute\n\nPerforms UDP Based traceroute to the target.\n\nFor information about how to interpret traceroute results, [click here](https://github.com/hyperglass-community/hyperglass/blob/main/docs/public/traceroute_nanog.pdf).\n",
+        "order": 0,
+        "side": "left",
+        "title": "Help"
+      }
+    ],
+    "myIp": "server",
+    "opengraph": {
+      "image": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-opengraph.jpg"
+    },
+    "text": {
+      "cacheIcon": "Cached from {time} UTC",
+      "cachePrefix": "Results cached for ",
+      "completeTime": "Completed in {seconds}",
+      "fqdnError": "Unable to resolve {fqdn}",
+      "fqdnErrorButton": "Try Again",
+      "fqdnMessage": "Your browser has resolved {fqdn} to",
+      "fqdnTooltip": "Use {protocol}",
+      "ipButton": "My IP",
+      "ipError": "Unable to determine IP Address",
+      "ipLookupConfirm": "Look up my IP",
+      "ipLookupNotice": "This sends your IP address to myip.wtf to look it up.",
+      "ipSelect": "Select an IP Address",
+      "noCommunities": "No Communities",
+      "noIp": "No {protocol} Address",
+      "queryLocation": "Location",
+      "queryTarget": "Target",
+      "queryType": "Query Type",
+      "rpkiInvalid": "Invalid",
+      "rpkiUnknown": "No ROAs Exist",
+      "rpkiUnverified": "Not Verified",
+      "rpkiValid": "Valid",
+      "subtitle": "Network Looking Glass",
+      "title": "Hyperglass",
+      "titleMode": "logo_only"
+    },
+    "theme": {
+      "colors": {
+        "black": "black",
+        "blue": "#314cb6",
+        "cyan": "#118ab2",
+        "danger": "#d84b4b",
+        "dark": "#010101",
+        "error": "#ff6b35",
+        "filtered": "#c1c7cc",
+        "gray": "#c1c7cc",
+        "green": "#35b246",
+        "light": "#f5f6f7",
+        "orange": "#ff6b35",
+        "pink": "#f2607d",
+        "primary": "#118ab2",
+        "purple": "#8d30b5",
+        "red": "#d84b4b",
+        "secondary": "#314cb6",
+        "success": "#35b246",
+        "teal": "#35b299",
+        "warning": "#edae49",
+        "white": "white",
+        "yellow": "#edae49"
+      },
+      "defaultColorMode": null,
+      "fonts": {
+        "body": "Nunito",
+        "download": false,
+        "mono": "Fira Code"
+      }
+    }
+  }
+}

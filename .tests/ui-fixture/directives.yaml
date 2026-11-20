@@ -1,0 +1,14 @@
+peer_communities:
+  name: Peer Communities
+  rules:
+    - condition: "65000:1"
+      command: "show bgp community 65000:1"
+    - condition: "65000:2"
+      command: "show bgp community 65000:2"
+  field:
+    description: Community
+    options:
+      - value: "65000:1"
+        description: Peer routes
+      - value: "65000:2"
+        description: Customer routes
