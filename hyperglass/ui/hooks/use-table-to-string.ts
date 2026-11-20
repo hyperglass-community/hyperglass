@@ -4,6 +4,14 @@ import relativeTimePlugin from 'dayjs/plugin/relativeTime';
 import utcPlugin from 'dayjs/plugin/utc';
 import { useConfig } from '~/context';
 import { isStructuredOutput, isBGPStructuredOutput, isTracerouteStructuredOutput } from '~/types';
+import {
+  TRACEROUTE_BLANK,
+  TRACEROUTE_NO_RTT,
+  formatHopASN,
+  formatHopHostname,
+  formatHopIP,
+  formatHopRTT,
+} from '~/util';
 
 type TableToStringFormatter =
   | ((v: string) => string)
@@ -177,27 +185,17 @@ export function useTableToString(
             return messages.noOutput; // Not traceroute data, return early
           }
 
-          const formatRTT = (rtt: number | null | undefined): string => {
-            if (rtt === null || rtt === undefined) return '*';
-            return `${rtt.toFixed(1)}ms`;
-          };
+          // Use the same formatting as the on-screen table cells.
+          const formatRTT = (rtt: number | null | undefined): string =>
+            formatHopRTT(rtt) ?? TRACEROUTE_NO_RTT;
 
-          const formatIP = (hop: TracerouteHop): string => {
-            if (hop.display_ip) return hop.display_ip; // For truncated IPv6
-            if (hop.ip_address) return hop.ip_address;
-            return '*';
-          };
+          const formatIP = (hop: TracerouteHop): string => formatHopIP(hop) ?? TRACEROUTE_BLANK;
 
-          const formatASN = (hop: TracerouteHop): string => {
-            if (hop.asn) return `AS${hop.asn}`;
-            return '*';
-          };
+          const formatASN = (hop: TracerouteHop): string =>
+            formatHopASN(hop.asn) ?? TRACEROUTE_BLANK;
 
-          const formatHostname = (hop: TracerouteHop): string => {
-            if (hop.hostname && hop.hostname !== 'None' && hop.hostname !== 'null')
-              return hop.hostname;
-            return '*';
-          };
+          const formatHostname = (hop: TracerouteHop): string =>
+            formatHopHostname(hop.hostname) ?? TRACEROUTE_BLANK;
 
           // Create a nicely formatted text table with proper column alignment
           const header = `Traceroute to ${data.output.target} from ${data.output.source}`;
