@@ -309,6 +309,22 @@ jobs:
       # nothing here: the release-image and promote jobs give the tested main
       # image of the tagged commit its version tags. Pull requests build and
       # scan the image only.
+      # A release promotes this image unchanged, so its version label must be
+      # right when it is built: the version the source declares, in the release
+      # form that version.py writes to package.json and that tags use
+      # (3.0.0-rc.2, not 3.0.0rc2). It is what `hyperglass` in the image reports.
+      - name: Read the source version
+        id: version
+        if: ${{ github.ref_type != 'tag' }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version hyperglass/ui/package.json)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "::error::hyperglass/ui/package.json has an unexpected version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Extract image metadata
         id: meta
         if: ${{ github.ref_type != 'tag' }}
@@ -319,6 +335,8 @@ jobs:
             latest=false
           tags: |
             type=sha,format=long,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build image
         if: ${{ github.ref_type != 'tag' }}
@@ -639,6 +657,21 @@ jobs:
           done
           echo "::error::$ref does not exist. Release tags must be on a commit that main published; re-run this job once the main run for $GITHUB_SHA has published."
           exit 1
+
+      # The image carries the version its source declares. A tag whose version
+      # differs means the wrong commit was tagged, or the version bump is missing.
+      - name: Check the image version against the tag
+        env:
+          DIGEST: ${{ steps.find.outputs.digest }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          label=$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json .Image}}' \
+            | jq -r '.config.Labels["org.opencontainers.image.version"] // empty')
+          if [ "$label" != "${VERSION#v}" ]; then
+            echo "::error::The image of $GITHUB_SHA is labelled version '${label:-none}', but the tag is $VERSION."
+            exit 1
+          fi
 
       # Fixable HIGH or CRITICAL findings block the release, as they do on main.
       # Trivy pulls the public image by digest itself, so no Docker socket is
