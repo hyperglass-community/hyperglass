@@ -14,7 +14,7 @@ Hyperglass provides extensive customisation options for the look and feel of the
 
 ### DNS over HTTPS
 
-By default, the browser resolves hostname targets using [DNS over HTTPS](https://www.rfc-editor.org/rfc/rfc8484). Set `web.dns_provider.name: server` to send the lookup through the Hyperglass server instead. The server then asks Cloudflare's public resolver.
+By default, the browser resolves hostname targets using [DNS over HTTPS](https://www.rfc-editor.org/rfc/rfc8484). Set `web.dns_provider.name: server` to send the lookup through the Hyperglass server instead. The server then asks `web.server_lookups.dns.resolver`, Cloudflare's public resolver by default. See [Data Sent to Third Parties](/configuration/third-party-data) for what each option sends.
 
 | Parameter           | Type   | Default Value                          | Description                                                                 |
 | :------------------ | :----- | :------------------------------------- | :-------------------------------------------------------------------------- |

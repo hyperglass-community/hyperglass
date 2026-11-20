@@ -101,7 +101,10 @@ def test_sample_config_validates(tmp_path):
 
     params = Params(**config)
 
-    assert params.structured.ip_enrichment.enrich_traceroute is True
+    # The sample must not opt operators into third-party lookups (#438).
+    assert params.structured.ip_enrichment.enrich_traceroute is False
+    assert params.structured.ip_enrichment.enrich_bgproute is False
+    assert params.logging.http.enable is False
     assert params.web.dns_provider.url == "https://doh.example.com/dns-query"
     assert params.logging.http.authentication.mode == "api_key"
 

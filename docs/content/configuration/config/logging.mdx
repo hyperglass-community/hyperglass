@@ -53,7 +53,7 @@ logging:
 
 ### HTTP Logging
 
-If `logging.http` is set and `enable` is `true`, Hyperglass sends one HTTP `POST` webhook for each query, after it returns the response. The webhook carries the query location, type and target, the requester's address, its network details from BGP.tools, selected request headers and a timestamp. It does not carry log records.
+If `logging.http` is set and `enable` is `true`, Hyperglass sends one HTTP `POST` webhook for each query, after it returns the response. The webhook carries the query location, type and target, the requester's address, its network details from BGP.tools, selected request headers and a timestamp. It does not carry log records. To fill in the network details, Hyperglass sends the requester's public address to BGP.tools, even when IP enrichment is off. See [Data Sent to Third Parties](/configuration/third-party-data).
 
 | Parameter              | Type    | Default Value | Description |
 | :--------------------- | :------ | :------------ | :---------- |

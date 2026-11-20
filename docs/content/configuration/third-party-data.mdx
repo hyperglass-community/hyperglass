@@ -1,0 +1,29 @@
+import { Callout } from "nextra/components";
+
+## Data Sent to Third Parties
+
+Some Hyperglass features contact services that you do not run. This page lists each one, what it receives, and the setting that controls it. Hyperglass also connects to your own devices, to Redis and to any webhook receiver you configure. Those connections are not covered here, except where the receiver can be a third-party service.
+
+<Callout type="info">
+    The [sample configuration](/configuration/config/complete-config#complete-example-configuration) enables none of the server-side third-party lookups below. Review this page before you turn any of them on.
+</Callout>
+
+| Service | Sent from | What it receives | When | Controlling setting |
+| :------ | :-------- | :--------------- | :--- | :------------------ |
+| BGP.tools WHOIS | Hyperglass server | Every public traceroute hop address, each public BGP next hop, and the ASNs found in those results. | Each traceroute or BGP route query, inline or in the background. | `structured.ip_enrichment.enrich_traceroute`, `structured.ip_enrichment.enrich_bgproute` (both `false` by default). The server is set by `structured.ip_enrichment.whois_host`. |
+| BGP.tools WHOIS | Hyperglass server | The ASNs in an AS path, when a visitor opens the AS path view. | On demand, from `/api/aspath/enrich`. | `web.aspath_enrichment` (`false` by default). |
+| BGP.tools WHOIS | Hyperglass server | The visitor's public IP address. | Each query, while webhooks are enabled. | `logging.http.enable`. See [HTTP Logging](/configuration/config/logging#http-logging). |
+| Webhook receiver (Slack, Microsoft Teams or your endpoint) | Hyperglass server | The query location, type and target, the visitor's address and its BGP.tools network details, the visitor's `User-Agent`, `Referer`, `Accept-Encoding`, `Accept-Language`, `X-Real-IP` and `X-Forwarded-For` headers, and a timestamp. | Each query. | `logging.http` (`provider`, `host`, `enable`). |
+| Cloudflare RPKI (`rpki.cloudflare.com`) | Hyperglass server | The prefix and origin ASN of each BGP route returned. | Each BGP route query, unless the state is cached. | `structured.rpki.mode: external` with `structured.rpki.backend: cloudflare`. The default `mode: router` sends nothing. |
+| DNS-over-HTTPS resolver | Visitor's browser | The hostname the visitor typed as a target, and the visitor's IP address. | When a hostname is entered as a target. | `web.dns_provider.name`: `cloudflare` (default), `google` or `custom`. With `server`, the browser asks Hyperglass instead. |
+| DNS-over-HTTPS resolver | Hyperglass server | The hostname the visitor typed as a target. The visitor's address is not sent. | When a hostname is entered as a target. | `web.dns_provider.name: server`. The resolver is `web.server_lookups.dns.resolver` (Cloudflare's `https://1.1.1.1/dns-query` by default). |
+| myip.wtf | Visitor's browser | The visitor's IP address. | When the visitor presses My IP and confirms the notice. | `web.my_ip: external`. The default, `server`, contacts no third party. |
+| Google Fonts | Hyperglass server | The server's IP address and the configured font families. | Whenever Hyperglass builds the UI, such as at the first start and after an upgrade, or with `hyperglass build-ui`. | `web.theme.fonts`. There is no setting to turn this off. |
+| Google Fonts | Visitor's browser | The visitor's IP address and the page address. | Each page load, only if the server could not download the fonts at build time. | Give the server outbound HTTPS access when the UI is built. The [onboarding check](/configuration/onboarding) reports whether the fonts are self-hosted. |
+
+### Notes
+
+- **BGP.tools lookups use plain-text WHOIS** on TCP port 43. Anyone on the network path can read the addresses and ASNs being looked up. Hyperglass skips private, reserved, loopback, link-local, unspecified and multicast addresses.
+- **IP lookups are cached per worker** for 5 minutes, so a repeated address is not sent again within that time. See [IP Enrichment Examples](/configuration/config/structured-output#ip-enrichment-examples).
+- **Missing traceroute hop names** are looked up with PTR queries when `structured.ip_enrichment.enrich_traceroute` is enabled. These queries go to the resolver configured on the Hyperglass host, not to a fixed public service.
+- **Webhook enrichment** of the visitor's address runs whenever webhooks are enabled, even if `structured.ip_enrichment` is off. A private visitor address is not looked up.
