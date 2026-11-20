@@ -3,9 +3,11 @@ name: Image cleanup
 # Removes old `sha-<commit>` images that main publishes (#498). It keeps every
 # `sha-` image younger than seven days, plus the newest older one, so the image
 # of main's current commit survives a quiet week. Images that carry a version
-# tag or `latest` are never touched: a release promotes a `sha-` image, so a
-# released commit keeps its `sha-` tag for good. Deleting an image also deletes
-# its attestations, which GHCR stores as referrers.
+# tag or `latest` are never touched. Once a release promotes the `sha-` image
+# of its commit (#499), a released commit keeps its `sha-` tag for good; until
+# then a version tag builds a separate image, and the `sha-` image of a released
+# commit is not protected. Deleting an image also deletes its attestations,
+# which GHCR stores as referrers.
 #
 # The repository needs the Admin role in the package's "Manage Actions access"
 # settings, or the token cannot delete.
@@ -35,7 +37,9 @@ jobs:
           use-regex: true
           delete-tags: ^sha-[0-9a-f]{40}$
           # Version tags (3.0.0, 3.0.0-rc.2) and latest protect the whole image.
-          exclude-tags: ^(latest|[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?)$
+          # The two version forms are separate alternatives: the action rejects
+          # a nested optional group as ReDoS-prone (safe-regex2).
+          exclude-tags: ^(latest|[0-9]+\.[0-9]+\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+)$
           older-than: 7 days
           # Among images older than seven days, keep the newest one.
           keep-n-tagged: 1
