@@ -16,6 +16,12 @@ from hyperglass.models.config.params import Params
 from hyperglass.state import use_state
 
 
+def set_reverse_dns(**config):
+    use_state().cache.set(
+        "params", Params(structured={"ip_enrichment": {"reverse_dns": config}})
+    )
+
+
 def trace():
     return TracerouteResult(
         target="1.1.1.1", source="test",
@@ -60,7 +66,7 @@ async def test_slow_resolver_has_no_unbounded_queue(monkeypatch):
     with ThreadPoolExecutor(max_workers=1) as executor:
         monkeypatch.setattr(reverse_dns, "_executor", executor)
         monkeypatch.setattr(reverse_dns, "_slots", threading.BoundedSemaphore(1))
-        monkeypatch.setattr(reverse_dns, "PTR_LOOKUP_TIMEOUT", 0.02)
+        set_reverse_dns(lookup_timeout=0.02)
         monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)
         try:
             assert await reverse_dns.lookup_hostname("8.8.8.8") is None
@@ -83,7 +89,7 @@ async def test_entire_ptr_batch_has_a_deadline(monkeypatch):
             finished.set()
 
     monkeypatch.setattr(reverse_dns, "lookup_hostname", never_finishes)
-    monkeypatch.setattr(reverse_dns, "PTR_QUERY_TIMEOUT", 0.02)
+    set_reverse_dns(query_timeout=0.02)
     output = trace()
     async with asyncio.timeout(1):
         await reverse_dns.enrich_hostnames(output)
@@ -148,3 +154,21 @@ async def test_public_ipv6_and_mapped_hops_resolve(monkeypatch, address, canonic
     await reverse_dns.enrich_hostnames(output)
     assert output.hops[0].hostname == "public.example"
     lookup.assert_called_once_with(canonical)
+
+
+@pytest.mark.asyncio
+async def test_ptr_limits_come_from_configuration(monkeypatch):
+    calls = []
+
+    def lookup(address):
+        calls.append(address)
+        return "resolved.example", [], [address]
+
+    monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)
+    monkeypatch.setattr(reverse_dns, "_executor", None)
+    monkeypatch.setattr(reverse_dns, "_slots", None)
+    set_reverse_dns(workers=2, max_addresses=1)
+    output = trace()
+    await reverse_dns.enrich_hostnames(output)
+    assert calls == ["8.8.8.8"]
+    assert reverse_dns._executor._max_workers == 2

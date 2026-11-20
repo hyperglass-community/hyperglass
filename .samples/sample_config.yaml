@@ -251,6 +251,24 @@ structured:
     # the query runs. When false, the UI loads AS path names when the user opens
     # the AS path. Default: false
     enrich_bgproute: true
+    # WHOIS server for ASN, prefix and organisation lookups. /api/aspath/enrich
+    # (web.aspath_enrichment) uses it too. Default: bgp.tools, port 43
+    whois_host: "bgp.tools"
+    whois_port: 43
+    # Seconds allowed for a single-address and a bulk WHOIS lookup.
+    # Default: 10 and 15
+    whois_timeout: 10
+    whois_bulk_timeout: 15
+    # PTR lookups that fill in missing traceroute hop names.
+    reverse_dns:
+      # Lookups in flight at once, per worker process. Default: 4
+      workers: 4
+      # Most distinct hop addresses looked up for one traceroute. Default: 32
+      max_addresses: 32
+      # Seconds allowed for one lookup, and for all lookups of one traceroute.
+      # Default: 1 and 2
+      lookup_timeout: 1.0
+      query_timeout: 2.0
 
   # Kill switches. Set false to return raw text for that query type on every
   # device. They cannot turn structured output on. Default: unset (per device)
@@ -269,7 +287,7 @@ web:
   # How the browser resolves a hostname typed as a target.
   #   cloudflare / google - DNS-over-HTTPS from the visitor's browser.
   #   server - resolve through /api/dns on the Hyperglass server, which asks
-  #            Cloudflare's public resolver. Public A and AAAA records only.
+  #            server_lookups.dns.resolver. Public A and AAAA records only.
   #   custom - your own DNS-over-HTTPS endpoint in url (required).
   # Default: cloudflare
   dns_provider:
@@ -288,6 +306,26 @@ web:
   # at bgp.tools.
   # Default: false
   aspath_enrichment: false
+
+  # Bounds for the lookups the server makes for /api/dns (dns_provider.name:
+  # server) and /api/aspath/enrich (aspath_enrichment). Limits are requests per
+  # minute; one client is one IPv4 address or one IPv6 /64.
+  server_lookups:
+    # Seconds allowed for one outbound lookup. Whole seconds. Default: 5
+    timeout: 5
+    # Outbound lookups in flight at once, across all workers. Default: 8
+    max_concurrent: 8
+    dns:
+      # DNS-over-HTTPS JSON endpoint the server asks.
+      # Default: https://1.1.1.1/dns-query
+      resolver: "https://1.1.1.1/dns-query"
+      # Default: 120 per client, 600 in total
+      client_limit: 120
+      global_limit: 600
+    aspath:
+      # Default: 30 per client, 120 in total
+      client_limit: 30
+      global_limit: 120
 
   # How Hyperglass identifies the visitor behind reverse proxies or a CDN. Server
   # My IP, the per-client lookup limits and the webhook source all use this address.

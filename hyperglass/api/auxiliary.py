@@ -24,9 +24,10 @@ from hyperglass.state import use_state
 # Local
 from .client_address import client_address
 
-LOOKUP_TIMEOUT = 5
-MAX_CONCURRENT = 8
-DNS_RESOLVER = "https://1.1.1.1/dns-query"
+if t.TYPE_CHECKING:
+    # Project
+    from hyperglass.models.config.web import ServerLookups
+
 _HOSTNAME = re.compile(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
 _LOCAL_SUFFIXES = ("localhost", "local", "internal", "lan", "home.arpa", "onion")
 
@@ -87,6 +88,29 @@ def _key(suffix: str) -> str:
     return use_state("redis").key("auxiliary") + ":" + suffix
 
 
+def _lookups() -> "ServerLookups":
+    return use_state("params").web.server_lookups
+
+
+def quota_identity(address: str) -> str:
+    """Return the identity a client's lookup quota is counted against.
+
+    An IPv6 host usually controls a whole /64, so counting each address separately would
+    let one host multiply its quota, and use up the global budget, by rotating source
+    addresses. IPv4 clients, and IPv4 addresses carried in IPv6, count per address.
+    Anything that is not an address (such as `anonymous`) is used as it is.
+    """
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if isinstance(parsed, ipaddress.IPv6Address):
+        if parsed.ipv4_mapped is not None:
+            return str(parsed.ipv4_mapped)
+        return str(ipaddress.IPv6Network((parsed, 64), strict=False))
+    return str(parsed)
+
+
 async def lookup_guard(connection: ASGIConnection, handler: BaseRouteHandler) -> None:
     """Enforce runtime switches and shared per-client/global request quotas."""
     kind = "dns" if handler.fn.__name__ == "dns" else "aspath"
@@ -94,10 +118,16 @@ async def lookup_guard(connection: ASGIConnection, handler: BaseRouteHandler) ->
     enabled = web.dns_provider.name == "server" if kind == "dns" else web.aspath_enrichment
     if not enabled:
         raise HTTPException(status_code=404, detail="Not found")
-    identity = hashlib.sha256(client_address(connection).encode()).hexdigest()
-    limits = (600, 120) if kind == "dns" else (120, 30)
+    identity = hashlib.sha256(quota_identity(client_address(connection)).encode()).hexdigest()
+    quota = web.server_lookups.dns if kind == "dns" else web.server_lookups.aspath
     allowed = await _redis(
-        "eval", _RATE, 2, _key(f"{kind}:global"), _key(f"{kind}:client:{identity}"), *limits
+        "eval",
+        _RATE,
+        2,
+        _key(f"{kind}:global"),
+        _key(f"{kind}:client:{identity}"),
+        quota.global_limit,
+        quota.client_limit,
     )
     if not allowed:
         raise HTTPException(
@@ -110,7 +140,10 @@ async def _outbound_slot() -> t.AsyncIterator[None]:
     """Lease one outbound slot across workers, expiring leases after a worker crash."""
     token = uuid4().hex
     key = _key("outbound")
-    if not await _redis("eval", _ACQUIRE, 1, key, MAX_CONCURRENT, LOOKUP_TIMEOUT + 5, token):
+    lookups = _lookups()
+    if not await _redis(
+        "eval", _ACQUIRE, 1, key, lookups.max_concurrent, lookups.timeout + 5, token
+    ):
         raise HTTPException(status_code=503, detail="Lookup service busy")
     try:
         yield
@@ -128,13 +161,14 @@ async def _cache(key: str, value: t.Any, ttl: int) -> None:
 
 
 async def _dns_query(name: str, record_type: str) -> dict:
-    """Query a fixed public resolver without system DNS, environment proxies or redirects."""
+    """Query the configured resolver without system DNS, environment proxies or redirects."""
+    lookups = _lookups()
     async with httpx.AsyncClient(
-        trust_env=False, follow_redirects=False, timeout=LOOKUP_TIMEOUT
+        trust_env=False, follow_redirects=False, timeout=lookups.timeout
     ) as client:
         async with client.stream(
             "GET",
-            DNS_RESOLVER,
+            str(lookups.dns.resolver),
             params={"name": name + ".", "type": record_type},
             headers={"Accept": "application/dns-json"},
         ) as response:
@@ -188,7 +222,7 @@ async def resolve_public_dns(name: str, record_type: str) -> dict:
         return cached
     async with _outbound_slot():
         try:
-            response = await asyncio.wait_for(_dns_query(name, record_type), LOOKUP_TIMEOUT)
+            response = await asyncio.wait_for(_dns_query(name, record_type), _lookups().timeout)
             status = response.get("Status")
             if type(status) is not int or status not in (0, 2, 3):
                 raise ValueError("Invalid DNS status")
@@ -225,8 +259,9 @@ async def resolve_public_dns(name: str, record_type: str) -> dict:
 
 
 async def _asn_query(asns: t.List[str]) -> dict:
-    """Perform one cancellable, size-bounded WHOIS request to the fixed provider."""
-    reader, writer = await asyncio.open_connection("bgp.tools", 43)
+    """Perform one cancellable, size-bounded WHOIS request to the configured server."""
+    config = use_state("params").structured.ip_enrichment
+    reader, writer = await asyncio.open_connection(config.whois_host, config.whois_port)
     try:
         writer.write(("begin\n" + "\n".join(f"AS{asn}" for asn in asns) + "\nend\n").encode())
         await writer.drain()
@@ -258,7 +293,7 @@ async def enrich_public_asns(asns: t.List[str]) -> dict:
     if missing:
         async with _outbound_slot():
             try:
-                fetched = await asyncio.wait_for(_asn_query(missing), LOOKUP_TIMEOUT)
+                fetched = await asyncio.wait_for(_asn_query(missing), _lookups().timeout)
             except (OSError, TimeoutError, ValueError) as error:
                 raise HTTPException(status_code=503, detail="Enrichment lookup failed") from error
         for asn, value in fetched.items():

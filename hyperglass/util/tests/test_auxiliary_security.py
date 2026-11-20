@@ -137,7 +137,7 @@ async def test_dns_transport_is_public_and_has_no_system_resolver(monkeypatch):
         assert kwargs == {
             "trust_env": False,
             "follow_redirects": False,
-            "timeout": auxiliary.LOOKUP_TIMEOUT,
+            "timeout": 5,
         }
         return real_client(transport=httpx.MockTransport(transport), **kwargs)
 
@@ -298,7 +298,7 @@ def test_global_quota_bounds_many_trusted_clients(lookups):
 async def test_concurrency_is_shared_and_released():
     from hyperglass.api import auxiliary
 
-    slots = [auxiliary._outbound_slot() for _ in range(auxiliary.MAX_CONCURRENT)]
+    slots = [auxiliary._outbound_slot() for _ in range(8)]
     try:
         for slot in slots:
             await slot.__aenter__()

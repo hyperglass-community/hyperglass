@@ -28,7 +28,7 @@ web:
     my_ip: server
 ```
 
-With this configuration the browser asks `/api/dns` for hostname targets and `/api/myip` for the visitor address. The browser contacts no public DNS-over-HTTPS provider and not myip.wtf. The Hyperglass server sends each DNS lookup to Cloudflare's public resolver at `https://1.1.1.1/dns-query`. Font downloads and optional enrichment services have separate network requirements.
+With this configuration the browser asks `/api/dns` for hostname targets and `/api/myip` for the visitor address. The browser contacts no public DNS-over-HTTPS provider and not myip.wtf. The Hyperglass server sends each DNS lookup to `web.server_lookups.dns.resolver`, Cloudflare's public resolver at `https://1.1.1.1/dns-query` by default. Font downloads and optional enrichment services have separate network requirements.
 
 Server DNS supports A and AAAA records. Server My IP returns only the address family used for the request. Both endpoints identify the client as described under [Client Address](#client-address). Configure your reverse proxy to overwrite client-address headers with verified values.
 
@@ -77,11 +77,29 @@ Replace the example proxy address with the address that actually connects to Hyp
 
 The normal Hyperglass launcher disables Uvicorn's proxy-header rewriting so the application can verify the socket peer. When running Uvicorn directly, pass `--no-proxy-headers`. Otherwise, upstream rewriting can replace the peer before Hyperglass checks it.
 
-Server DNS uses Cloudflare's public HTTPS resolver at `https://1.1.1.1/dns-query`. It does not use operating-system DNS, search domains, environment proxies, or redirects. Only public A and AAAA answers are returned. Internal DNS resolution is not supported by this public endpoint. Browser DNS providers keep the server endpoint disabled.
+Server DNS uses the DNS-over-HTTPS JSON endpoint in `web.server_lookups.dns.resolver`, by default Cloudflare's public resolver at `https://1.1.1.1/dns-query`. It does not use operating-system DNS, search domains, environment proxies, or redirects. Only public A and AAAA answers are returned. Internal DNS resolution is not supported by this public endpoint. Browser DNS providers keep the server endpoint disabled.
 
-DNS permits 120 requests per client and 600 requests globally per 60-second window. AS-path enrichment permits 30 requests per client and 120 requests globally per window. Redis shares these limits across workers. Storage failures deny lookups. Both endpoints share eight outbound lookup slots and a five-second lookup deadline. The endpoints return HTTP 429 when request limits are reached and HTTP 503 when outbound capacity or required storage is unavailable.
+By default, DNS permits 120 requests per client and 600 requests globally per 60-second window, and AS-path enrichment permits 30 requests per client and 120 requests globally per window. A client is one IPv4 address or one IPv6 /64, so a host cannot multiply its quota by rotating addresses within its prefix. Redis shares these limits across workers. Storage failures deny lookups. Both endpoints share eight outbound lookup slots and a five-second lookup deadline by default. AS-path lookups go to the WHOIS server in `structured.ip_enrichment.whois_host` and `whois_port`. The endpoints return HTTP 429 when request limits are reached and HTTP 503 when outbound capacity or required storage is unavailable.
 
 AS-path requests accept at most 64 ASNs and an 8 KiB body. ASNs must be decimal integers between 1 and 4294967295. Duplicate ASNs are removed before lookup. Results use shared caches: DNS answers for up to 60 seconds, negative DNS responses for 15 seconds, and ASN names for one hour. Disabling `web.aspath_enrichment` also stops the AS-path modal from requesting enrichment.
+
+Set these bounds under `web.server_lookups`:
+
+```yaml filename="config.yaml"
+web:
+    server_lookups:
+        timeout: 5          # seconds per outbound lookup, whole seconds
+        max_concurrent: 8   # outbound lookups in flight, across all workers
+        dns:
+            resolver: https://1.1.1.1/dns-query
+            client_limit: 120   # requests per minute per client
+            global_limit: 600   # requests per minute in total
+        aspath:
+            client_limit: 30
+            global_limit: 120
+```
+
+See the [complete configuration reference](/configuration/config/complete-config#basic-web-settings) for each key.
 
 ### My IP and reverse-proxy upgrades
 

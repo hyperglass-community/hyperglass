@@ -10,6 +10,7 @@ from pydantic import (
     Field,
     HttpUrl,
     FilePath,
+    PositiveInt,
     IPvAnyNetwork,
     ValidationInfo,
     field_validator,
@@ -279,6 +280,50 @@ class ClientIP(HyperglassModel):
         return value
 
 
+class LookupQuota(HyperglassModel):
+    """Requests per minute allowed to one client and to all clients together.
+
+    Clients are counted per IPv4 address and per IPv6 /64, so one host cannot multiply
+    its quota by rotating through the addresses of its prefix.
+    """
+
+    client_limit: PositiveInt
+    global_limit: PositiveInt
+
+
+class ServerDnsLookups(LookupQuota):
+    """Server-side hostname resolution through `/api/dns`."""
+
+    # DNS-over-HTTPS JSON endpoint the server asks. Default: Cloudflare's public resolver.
+    resolver: HttpUrl = HttpUrl("https://1.1.1.1/dns-query")
+    client_limit: PositiveInt = 120
+    global_limit: PositiveInt = 600
+
+
+class ServerAsPathLookups(LookupQuota):
+    """ASN name lookups through `/api/aspath/enrich`."""
+
+    client_limit: PositiveInt = 30
+    global_limit: PositiveInt = 120
+
+
+class ServerLookups(HyperglassModel):
+    """Bounds for the optional lookups the server makes for the UI.
+
+    Covers `/api/dns` (`dns_provider.name: server`) and `/api/aspath/enrich`
+    (`aspath_enrichment: true`). The WHOIS server for AS path lookups is set by
+    `structured.ip_enrichment.whois_host` and `whois_port`.
+    """
+
+    # Seconds allowed for one outbound lookup. Whole seconds, because the outbound
+    # lease that bounds concurrency expires in seconds.
+    timeout: PositiveInt = 5
+    # Outbound lookups in flight at once, shared by every worker and both endpoints.
+    max_concurrent: PositiveInt = 8
+    dns: ServerDnsLookups = ServerDnsLookups()
+    aspath: ServerAsPathLookups = ServerAsPathLookups()
+
+
 class Web(HyperglassModel):
     """Validation model for all web/browser-related configuration."""
 
@@ -302,6 +347,7 @@ class Web(HyperglassModel):
     my_ip: t.Literal["external", "server", "off"] = "server"
     client_ip: ClientIP = ClientIP()
     aspath_enrichment: bool = False
+    server_lookups: ServerLookups = ServerLookups()
     custom_javascript: t.Optional[FilePath] = None
     custom_html: t.Optional[FilePath] = None
     highlight: t.List[HighlightPattern] = []
@@ -321,3 +367,4 @@ class WebPublic(Web):
     logo: LogoPublic
     # Proxy settings are used by the server only, so the UI never receives them.
     client_ip: ClientIP = Field(default_factory=ClientIP, exclude=True)
+    server_lookups: ServerLookups = Field(default_factory=ServerLookups, exclude=True)

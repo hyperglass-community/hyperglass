@@ -262,6 +262,14 @@ Controls how Hyperglass processes and displays structured data from network devi
 | `structured.ip_enrichment.mode` | String | `inline` | `inline` enriches before the response. `async` enriches after the response is returned. |
 | `structured.ip_enrichment.enrich_traceroute` | Boolean | `false` | Add ASN, organization and IP data to traceroute hops from real-time BGP.tools lookups. |
 | `structured.ip_enrichment.enrich_bgproute` | Boolean | `false` | Add ASN and organization data to BGP routes. When `false`, the UI loads enrichment when you view the AS path. |
+| `structured.ip_enrichment.whois_host` | String | `bgp.tools` | WHOIS server for ASN, prefix and organization lookups. `/api/aspath/enrich` uses it too. |
+| `structured.ip_enrichment.whois_port` | Integer | `43` | TCP port of the WHOIS server. |
+| `structured.ip_enrichment.whois_timeout` | Float | `10` | Seconds allowed for a single-address WHOIS lookup. |
+| `structured.ip_enrichment.whois_bulk_timeout` | Float | `15` | Seconds allowed for a bulk WHOIS lookup. |
+| `structured.ip_enrichment.reverse_dns.workers` | Integer | `4` | PTR lookups in flight at once, per worker process, when filling in missing traceroute hop names. |
+| `structured.ip_enrichment.reverse_dns.max_addresses` | Integer | `32` | Most distinct hop addresses looked up for one traceroute. |
+| `structured.ip_enrichment.reverse_dns.lookup_timeout` | Float | `1` | Seconds allowed for one PTR lookup. |
+| `structured.ip_enrichment.reverse_dns.query_timeout` | Float | `2` | Seconds allowed for all PTR lookups of one traceroute. |
 
 ### Structured Table Output
 
@@ -301,6 +309,13 @@ Extensive customization options for the web interface appearance and behavior.
 | `web.client_ip.header` | String | | Single-address request header that a trusted proxy overwrites, for example `X-Real-IP`, or `CF-Connecting-IP` behind a CDN. When unset, Hyperglass reads `X-Forwarded-For`. |
 | `web.client_ip.trusted_proxies` | List of networks | `[]` | Networks of the proxies that connect to Hyperglass. Client address headers are read only from these peers. When empty, the headers are ignored. |
 | `web.aspath_enrichment` | Boolean | `false` | Enable `/api/aspath/enrich`, which the AS path view uses to look up ASN names at bgp.tools. |
+| `web.server_lookups.timeout` | Integer | `5` | Seconds allowed for one outbound lookup made by `/api/dns` or `/api/aspath/enrich`. |
+| `web.server_lookups.max_concurrent` | Integer | `8` | Outbound lookups in flight at once, shared by every worker and both endpoints. Further requests get a 503. |
+| `web.server_lookups.dns.resolver` | URL | `https://1.1.1.1/dns-query` | DNS-over-HTTPS JSON endpoint that `/api/dns` asks. |
+| `web.server_lookups.dns.client_limit` | Integer | `120` | `/api/dns` requests per minute from one client. Clients are counted per IPv4 address and per IPv6 /64. |
+| `web.server_lookups.dns.global_limit` | Integer | `600` | `/api/dns` requests per minute from all clients together. |
+| `web.server_lookups.aspath.client_limit` | Integer | `30` | `/api/aspath/enrich` requests per minute from one client. Clients are counted per IPv4 address and per IPv6 /64. |
+| `web.server_lookups.aspath.global_limit` | Integer | `120` | `/api/aspath/enrich` requests per minute from all clients together. |
 | `web.custom_javascript` | Path | | Path to custom JavaScript file to load. The file must exist. |
 | `web.custom_html` | Path | | Path to custom HTML content to display. The file must exist. |
 | `web.opengraph.image` | Path | Built-in image | OpenGraph image shown when you share a link. Must be `.jpg`, `.jpeg` or `.png`. |
@@ -315,7 +330,7 @@ When users enter hostnames such as `example.com` instead of IP addresses, Hyperg
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
-| `web.dns_provider.name` | String | `cloudflare` | DNS provider: `cloudflare`, `google`, `server` (resolve through `/api/dns` on the Hyperglass server, which asks Cloudflare's public resolver), or `custom`. `custom` requires `url`; without it, startup fails. |
+| `web.dns_provider.name` | String | `cloudflare` | DNS provider: `cloudflare`, `google`, `server` (resolve through `/api/dns` on the Hyperglass server, which asks `web.server_lookups.dns.resolver`, Cloudflare's public resolver by default), or `custom`. `custom` requires `url`; without it, startup fails. |
 | `web.dns_provider.url` | String | Set from `name` | DNS-over-HTTPS endpoint URL. A URL that is not a built-in provider URL sets `name` to `custom`. |
 
 #### Example: DNS Configuration
@@ -936,6 +951,24 @@ structured:
     # the query runs. When false, the UI loads AS path names when the user opens
     # the AS path. Default: false
     enrich_bgproute: true
+    # WHOIS server for ASN, prefix and organisation lookups. /api/aspath/enrich
+    # (web.aspath_enrichment) uses it too. Default: bgp.tools, port 43
+    whois_host: "bgp.tools"
+    whois_port: 43
+    # Seconds allowed for a single-address and a bulk WHOIS lookup.
+    # Default: 10 and 15
+    whois_timeout: 10
+    whois_bulk_timeout: 15
+    # PTR lookups that fill in missing traceroute hop names.
+    reverse_dns:
+      # Lookups in flight at once, per worker process. Default: 4
+      workers: 4
+      # Most distinct hop addresses looked up for one traceroute. Default: 32
+      max_addresses: 32
+      # Seconds allowed for one lookup, and for all lookups of one traceroute.
+      # Default: 1 and 2
+      lookup_timeout: 1.0
+      query_timeout: 2.0
 
   # Kill switches. Set false to return raw text for that query type on every
   # device. They cannot turn structured output on. Default: unset (per device)
@@ -954,7 +987,7 @@ web:
   # How the browser resolves a hostname typed as a target.
   #   cloudflare / google - DNS-over-HTTPS from the visitor's browser.
   #   server - resolve through /api/dns on the Hyperglass server, which asks
-  #            Cloudflare's public resolver. Public A and AAAA records only.
+  #            server_lookups.dns.resolver. Public A and AAAA records only.
   #   custom - your own DNS-over-HTTPS endpoint in url (required).
   # Default: cloudflare
   dns_provider:
@@ -973,6 +1006,26 @@ web:
   # at bgp.tools.
   # Default: false
   aspath_enrichment: false
+
+  # Bounds for the lookups the server makes for /api/dns (dns_provider.name:
+  # server) and /api/aspath/enrich (aspath_enrichment). Limits are requests per
+  # minute; one client is one IPv4 address or one IPv6 /64.
+  server_lookups:
+    # Seconds allowed for one outbound lookup. Whole seconds. Default: 5
+    timeout: 5
+    # Outbound lookups in flight at once, across all workers. Default: 8
+    max_concurrent: 8
+    dns:
+      # DNS-over-HTTPS JSON endpoint the server asks.
+      # Default: https://1.1.1.1/dns-query
+      resolver: "https://1.1.1.1/dns-query"
+      # Default: 120 per client, 600 in total
+      client_limit: 120
+      global_limit: 600
+    aspath:
+      # Default: 30 per client, 120 in total
+      client_limit: 30
+      global_limit: 120
 
   # How Hyperglass identifies the visitor behind reverse proxies or a CDN. Server
   # My IP, the per-client lookup limits and the webhook source all use this address.

@@ -4,7 +4,14 @@
 import typing as t
 
 # Third Party
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import (
+    Field,
+    PositiveInt,
+    PositiveFloat,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 # Local
 from ..main import HyperglassModel
@@ -50,6 +57,22 @@ class StructuredRpki(HyperglassModel):
         return self
 
 
+class StructuredReverseDns(HyperglassModel):
+    """Bound the PTR lookups that fill in missing traceroute hop names."""
+
+    workers: PositiveInt = 4
+    """PTR lookups in flight at once, per worker process."""
+
+    max_addresses: PositiveInt = 32
+    """Most distinct hop addresses looked up for one traceroute."""
+
+    lookup_timeout: PositiveFloat = 1.0
+    """Seconds allowed for one PTR lookup."""
+
+    query_timeout: PositiveFloat = 2.0
+    """Seconds allowed for all PTR lookups of one traceroute."""
+
+
 class StructuredIpEnrichment(HyperglassModel):
     """Control IP enrichment for structured data responses using real-time BGP.tools lookups."""
 
@@ -62,6 +85,20 @@ class StructuredIpEnrichment(HyperglassModel):
     enrich_bgproute: bool = False
     """Enable ASN/org enrichment for BGP routes. Enrichment is inline by default and can be
     deferred with ``mode: async``. When false, enrichment is lazy-loaded when viewing the AS Path."""
+
+    whois_host: str = Field("bgp.tools", min_length=1)
+    """WHOIS server for ASN, prefix and organisation lookups, including `/api/aspath/enrich`."""
+
+    whois_port: int = Field(43, ge=1, le=65535)
+    """TCP port of the WHOIS server."""
+
+    whois_timeout: PositiveFloat = 10.0
+    """Seconds allowed for a single-address WHOIS lookup."""
+
+    whois_bulk_timeout: PositiveFloat = 15.0
+    """Seconds allowed for a bulk WHOIS lookup."""
+
+    reverse_dns: StructuredReverseDns = StructuredReverseDns()
 
 
 class Structured(HyperglassModel):
@@ -92,9 +129,11 @@ class Structured(HyperglassModel):
         )
         hops = output.get("hops", []) if isinstance(output, dict) else getattr(output, "hops", [])
         missing_hostname = any(
-            (hop.get("ip_address") and not hop.get("hostname"))
-            if isinstance(hop, dict)
-            else (hop.ip_address and not hop.hostname)
+            (
+                (hop.get("ip_address") and not hop.get("hostname"))
+                if isinstance(hop, dict)
+                else (hop.ip_address and not hop.hostname)
+            )
             for hop in hops
         )
 

@@ -19,13 +19,11 @@ from hyperglass.settings import Settings
 if t.TYPE_CHECKING:
     from ipaddress import IPv4Address, IPv6Address
 
+    from hyperglass.models.config.structured import StructuredIpEnrichment
+
 IPLookup = t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]
 IP_CACHE_MAXSIZE = 4096
 IP_CACHE_TTL = 300.0
-WHOIS_HOST = "bgp.tools"
-WHOIS_PORT = 43
-WHOIS_TIMEOUT = 10
-WHOIS_BULK_TIMEOUT = 15
 WHOIS_MAX_BYTES = 512 * 1024
 WHOIS_RECV_SIZE = 8192
 NO_RESULT: IPLookup = (None, None, None)
@@ -112,15 +110,24 @@ def _map_whois_results(queries: t.List[str], out: t.Dict[str, IPLookup]) -> t.Di
     return mapped
 
 
-def _whois_blocking(queries: t.List[str], timeout: float) -> t.Dict[str, IPLookup]:
-    """Send one bulk WHOIS query to bgp.tools and parse the response.
+def _whois_config() -> "StructuredIpEnrichment":
+    # Project
+    from hyperglass.state import use_state
+
+    return use_state("params").structured.ip_enrichment
+
+
+def _whois_blocking(
+    queries: t.List[str], host: str, port: int, timeout: float
+) -> t.Dict[str, IPLookup]:
+    """Send one bulk WHOIS query to the configured server and parse the response.
 
     Any connection error maps every query to `NO_RESULT`.
     """
     send_keys = [f"AS{q}" if q.isdigit() else q for q in queries]
     payload = "begin\n" + "\n".join(send_keys) + "\nend\n"
     try:
-        with socket.create_connection((WHOIS_HOST, WHOIS_PORT), timeout=timeout) as s:
+        with socket.create_connection((host, port), timeout=timeout) as s:
             s.settimeout(timeout)
             s.sendall(payload.encode("utf-8"))
             parts = []
@@ -224,7 +231,10 @@ class IPEnrichmentService:
         cached = self._cached_ip(ip_str)
         if cached is not None:
             return cached
-        resp_map = await asyncio.to_thread(_whois_blocking, [ip_str], WHOIS_TIMEOUT)
+        config = _whois_config()
+        resp_map = await asyncio.to_thread(
+            _whois_blocking, [ip_str], config.whois_host, config.whois_port, config.whois_timeout
+        )
         result = resp_map.get(ip_str, NO_RESULT)
         self._cache_ip(ip_str, result)
         return result
@@ -234,7 +244,14 @@ class IPEnrichmentService:
 
         Returns a mapping query -> (asn, asn_name, prefix).
         """
-        return await asyncio.to_thread(_whois_blocking, queries, WHOIS_BULK_TIMEOUT)
+        config = _whois_config()
+        return await asyncio.to_thread(
+            _whois_blocking,
+            queries,
+            config.whois_host,
+            config.whois_port,
+            config.whois_bulk_timeout,
+        )
 
     async def lookup_ips_bulk(self, ips: t.List[str]) -> t.Dict[str, IPInfo]:
         """Bulk lookup for multiple IPs using BGP.TOOLS."""
