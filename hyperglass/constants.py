@@ -12,7 +12,6 @@ __license__ = "BSD 3-Clause Clear License"
 # Compatibility metadata retained for existing API consumers.
 __upstream_version__ = "2.0.4"
 __upstream_url__ = "https://github.com/hyperglass-community/hyperglass"
-__fork_url__ = "https://github.com/WilhelmZA/ultraglass"
 
 METADATA = (__name__, __version__, __author__, __copyright__, __license__)
 
