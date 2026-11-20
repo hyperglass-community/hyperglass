@@ -50,4 +50,10 @@ pnpm run typecheck
 pnpm run test
 ```
 
+The UI tests read `hyperglass/ui/__tests__/fixtures/config.json`, generated from the configuration in `.tests/ui-fixture/`. After a change to the UI parameters, their defaults or the frontend `Config` type, regenerate it from the repository root and commit the result. CI fails when the committed file is out of date.
+
+```shell
+python .tests/ui-fixture/generate.py
+```
+
 The internal Python package and CLI remain named `hyperglass`. Do not rename imports, environment variables, configuration paths, service names, or CLI commands as part of a documentation or public-brand change unless the change explicitly includes a migration plan.

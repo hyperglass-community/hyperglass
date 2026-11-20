@@ -104,6 +104,19 @@ jobs:
       - name: Lint Python
         run: ruff check .
 
+      # The frontend tests read a configuration generated from the backend models.
+      # Regenerating it must leave the committed file unchanged, or the frontend
+      # tests run against UI parameters the real build no longer receives. One
+      # Python version is enough: the output does not depend on it.
+      - name: Check the UI test fixture
+        if: ${{ matrix.python-version == '3.12' }}
+        run: |
+          python .tests/ui-fixture/generate.py
+          if ! git diff --exit-code -- hyperglass/ui/__tests__/fixtures/config.json; then
+            echo "::error file=hyperglass/ui/__tests__/fixtures/config.json::The UI test fixture is out of date. Run 'python .tests/ui-fixture/generate.py' and commit the result."
+            exit 1
+          fi
+
       - name: Test Python
         run: |
           pytest hyperglass --ignore hyperglass/plugins/external \
