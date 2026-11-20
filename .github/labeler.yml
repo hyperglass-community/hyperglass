@@ -1,0 +1,29 @@
+# Area labels for pull requests, applied by .github/workflows/labeler.yml from
+# the paths a pull request changes. Labels are only added, never removed, so a
+# label set by hand stays. Globs use minimatch syntax; see actions/labeler.
+
+backend:
+  - changed-files:
+      # Any changed file under hyperglass/ that is not part of the UI.
+      - all-globs-to-any-file: ["hyperglass/**", "!hyperglass/ui/**"]
+  - changed-files:
+      - any-glob-to-any-file: ["pyproject.toml", "requirements*.lock"]
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: ["hyperglass/ui/**"]
+
+container:
+  - changed-files:
+      - any-glob-to-any-file: ["Dockerfile", "compose*.yaml", ".dockerignore"]
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/workflows/**", ".github/labeler.yml", ".tests/**", "renovate.json"]
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**"]
+  - changed-files:
+      # Top-level Markdown files, except the changelog that most pull requests edit.
+      - all-globs-to-any-file: ["*.md", "!CHANGELOG.md"]
