@@ -1,0 +1,27 @@
+## Monitoring
+
+### Health Check
+
+`GET /api/health` reports whether Hyperglass can serve queries. It is always enabled and is not listed in the API documentation.
+
+| Check   | Passes when                                                                                                                   |
+| :------ | :---------------------------------------------------------------------------------------------------------------------------- |
+| `redis` | Redis answers a ping within 3 seconds, over a dedicated connection.                                                           |
+| `state` | The configuration is loaded in Redis. If Redis lost it, for example after a Redis restart, the check reloads it, as any request does. |
+| `ui`    | The web UI has been built, or is `disabled` by `HYPERGLASS_DISABLE_UI`.                                                       |
+
+Hyperglass responds `200` when every check passes and `503` otherwise. Failure details are written to the log, not returned.
+
+```json
+{ "status": "ok", "checks": { "redis": "ok", "state": "ok", "ui": "ok" } }
+```
+
+### `hyperglass healthcheck`
+
+The `hyperglass healthcheck` command requests `/api/health` on the configured listen address (`HYPERGLASS_HOST` and `HYPERGLASS_PORT`) and exits with status `1` when Hyperglass is unhealthy or unreachable. A wildcard listen address (`0.0.0.0` or `::`) is checked on the loopback address of the same family (`127.0.0.1` or `::1`). The request never goes through an HTTP proxy. `--timeout` sets how many seconds to wait for a response (default 8).
+
+```shell copy
+hyperglass healthcheck
+```
+
+The container image uses this command as its Docker `HEALTHCHECK`, every 30 seconds. The UI is built on first start, before Hyperglass starts listening, so the container has a 10 minute start period before failed checks count against it. `docker compose ps` shows the result.
