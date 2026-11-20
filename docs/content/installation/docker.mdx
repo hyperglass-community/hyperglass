@@ -22,7 +22,7 @@ docker compose up -d
 
 The sample device returns fake output. Replace it with your devices after checking the page at `http://localhost:8001`. The first start builds the configuration-specific UI.
 
-The Compose file uses `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2` and Valkey 8. Set `HYPERGLASS_IMAGE` in `.env` to select another published version. Every commit on `main` is also published as `sha-<commit>` (for example `ghcr.io/hyperglass-community/hyperglass:sha-<full commit SHA>`) for testing unreleased changes. These images are not releases: they never move `latest` and receive no support. The cache service remains named `redis`, and existing `HYPERGLASS_REDIS_*` settings keep their meaning. External Redis deployments remain supported. The cache is disposable; this change does not migrate an external Redis database.
+The Compose file uses `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2` and Valkey 8. Set `HYPERGLASS_IMAGE` in `.env` to select another published version. A push to `main` whose run passes `CI gate` and the image scan is also published, for the pushed head commit only, as `sha-<commit>` (for example `ghcr.io/hyperglass-community/hyperglass:sha-<full commit SHA>`) for testing unreleased changes. These images are not releases: they never move `latest` and receive no support. The cache service remains named `redis`, and existing `HYPERGLASS_REDIS_*` settings keep their meaning. External Redis deployments remain supported. The cache is disposable; this change does not migrate an external Redis database.
 
 ## Build from source
 
@@ -52,7 +52,7 @@ cd /opt/hyperglass
 
 Clone into `/opt/hyperglass`. The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
 
-<Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Version tags publish to GHCR after the required checks pass. Pull requests and `main` builds do not publish images.</Callout>
+<Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Version tags publish release images to GHCR after the required checks pass. Pushes to `main` publish only `sha-<commit>` images. Pull requests do not publish images.</Callout>
 
 ### Optional: Quickstart
 
