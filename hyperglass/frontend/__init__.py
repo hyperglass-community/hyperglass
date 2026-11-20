@@ -29,6 +29,8 @@ def _ui_subprocess_env() -> t.Dict[str, str]:
     """Return environment variables for pnpm/Next.js UI subprocesses."""
     env = os.environ.copy()
     env["PNPM_CONFIG_STORE_DIR"] = str(PACKAGE_PNPM_STORE)
+    # Every deployment builds the UI at first boot; don't report telemetry to Vercel.
+    env["NEXT_TELEMETRY_DISABLED"] = "1"
     return env
 
 

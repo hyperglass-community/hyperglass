@@ -15,6 +15,7 @@ from hyperglass.frontend import (
     _ui_export_matches_version,
     _ui_subprocess_env,
     build_frontend,
+    build_ui,
     generate_favicons,
     node_initial,
 )
@@ -279,3 +280,30 @@ def test_custom_files_written_before_build_and_change_build_id(
     custom_js.write_text("console.log('second');")
     run()
     assert seen == ["console.log('first');", "console.log('second');"]
+
+
+def test_build_ui_disables_next_telemetry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`next build` must run with Next.js telemetry disabled (#433)."""
+    ui_dir = tmp_path / "ui"
+    (ui_dir / "out").mkdir(parents=True)
+    calls = []
+
+    class Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"built", b""
+
+        async def wait(self):
+            return 0
+
+    async def create_subprocess_shell(*args, **kwargs):
+        calls.append(kwargs)
+        return Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", create_subprocess_shell)
+
+    asyncio.run(build_ui(app_path=tmp_path / "app", ui_path=ui_dir))
+
+    assert calls[0]["cmd"] == "node_modules/.bin/next build"
+    assert calls[0]["env"]["NEXT_TELEMETRY_DISABLED"] == "1"
