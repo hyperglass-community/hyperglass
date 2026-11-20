@@ -175,6 +175,19 @@ logging:
     backup_count: 1
 
 # ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+#
+# The metrics endpoint is unauthenticated. Restrict access to it at your reverse
+# proxy or firewall.
+
+metrics:
+  # Expose Prometheus metrics. Default: false
+  enable: false
+  # Path at which metrics are exposed. Default: /metrics
+  path: "/metrics"
+
+# ---------------------------------------------------------------------------
 # User-facing error messages
 # ---------------------------------------------------------------------------
 #

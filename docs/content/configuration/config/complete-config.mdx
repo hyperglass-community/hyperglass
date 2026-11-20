@@ -202,6 +202,24 @@ logging:
 
 ---
 
+## Metrics Configuration
+
+Exposes [Prometheus](https://prometheus.io) metrics. See [Health & Monitoring](/configuration/config/monitoring.mdx) for the metric names and labels.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `metrics.enable` | Boolean | `false` | Expose Prometheus metrics. The endpoint is unauthenticated. |
+| `metrics.path` | String | `/metrics` | Path at which metrics are exposed. |
+
+#### Example: Metrics Configuration
+```yaml filename="config.yaml"
+metrics:
+  enable: true
+  path: "/metrics"
+```
+
+---
+
 ## Messages Configuration
 
 Customize error messages and user-facing text shown in the UI and API responses.
@@ -874,6 +892,19 @@ logging:
     max_size: "50MB"
     # Rotated files kept. Minimum 1. Default: 1
     backup_count: 1
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+#
+# The metrics endpoint is unauthenticated. Restrict access to it at your reverse
+# proxy or firewall.
+
+metrics:
+  # Expose Prometheus metrics. Default: false
+  enable: false
+  # Path at which metrics are exposed. Default: /metrics
+  path: "/metrics"
 
 # ---------------------------------------------------------------------------
 # User-facing error messages

@@ -30,6 +30,7 @@ dependencies = [
     "pydantic-extra-types>=2.10.5",
     "litestar[brotli]>=2.22.0",
     "requests>=2.26.0",
+    "prometheus-client>=0.21.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.11,<4.0"
