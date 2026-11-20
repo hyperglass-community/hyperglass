@@ -166,6 +166,11 @@ def _prepare_ui_build_dir(app_path: Path) -> Path:
     return ui_dir
 
 
+# Fonts shipped with the package, keyed by family name. These are the default
+# theme fonts, so a default install never contacts Google at build time.
+VENDORED_FONTS_DIR = Path(__file__).parent / "fonts"
+VENDORED_FONTS = {"Nunito": "nunito.css", "Fira Code": "fira-code.css"}
+
 # Google serves woff2 files only to current browsers.
 _FONT_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -173,19 +178,62 @@ _FONT_USER_AGENT = (
 )
 
 
+def _font_name(family: str) -> str:
+    """Return the first family name from a CSS font-family value, without quotes."""
+    return family.split(", ")[0].strip().replace("'", "").replace('"', "")
+
+
 def google_font_url(family: str, weights: t.Sequence[int] = (300, 400, 700)) -> str:
     """Build the Google Fonts stylesheet URL the UI used to load in the browser."""
-    name = family.split(", ")[0].strip().replace("'", "").replace('"', "")
+    name = _font_name(family)
     return "https://fonts.googleapis.com/css?family={}:{}&display=swap".format(
         "+".join(name.split(" ")), ",".join(str(w) for w in weights)
     )
 
 
-def self_host_fonts(fonts: t.Dict[str, str], ui_dir: Path) -> bool:
-    """Download the configured Google fonts into the UI so browsers never contact Google.
+def _copy_vendored_font(kind: str, stylesheet: str, font_dir: Path) -> None:
+    """Copy a packaged font stylesheet and the font files it references."""
+    css = (VENDORED_FONTS_DIR / stylesheet).read_text()
+    for name in re.findall(r"url\(/fonts/([^)]+)\)", css):
+        shutil.copyfile(VENDORED_FONTS_DIR / name, font_dir / name)
+    (font_dir / f"{kind}.css").write_text(css)
 
-    Writes `public/fonts/<kind>.css` and the font files it references. Returns False, and
-    leaves no partial fonts behind, if the download fails; the UI then links Google Fonts.
+
+def _download_font(kind: str, family: str, font_dir: Path) -> None:
+    """Download a font from Google Fonts. Raises httpx.HTTPError on failure."""
+    # Third Party
+    import httpx
+
+    written = []
+    try:
+        with httpx.Client(timeout=10, headers={"user-agent": _FONT_USER_AGENT}) as client:
+            stylesheet = client.get(google_font_url(family))
+            stylesheet.raise_for_status()
+
+            def download(match: re.Match) -> str:
+                url = match.group(1)
+                name = hashlib.sha256(url.encode()).hexdigest()[:16] + Path(url).suffix
+                response = client.get(url)
+                response.raise_for_status()
+                (font_dir / name).write_bytes(response.content)
+                written.append(font_dir / name)
+                return f"url(/fonts/{name})"
+
+            css = re.sub(r"url\((https://fonts\.gstatic\.com/[^)]+)\)", download, stylesheet.text)
+            (font_dir / f"{kind}.css").write_text(css)
+    except httpx.HTTPError:
+        for file in written:
+            file.unlink(missing_ok=True)
+        raise
+
+
+def self_host_fonts(fonts: t.Dict[str, str], ui_dir: Path, download: bool = False) -> bool:
+    """Serve the theme fonts from the UI so browsers never contact Google.
+
+    Writes `public/fonts/<kind>.css` and the font files it references. The default fonts
+    ship with the package and need no network access. Other fonts are downloaded from
+    Google Fonts only if `download` is True. Returns False if any font is not self-hosted;
+    the UI then links Google Fonts for that font.
     """
     # Third Party
     import httpx
@@ -194,31 +242,32 @@ def self_host_fonts(fonts: t.Dict[str, str], ui_dir: Path) -> bool:
     shutil.rmtree(font_dir, ignore_errors=True)
     font_dir.mkdir(parents=True)
 
-    try:
-        with httpx.Client(timeout=10, headers={"user-agent": _FONT_USER_AGENT}) as client:
-            for kind, family in fonts.items():
-                stylesheet = client.get(google_font_url(family))
-                stylesheet.raise_for_status()
+    self_hosted = True
+    for kind, family in fonts.items():
+        name = _font_name(family)
+        if name in VENDORED_FONTS:
+            _copy_vendored_font(kind, VENDORED_FONTS[name], font_dir)
+            continue
 
-                def download(match: re.Match) -> str:
-                    url = match.group(1)
-                    name = hashlib.sha256(url.encode()).hexdigest()[:16] + Path(url).suffix
-                    response = client.get(url)
-                    response.raise_for_status()
-                    (font_dir / name).write_bytes(response.content)
-                    return f"url(/fonts/{name})"
+        if not download:
+            log.bind(font=name).info(
+                "Font is not packaged and web.theme.fonts.download is off, "
+                "the UI will use Google Fonts"
+            )
+            self_hosted = False
+            continue
 
-                css = re.sub(
-                    r"url\((https://fonts\.gstatic\.com/[^)]+)\)", download, stylesheet.text
-                )
-                (font_dir / f"{kind}.css").write_text(css)
-    except httpx.HTTPError as err:
-        log.bind(error=str(err)).warning("Unable to self-host fonts, the UI will use Google Fonts")
-        shutil.rmtree(font_dir, ignore_errors=True)
-        return False
+        try:
+            _download_font(kind, family, font_dir)
+        except httpx.HTTPError as err:
+            log.bind(font=name, error=str(err)).warning(
+                "Unable to self-host font, the UI will use Google Fonts"
+            )
+            self_hosted = False
 
-    log.bind(path=str(font_dir)).debug("Self-hosted UI fonts")
-    return True
+    if self_hosted:
+        log.bind(path=str(font_dir)).debug("Self-hosted UI fonts")
+    return self_hosted
 
 
 def get_ui_build_timeout() -> t.Optional[int]:
@@ -617,7 +666,7 @@ async def build_frontend(  # noqa: C901
             if not (ui_dir / "node_modules").is_symlink():
                 initialize_result = await node_initial(timeout, dev_mode, ui_dir)
             fonts = params.web.theme.fonts
-            self_host_fonts({"body": fonts.body, "mono": fonts.mono}, ui_dir)
+            self_host_fonts({"body": fonts.body, "mono": fonts.mono}, ui_dir, fonts.download)
             build_result = await build_ui(app_path=app_path, ui_path=ui_dir)
         except Exception as err:
             dot_env_file.write_text("\n".join(f"{k}={v}" for k, v in env_config.items()))
