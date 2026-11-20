@@ -37,6 +37,10 @@ _FMT = "<lvl><b>[{level}]</b> {time:YYYYMMDD} {time:HH:mm:ss} <lw>|</lw></lvl> {
 
 _FMT_FILE = "[{level}] [{time:YYYYMMDD} {time:HH:mm:ss}] {message} {extra}"
 _FMT_BASIC = "{message} {extra}"
+
+JSON_LOG_FILE_NAME = "hyperglass.log.json"
+TEXT_LOG_FILE_NAME = "hyperglass.log"
+
 _LOG_LEVELS = [
     {"name": "TRACE", "color": "<m>"},
     {"name": "DEBUG", "color": "<c>"},
@@ -174,10 +178,10 @@ def enable_file_logging(
     """Set up file-based logging from configuration parameters."""
 
     if log_format == "json":
-        log_file_name = "hyperglass.log.json"
+        log_file_name = JSON_LOG_FILE_NAME
         structured = True
     else:
-        log_file_name = "hyperglass.log"
+        log_file_name = TEXT_LOG_FILE_NAME
         structured = False
 
     log_file = directory / log_file_name

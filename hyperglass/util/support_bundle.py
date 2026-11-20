@@ -12,8 +12,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Project
+from hyperglass.log import JSON_LOG_FILE_NAME, TEXT_LOG_FILE_NAME
 from hyperglass.constants import __version__
 from hyperglass.exceptions import public, private
+from hyperglass.util.query_samples import resolve_path
+
+if t.TYPE_CHECKING:
+    # Project
+    from hyperglass.models.config.logging import QuerySamples
 
 _ERROR_LEVELS = {"ERROR", "CRITICAL"}
 _ERROR_TYPES = {
@@ -156,9 +162,17 @@ def _query_failures(path: Path, limit: int) -> t.List[t.Dict[str, t.Any]]:
 
 
 def build_support_bundle(
-    log_directories: t.Iterable[Path], *, log_lines: int = 200
+    log_directories: t.Iterable[Path],
+    *,
+    log_lines: int = 200,
+    samples: t.Optional["QuerySamples"] = None,
 ) -> t.Dict[str, t.Any]:
-    """Export only allowlisted metadata without reading configuration or contacting services."""
+    """Export only allowlisted metadata without reading configuration or contacting services.
+
+    `samples` is the `logging.samples` configuration, if the caller has it. When it sets
+    an explicit `path`, query failures are read from that file instead of the default
+    file in each log directory.
+    """
     bundle: t.Dict[str, t.Any] = {
         "format": 2,
         "redaction": "metadata-only",
@@ -175,16 +189,15 @@ def build_support_bundle(
         "query_failures": [],
     }
 
-    seen: t.Set[Path] = set()
+    seen: t.List[Path] = []
     for directory in log_directories:
         directory = directory.expanduser()
         if directory in seen or not directory.is_dir():
             continue
-        seen.add(directory)
+        seen.append(directory)
 
-        json_log = directory / "hyperglass.log.json"
-        text_log = directory / "hyperglass.log"
-        samples = directory / "hyperglass_query_log.jsonl"
+        json_log = directory / JSON_LOG_FILE_NAME
+        text_log = directory / TEXT_LOG_FILE_NAME
 
         if json_log.is_file():
             bundle["errors"]["json"].extend(_json_log_errors(json_log, log_lines))
@@ -192,20 +205,30 @@ def build_support_bundle(
             errors, legacy = _text_log_records(text_log, log_lines)
             bundle["errors"]["text"].extend(errors)
             bundle["unclassified_text"].extend(legacy)
-        if samples.is_file():
-            bundle["query_failures"].extend(_query_failures(samples, log_lines))
+
+    # An explicit samples path is the same for every directory, so read it once.
+    for sample_file in dict.fromkeys(resolve_path(samples, directory) for directory in seen):
+        if sample_file.is_file():
+            bundle["query_failures"].extend(_query_failures(sample_file, log_lines))
 
     return bundle
 
 
 def write_support_bundle(
-    output: Path, log_directories: t.Iterable[Path], *, log_lines: int = 200
+    output: Path,
+    log_directories: t.Iterable[Path],
+    *,
+    log_lines: int = 200,
+    samples: t.Optional["QuerySamples"] = None,
 ) -> Path:
     """Write a local support bundle and return its path."""
     output = output.expanduser()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps(build_support_bundle(log_directories, log_lines=log_lines), indent=2) + "\n",
+        json.dumps(
+            build_support_bundle(log_directories, log_lines=log_lines, samples=samples), indent=2
+        )
+        + "\n",
         encoding="utf-8",
     )
     return output
