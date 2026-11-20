@@ -67,11 +67,12 @@ Use the source build before RC2 is published or when testing source changes.
 ```shell copy
 mkdir /etc/hyperglass
 touch /etc/hyperglass/hyperglass.env
+chown -R 10001:10001 /etc/hyperglass
 git clone https://github.com/hyperglass-community/hyperglass.git --depth=1 /opt/hyperglass
 cd /opt/hyperglass
 ```
 
-Clone into `/opt/hyperglass`. The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
+Clone into `/opt/hyperglass`. The `chown` gives `/etc/hyperglass` to the container user, UID `10001`; see [container user and file ownership](#container-user-and-file-ownership). The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
 
 <Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Version tags publish release images to GHCR after the required checks pass. Pushes to `main` publish only `sha-<commit>` images. Pull requests do not publish images.</Callout>
 
@@ -81,7 +82,6 @@ Do this if you want to verify the Hyperglass page with a fake device before conn
 
 ```shell copy
 cp /opt/hyperglass/.samples/sample_devices.yaml /etc/hyperglass/devices.yaml
-chown -R 10001:10001 /etc/hyperglass
 cd /opt/hyperglass
 docker compose -f compose.yaml -f compose.build.yaml up --build
 ```
