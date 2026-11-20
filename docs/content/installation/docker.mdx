@@ -16,9 +16,12 @@ mkdir -p /opt/hyperglass /etc/hyperglass
 cd /opt/hyperglass
 curl -fsSLo compose.yaml https://raw.githubusercontent.com/hyperglass-community/hyperglass/v3.0.0-rc.2/compose.yaml
 curl -fsSLo /etc/hyperglass/devices.yaml https://raw.githubusercontent.com/hyperglass-community/hyperglass/v3.0.0-rc.2/.samples/sample_devices.yaml
+chown -R 10001:10001 /etc/hyperglass
 docker compose pull
 docker compose up -d
 ```
+
+The container runs as UID `10001`, so it must own `/etc/hyperglass`. See [container user and file ownership](#container-user-and-file-ownership).
 
 The sample device returns fake output. Replace it with your devices after checking the page at `http://localhost:8001`. The first start builds the configuration-specific UI.
 
@@ -78,6 +81,7 @@ Do this if you want to verify the Hyperglass page with a fake device before conn
 
 ```shell copy
 cp /opt/hyperglass/.samples/sample_devices.yaml /etc/hyperglass/devices.yaml
+chown -R 10001:10001 /etc/hyperglass
 cd /opt/hyperglass
 docker compose -f compose.yaml -f compose.build.yaml up --build
 ```
@@ -111,6 +115,10 @@ sudo chown -R 10001:10001 /etc/hyperglass
 ```
 
 The configuration files only need to be readable by UID `10001`.
+
+- **Custom application path.** Compose mounts `HYPERGLASS_APP_PATH` from the host when it is set. Change the owner of that directory, not `/etc/hyperglass`.
+- **Logs and query samples.** A host directory mounted for `logging.directory` or `logging.samples.path` must be writable by UID `10001`.
+- **SSH keys.** A key file referenced by a credential's `key` must be readable by UID `10001`. A root-owned key with mode `0600` is not. Change its owner to `10001` and keep mode `0600`.
 
 ## Client addresses and host nginx
 
