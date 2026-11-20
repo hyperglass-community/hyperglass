@@ -289,7 +289,7 @@ async def node_initial(
 
     await proc.wait()
 
-    return "\n".join(messages)
+    return messages
 
 
 async def build_ui(app_path: Path, ui_path: t.Optional[Path] = None):
