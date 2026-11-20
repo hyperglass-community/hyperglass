@@ -34,10 +34,18 @@ Small, focused pull requests are easier to review, revert and bisect.
 
 ## Local checks
 
-The backend tests use an isolated in-memory Redis fixture. Install the development dependencies, including `fakeredis[lua]`, before running them:
+Python dependencies are locked in `uv.lock`. Install them, including the development group and the UI extra, with [uv](https://docs.astral.sh/uv/):
 
 ```shell
-pytest hyperglass --ignore hyperglass/plugins/external
+uv sync --extra ui
+```
+
+After changing dependencies in `pyproject.toml`, run `uv lock` and commit `uv.lock` with the change; CI installs with `--locked` and fails if the two disagree.
+
+The backend tests use an isolated in-memory Redis fixture, `fakeredis[lua]`, from the development group:
+
+```shell
+uv run pytest hyperglass --ignore hyperglass/plugins/external
 ```
 
 The UI checks run from `hyperglass/ui`:

@@ -78,7 +78,7 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-          cache-dependency-glob: requirements-dev.lock
+          cache-dependency-glob: uv.lock
 
       - name: Set up Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -90,10 +90,10 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
+      # --locked fails if pyproject.toml changed without updating uv.lock.
       - name: Install Python dependencies
         run: |
-          uv venv --python "${{ matrix.python-version }}"
-          uv pip install -r requirements-dev.lock
+          uv sync --locked --extra ui --python "${{ matrix.python-version }}"
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Prepare application directory
@@ -459,7 +459,7 @@ jobs:
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-          cache-dependency-glob: requirements-dev.lock
+          cache-dependency-glob: uv.lock
 
       - name: Set up Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -468,8 +468,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          uv venv --python 3.12
-          uv pip install -r requirements-dev.lock
+          uv sync --locked --extra ui --python 3.12
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       # Settings validation requires an existing application directory.

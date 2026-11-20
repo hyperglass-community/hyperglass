@@ -26,17 +26,20 @@ RUN apk add --no-cache nodejs npm \
   && npm install -g pnpm@11.28.11 \
   && pnpm install --frozen-lockfile
 
-# Build stage: install the pinned Python dependency set from the lockfile (the
-# single source of truth). The lock includes the UI extra required by this full
-# application image. Packages without a musl wheel compile here.
+# Build stage: install the pinned Python dependency set from uv.lock (the single
+# source of truth), with the UI extra this full application image needs and
+# without the dev group. Packages without a musl wheel compile here. uv stays in
+# this stage.
 FROM base AS python
-COPY requirements.lock ./
-# Rye includes the editable project itself; it is installed in the final stage.
+COPY --from=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 /uv /usr/local/bin/uv
+COPY pyproject.toml uv.lock ./
+# The project itself is installed in the final stage. --inexact keeps the pip
+# that `python3 -m venv` installs, which that stage uses for the editable install.
+# --locked fails if uv.lock does not match pyproject.toml.
 RUN apk add --no-cache build-base pkgconfig cairo-dev \
   && python3 -m venv "$VIRTUAL_ENV" \
-  && sed '/^-e file:\.$/d' requirements.lock > /tmp/hyperglass-dependencies.lock \
-  && pip3 install --no-cache-dir --no-deps -r /tmp/hyperglass-dependencies.lock \
-  && rm /tmp/hyperglass-dependencies.lock
+  && UV_PROJECT_ENVIRONMENT="$VIRTUAL_ENV" UV_PYTHON_DOWNLOADS=never UV_COMPILE_BYTECODE=1 \
+    uv sync --locked --inexact --no-dev --extra ui --no-install-project --no-cache
 
 FROM base AS hyperglass
 # Runtime libraries only. The UI is built on first start with `next build`,

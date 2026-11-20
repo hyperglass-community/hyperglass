@@ -7,7 +7,7 @@ backend:
       # Any changed file under hyperglass/ that is not part of the UI.
       - all-globs-to-any-file: ["hyperglass/**", "!hyperglass/ui/**"]
   - changed-files:
-      - any-glob-to-any-file: ["pyproject.toml", "requirements*.lock"]
+      - any-glob-to-any-file: ["pyproject.toml", "uv.lock"]
 
 frontend:
   - changed-files:
