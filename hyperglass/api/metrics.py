@@ -47,6 +47,9 @@ QUERY_METRICS_OPT = "query_metrics"
 # Key under `request.state` holding the labels of the query being handled.
 _QUERY_LABELS_KEY = "hyperglass_query_labels"
 
+# Key under `request.state` set once a request's failure has been recorded.
+_QUERY_ERROR_RECORDED_KEY = "hyperglass_query_error_recorded"
+
 # Label value for failures raised before the query is validated, when the
 # device and query type are not yet known (or not trusted).
 UNKNOWN = "unknown"
@@ -157,6 +160,11 @@ def record_query_error(request: Request, exc: BaseException) -> None:
     route_handler = request.scope.get("route_handler")
     if route_handler is None or not route_handler.opt.get(QUERY_METRICS_OPT, False):
         return
+    # An exception handler that fails, e.g. reading params while Redis is down,
+    # is followed by another handler call for the same request: count it once.
+    if request.state.get(_QUERY_ERROR_RECORDED_KEY, False):
+        return
+    request.state[_QUERY_ERROR_RECORDED_KEY] = True
     device, query_type = _query_labels(request)
     QUERIES.labels(device, query_type, "error").inc()
     QUERY_ERRORS.labels(device, query_type, error_reason(exc)).inc()

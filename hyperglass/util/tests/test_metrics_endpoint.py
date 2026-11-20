@@ -30,7 +30,9 @@ def sample(name: str, **labels: str) -> float:
     return REGISTRY.get_sample_value(name, labels) or 0.0
 
 
-def build_client(monkeypatch, **params: t.Any) -> TestClient:
+def build_client(
+    monkeypatch, *, raise_server_exceptions: bool = True, **params: t.Any
+) -> TestClient:
     """Build an app from `params`, with one device and fully populated state.
 
     `hyperglass.api.app` is built once, at first import, from whatever state
@@ -63,7 +65,7 @@ def build_client(monkeypatch, **params: t.Any) -> TestClient:
     # Project
     from hyperglass.api import create_app
 
-    return TestClient(app=create_app())
+    return TestClient(app=create_app(), raise_server_exceptions=raise_server_exceptions)
 
 
 @pytest.fixture
@@ -188,6 +190,33 @@ class TestDeviceFailures:
         assert sample("hyperglass_query_errors_total", **LABELS, reason="device_timeout") == (
             before + 1
         )
+
+
+def test_failure_counted_once_when_error_handler_fails(monkeypatch):
+    """A handler that fails (e.g. reading params during a Redis outage) is called again."""
+    with build_client(
+        monkeypatch, raise_server_exceptions=False, fake_output=False, metrics={"enable": True}
+    ) as client:
+
+        async def fail(_):
+            raise RuntimeError("boom")
+
+        class RedisDown:
+            @property
+            def params(self):
+                raise ConnectionError("Redis is unreachable")
+
+        monkeypatch.setattr("hyperglass.api.routes.execute", fail)
+        monkeypatch.setattr("hyperglass.api.error_handlers.use_state", RedisDown)
+        labels = {**LABELS, "reason": "internal_error"}
+        before = sample("hyperglass_query_errors_total", **labels)
+        errors = sample("hyperglass_queries_total", **LABELS, status="error")
+
+        payload = {**QUERY, "queryTarget": "192.0.2.32/27"}
+        assert client.post("/api/query", json=payload).status_code == 500
+
+        assert sample("hyperglass_query_errors_total", **labels) == before + 1
+        assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
 
 
 def test_invalid_location_counted_without_untrusted_labels(metrics_client):
