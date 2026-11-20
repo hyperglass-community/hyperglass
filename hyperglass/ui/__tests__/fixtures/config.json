@@ -337,11 +337,11 @@
     ],
     "locationDisplayMode": "auto",
     "logo": {
-      "dark": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-dark.svg",
+      "dark": "hyperglass/images/hyperglass-dark.svg",
       "darkFormat": ".svg",
-      "favicon": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-icon.svg",
+      "favicon": "hyperglass/images/hyperglass-icon.svg",
       "height": null,
-      "light": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-light.svg",
+      "light": "hyperglass/images/hyperglass-light.svg",
       "lightFormat": ".svg",
       "width": "50%"
     },
@@ -361,7 +361,7 @@
     ],
     "myIp": "server",
     "opengraph": {
-      "image": "/home/jsenecal/Code/hg-wt-ui-a/hyperglass/images/hyperglass-opengraph.jpg"
+      "image": "hyperglass/images/hyperglass-opengraph.jpg"
     },
     "text": {
       "cacheIcon": "Cached from {time} UTC",
