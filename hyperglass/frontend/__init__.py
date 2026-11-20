@@ -265,7 +265,8 @@ def self_host_fonts(fonts: t.Dict[str, str], ui_dir: Path, download: bool = Fals
             )
             self_hosted = False
 
-    log.bind(path=str(font_dir)).debug("Self-hosted UI fonts")
+    if self_hosted:
+        log.bind(path=str(font_dir)).debug("Self-hosted UI fonts")
     return self_hosted
 
 
