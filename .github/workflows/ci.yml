@@ -105,7 +105,48 @@ jobs:
         run: ruff check .
 
       - name: Test Python
-        run: pytest hyperglass --ignore hyperglass/plugins/external
+        run: |
+          pytest hyperglass --ignore hyperglass/plugins/external \
+            --cov=hyperglass --cov-report=xml --cov-report=term
+
+      # Coverage never fails this job. Coveralls compares it with the base branch
+      # and sets its own commit status.
+      - name: Summarize Python coverage
+        if: ${{ !cancelled() && hashFiles('coverage.xml') != '' }}
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          {
+            echo "### Backend coverage (Python ${PYTHON_VERSION}): $(coverage report --format=total --precision=1)% of lines"
+            echo
+            echo "<details><summary>Per-file coverage</summary>"
+            echo
+            coverage report --format=markdown --precision=1
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Python coverage
+        if: ${{ !cancelled() && hashFiles('coverage.xml') != '' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coverage-backend-python-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: error
+
+      # One Python version is enough: both run the same tests. coverage.py writes
+      # paths relative to hyperglass/, and Coveralls needs them from the root.
+      - name: Send Python coverage to Coveralls
+        if: ${{ !cancelled() && matrix.python-version == '3.12' && hashFiles('coverage.xml') != '' }}
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+        with:
+          file: coverage.xml
+          format: cobertura
+          base-path: hyperglass
+          flag-name: backend
+          parallel: true
+          coverage-reporter-version: v0.6.22
+          fail-on-error: false
 
       - name: Build the UI and start hyperglass
         run: .tests/ga-backend-app.sh
@@ -148,7 +189,64 @@ jobs:
         run: pnpm run typecheck
 
       - name: Test TypeScript
-        run: pnpm run test
+        run: pnpm run test:coverage
+
+      # Coverage never fails this job. Coveralls compares it with the base branch
+      # and sets its own commit status.
+      - name: Summarize TypeScript coverage
+        if: ${{ !cancelled() && hashFiles('hyperglass/ui/coverage/coverage-summary.json') != '' }}
+        run: |
+          {
+            echo "### Frontend coverage"
+            echo
+            echo "| Metric | Covered | Total | % |"
+            echo "|---|---:|---:|---:|"
+            jq -r '.total | to_entries[]
+              | select(.key == "lines" or .key == "statements" or .key == "functions" or .key == "branches")
+              | "| \(.key) | \(.value.covered) | \(.value.total) | \(.value.pct) |"' coverage/coverage-summary.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload TypeScript coverage
+        if: ${{ !cancelled() && hashFiles('hyperglass/ui/coverage/coverage-summary.json') != '' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coverage-frontend
+          path: |
+            hyperglass/ui/coverage/cobertura-coverage.xml
+            hyperglass/ui/coverage/coverage-summary.json
+          if-no-files-found: error
+
+      # Vitest writes paths relative to hyperglass/ui.
+      - name: Send TypeScript coverage to Coveralls
+        if: ${{ !cancelled() && hashFiles('hyperglass/ui/coverage/cobertura-coverage.xml') != '' }}
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+        with:
+          file: hyperglass/ui/coverage/cobertura-coverage.xml
+          format: cobertura
+          base-path: hyperglass/ui
+          flag-name: frontend
+          parallel: true
+          coverage-reporter-version: v0.6.22
+          fail-on-error: false
+
+  # Closes the Coveralls build once both uploads are in. Coveralls is not part of
+  # CI gate: an outage there must not block merges. Its own commit status shows
+  # the coverage change.
+  coverage:
+    name: Coverage
+    if: ${{ !cancelled() }}
+    needs:
+      - backend
+      - frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Finish the Coveralls build
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+        with:
+          parallel-finished: true
+          carryforward: backend,frontend
+          coverage-reporter-version: v0.6.22
+          fail-on-error: false
 
   package:
     name: Build Python distributions

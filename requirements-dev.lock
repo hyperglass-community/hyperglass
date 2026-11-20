@@ -49,6 +49,8 @@ click==8.1.7
     # via uvicorn
 colorama==0.4.6
     # via taskipy
+coverage==7.17.3
+    # via pytest-cov
 cryptography==50.0.0
     # via -c (workspace)
     # via paramiko
@@ -137,6 +139,7 @@ platformdirs==4.10.0
     # via virtualenv
 pluggy==1.6.0
     # via pytest
+    # via pytest-cov
 polyfactory==2.22.2
     # via litestar
 pre-commit==4.6.0
@@ -173,8 +176,10 @@ pyserial==3.5
     # via netmiko
 pytest==9.1.0
     # via pytest-asyncio
+    # via pytest-cov
     # via pytest-dependency
 pytest-asyncio==1.4.0
+pytest-cov==7.1.0
 pytest-dependency==0.6.1
 python-discovery==1.4.2
     # via virtualenv
