@@ -2,7 +2,7 @@ import { Accordion } from '@chakra-ui/react';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
+import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
 import { Result } from './individual';
 
@@ -121,11 +121,19 @@ function header(): HTMLElement {
   return screen.getByRole('button', { name: /Router One/ });
 }
 
+/**
+ * The status icon in the header. The header also holds Chakra's accordion chevron, an
+ * `svg` that is there from the first render, so select the status icon by excluding it.
+ */
+function statusIcon(): Element | null {
+  return header().querySelector('svg:not(.chakra-accordion__icon)');
+}
+
 /** Wait until the result is expanded, which `Result` does once its query settles. */
 async function settled(): Promise<void> {
-  await waitFor(() => expect(header()).toHaveAttribute('aria-expanded', 'true'));
+  await waitFor(() => expect(header()).toHaveAttribute('aria-expanded', 'true'), IMPORT_WAIT);
   // The status icon loads through `next/dynamic`; wait for it so coverage is stable.
-  await waitFor(() => expect(header().querySelector('svg')).toBeInTheDocument());
+  await waitFor(() => expect(statusIcon()).toBeInTheDocument(), IMPORT_WAIT);
 }
 
 /**
@@ -133,8 +141,8 @@ async function settled(): Promise<void> {
  * when the response body arrives, so a failed request leaves it collapsed.
  */
 async function failed(): Promise<void> {
-  await waitFor(() => expect(header()).toBeEnabled());
-  await waitFor(() => expect(header().querySelector('svg')).toBeInTheDocument());
+  await waitFor(() => expect(header()).toBeEnabled(), IMPORT_WAIT);
+  await waitFor(() => expect(statusIcon()).toBeInTheDocument(), IMPORT_WAIT);
 }
 
 /** The copy and requery buttons, in the order they appear after the optional AS path button. */
@@ -194,10 +202,10 @@ describe('Result', () => {
       renderResult();
       await settled();
 
-      await userEvent.hover(header().querySelector('svg') as Element);
+      await userEvent.hover(statusIcon() as Element);
 
       expect(
-        await screen.findByRole('tooltip', { name: 'Completed in 1 second' }),
+        await screen.findByRole('tooltip', { name: 'Completed in 1 second' }, IMPORT_WAIT),
       ).toBeInTheDocument();
     });
   });
@@ -215,7 +223,9 @@ describe('Result', () => {
       // AS path, copy and requery.
       expect(actionButtons(container)).toHaveLength(3);
       await userEvent.hover(actionButtons(container)[0]);
-      expect(await screen.findByRole('tooltip', { name: 'View AS Path' })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('tooltip', { name: 'View AS Path' }, IMPORT_WAIT),
+      ).toBeInTheDocument();
     });
 
     it('renders a traceroute table and the AS path button', async () => {
@@ -298,16 +308,17 @@ describe('Result', () => {
 
     // A request that fails without a response body (timeout, network error, non-JSON
     // body) is not treated as an error: the result stays collapsed and the header shows
-    // the success icon. This documents current behaviour; see the PR notes.
+    // the success icon. This documents current behaviour, which #509 tracks as a bug;
+    // the test changes when #509 is fixed.
     it('leaves a failed request collapsed and unflagged', async () => {
       stubFetch(vi.fn(async () => Promise.reject(new Error('Timeout exceeded'))));
       renderResult();
       await failed();
 
       expect(header()).toHaveAttribute('aria-expanded', 'false');
-      await userEvent.hover(header().querySelector('svg') as Element);
+      await userEvent.hover(statusIcon() as Element);
       expect(
-        await screen.findByRole('tooltip', { name: 'Completed in 0 seconds' }),
+        await screen.findByRole('tooltip', { name: 'Completed in 0 seconds' }, IMPORT_WAIT),
       ).toBeInTheDocument();
     });
 
@@ -383,7 +394,9 @@ describe('Result', () => {
 
       const requery = actionButtons(container)[1];
       await userEvent.hover(requery);
-      expect(await screen.findByRole('tooltip', { name: 'Reload Query' })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('tooltip', { name: 'Reload Query' }, IMPORT_WAIT),
+      ).toBeInTheDocument();
       await userEvent.click(requery);
 
       await waitFor(() => expect(container.querySelector('pre')).toHaveTextContent('second'));
@@ -424,13 +437,20 @@ describe('Result', () => {
       // breakpoint after the first render, so wait for the order to change.
       const stack = (): HTMLElement =>
         screen.getByText(testConfig.web.text.cachePrefix.trim()).parentElement as HTMLElement;
-      await waitFor(() => expect(stack().firstElementChild?.querySelector('svg')).toBeTruthy());
+      await waitFor(
+        () => expect(stack().firstElementChild?.querySelector('svg')).toBeTruthy(),
+        IMPORT_WAIT,
+      );
       const lightning = stack().firstElementChild as HTMLElement;
 
       await userEvent.hover(lightning);
 
       expect(
-        await screen.findByRole('tooltip', { name: 'Cached from 2026-11-20 08:00:00 UTC' }),
+        await screen.findByRole(
+          'tooltip',
+          { name: 'Cached from 2026-11-20 08:00:00 UTC' },
+          IMPORT_WAIT,
+        ),
       ).toBeInTheDocument();
     });
 

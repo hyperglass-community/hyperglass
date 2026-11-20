@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderWithProviders } from '~/__tests__/render';
+import { IMPORT_WAIT, renderWithProviders } from '~/__tests__/render';
 import { RequeryButton } from './requery-button';
 
 import type { UseQueryResult } from '@tanstack/react-query';
@@ -22,7 +22,10 @@ async function renderButton(props: Partial<React.ComponentProps<typeof RequeryBu
   const result = renderWithProviders(
     <RequeryButton requery={requery} data-testid="requery" {...props} />,
   );
-  await waitFor(() => expect(result.container.querySelector('svg')).toBeInTheDocument());
+  await waitFor(
+    () => expect(result.container.querySelector('svg')).toBeInTheDocument(),
+    IMPORT_WAIT,
+  );
   return { ...result, requery, button: screen.getByTestId('requery') };
 }
 

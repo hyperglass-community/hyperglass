@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeConfig, renderWithProviders } from '~/__tests__/render';
+import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
 import { Layout } from './layout';
 
@@ -38,7 +38,7 @@ function renderLayout(developerMode = false) {
 /** The reset button, which only shows on the results view. Its icon loads asynchronously. */
 async function resetButton(): Promise<HTMLElement> {
   const button = await screen.findByRole('button', { name: 'Reset' });
-  await waitFor(() => expect(button.querySelector('svg')).toBeInTheDocument());
+  await waitFor(() => expect(button.querySelector('svg')).toBeInTheDocument(), IMPORT_WAIT);
   return button;
 }
 
@@ -90,17 +90,17 @@ describe('Layout', () => {
       const pushState = vi.spyOn(window.history, 'pushState');
       window.history.replaceState({ page: 'index' }, '');
       useFormState.setState({ form, status: 'results' });
-      const { rerender } = renderLayout();
+      const { unmount } = renderLayout();
       await resetButton();
 
       expect(pushState).toHaveBeenCalledTimes(1);
       expect(window.history.state).toEqual({ page: 'index', ultraglass: 'results' });
 
-      rerender(
-        <Layout>
-          <p>page content</p>
-        </Layout>,
-      );
+      // A fresh mount runs the effect again. The results entry is already on the stack,
+      // so the `history.state` guard must not push a second one.
+      unmount();
+      renderLayout();
+      await resetButton();
       expect(pushState).toHaveBeenCalledTimes(1);
     });
 

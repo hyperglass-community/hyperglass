@@ -19,6 +19,13 @@ import type { RenderOptions, RenderResult } from '@testing-library/react';
 import type { PartialDeep } from 'type-fest';
 import type { Config } from '~/types';
 
+/**
+ * Options for `waitFor` and `findBy*` when the awaited element appears only after a
+ * `next/dynamic` import, such as an icon from `react-icons`. The first import of a
+ * library is slow under coverage, so this allows more than the 1 s default.
+ */
+export const IMPORT_WAIT = { timeout: 10_000 };
+
 /** The generated UI configuration. Treat it as read-only; use `makeConfig` to vary it. */
 export const testConfig = fixture as unknown as Config;
 
