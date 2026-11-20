@@ -46,7 +46,6 @@ def _path(prefix: str, block: str, peer: re.Match) -> dict:
         "next_hop": str(ip_address(hop[1].strip())),
         "peer_rid": str(ip_address(peer[1])),
         "source_rid": str(ip_address(peer[2])),
-        "source_as": as_path[-1] if as_path else 0,
         "med": int(attrs[1]),
         "local_preference": int(attrs[2]),
         "weight": int(attrs[3]),

@@ -35,7 +35,6 @@ def _path(prefix: re.Match, block: str) -> dict:
         "next_hop": str(ip_address(fields["Nexthop"].strip())),
         "active": bool(prefix[2]),
         "as_path": as_path,
-        "source_as": as_path[-1] if as_path else 0,
         # Originator ID is not the neighbor router ID; Received from is a peer name.
         "source_rid": "",
         "peer_rid": "",

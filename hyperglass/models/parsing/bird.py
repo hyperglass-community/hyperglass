@@ -55,6 +55,7 @@ def _apply_attribute(route: t.Dict[str, t.Any], key: str, value: str) -> None:
         match = AGGREGATOR.match(value)
         if match:
             route["source_rid"] = match.group("rid")
+            # Aggregator AS: used as the origin only when the AS path is empty.
             route["source_as"] = parse_asn(match.group("asn")) or 0
 
 

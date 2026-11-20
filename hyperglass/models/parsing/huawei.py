@@ -116,11 +116,6 @@ class HuaweiRouteEntry(HuaweiBase):
         return self.communities + self.large_communities
 
     @property
-    def source_as(self) -> int:
-        """Get source AS from AS path (first ASN in the path)."""
-        return self.as_path[0] if self.as_path else 0
-
-    @property
     def source_rid(self) -> str:
         """Get the router ID printed in parentheses after `From:`."""
         return self.from_router_id
@@ -465,7 +460,6 @@ class HuaweiBGPTable(HuaweiBase):
                 "as_path": route.as_path,
                 "communities": route.all_communities,
                 "next_hop": route.next_hop,
-                "source_as": route.source_as,
                 "source_rid": route.source_rid,
                 "peer_rid": route.peer_rid,
                 # VRP's '*' / 'valid' marks BGP usability, not RPKI validation.

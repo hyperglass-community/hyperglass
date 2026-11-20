@@ -75,6 +75,7 @@ class OpenBGPDRib(_OpenBGPDBase):
                 "as_path": route.aspath,
                 "communities": [*route.communities, *route.large_communities],
                 "next_hop": route.exit_nexthop,
+                # Aggregator AS: used as the origin only when the AS path is empty.
                 "source_as": route.aggregator_as,
                 "source_rid": route.aggregator_id,
                 "peer_rid": route.peer_rid,

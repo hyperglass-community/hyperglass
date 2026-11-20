@@ -58,7 +58,6 @@ def _path(block: str) -> dict:
         "peer_rid": str(ip_address(fields["Peer"])),
         # The peer's router ID is not present; Originator ID has different semantics.
         "source_rid": "",
-        "source_as": as_path[-1] if as_path else 0,
         "as_path": as_path,
         "communities": communities,
         "med": int(fields["Metric"]),

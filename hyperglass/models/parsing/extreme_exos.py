@@ -29,7 +29,6 @@ def _new_route(prefix: str, peer: str, flags: str) -> t.Dict[str, t.Any]:
         "as_path": [],
         "communities": [],
         "next_hop": "",
-        "source_as": 0,
         "source_rid": "",
         "peer_rid": peer,
         "rpki_state": 3,
@@ -62,7 +61,6 @@ def parse_extreme_exos_routes(output: str) -> t.List[t.Dict[str, t.Any]]:
             route["weight"] = int(match.group("weight"))
         elif line.startswith("As-PATH:"):
             route["as_path"] = parse_as_path(line.split(":", 1)[1])
-            route["source_as"] = route["as_path"][-1] if route["as_path"] else 0
         elif line.startswith("Community:"):
             route["communities"] = line.split(":", 1)[1].split()
         elif line.startswith("BGP Route Statistics"):

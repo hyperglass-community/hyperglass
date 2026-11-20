@@ -106,6 +106,7 @@ class JuniperRouteTableEntry(JuniperBase):
         _path_attr = _merge_blocks(values.get("bgp_path_attributes"))
         _path_attr_agg = _path_attr.get("attr_aggregator", {}).get("attr_value", {})
         values["as_path"] = _path_attr.get("attr_as_path_effective", {}).get("attr_value", "")
+        # Aggregator AS: used as the origin only when the AS path is empty.
         values["source_as"] = _path_attr_agg.get("aggr_as_number", 0)
         values["source_rid"] = _path_attr_agg.get("aggr_router_id", "")
         values["peer_rid"] = values.get("peer_id", "")

@@ -49,17 +49,11 @@ def _new_route(prefix: str) -> t.Dict[str, t.Any]:
         "as_path": [],
         "communities": [],
         "next_hop": "",
-        "source_as": 0,
         "source_rid": "",
         "peer_rid": "",
         # IOS prints a validation state only when the router validates origins.
         "rpki_state": 3,
     }
-
-
-def _finish(route: t.Dict[str, t.Any]) -> t.Dict[str, t.Any]:
-    route["source_as"] = route["as_path"][-1] if route["as_path"] else 0
-    return route
 
 
 def _classful(network: str) -> str:
@@ -142,7 +136,7 @@ def parse_detail(output: str) -> t.List[t.Dict[str, t.Any]]:
             continue
         if route is not None:
             _apply_path_line(route, line)
-    return [_finish(route) for route in routes]
+    return routes
 
 
 def _apply_table_columns(route: t.Dict[str, t.Any], line: str, col: t.Dict[str, int]) -> None:
@@ -241,7 +235,7 @@ def parse_table(output: str, platform: str = "cisco_ios") -> t.List[t.Dict[str, 
                 continue
         if route is not None:
             _apply_table_columns(route, line, col)
-    return [_finish(route) for route in routes]
+    return routes
 
 
 def parse_cisco_ios_routes(output: str, platform: str = "cisco_ios") -> t.List[t.Dict[str, t.Any]]:
