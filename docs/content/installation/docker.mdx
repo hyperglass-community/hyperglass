@@ -24,6 +24,24 @@ The sample device returns fake output. Replace it with your devices after checki
 
 The Compose file uses `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2` and Valkey 8. Set `HYPERGLASS_IMAGE` in `.env` to select another published version. The cache service remains named `redis`, and existing `HYPERGLASS_REDIS_*` settings keep their meaning. External Redis deployments remain supported. The cache is disposable; this change does not migrate an external Redis database.
 
+## Verify a published image
+
+{/* TODO: if #458 merges, `sha-` images from main are attested too. Say so here. */}
+
+Release images carry a signed build provenance attestation and an SPDX SBOM attestation. Images published before attestations were introduced have none, so verification fails for them. Verify that an image was built by this repository's CI with the [GitHub CLI](https://cli.github.com/), replacing `<version>` with the image tag:
+
+```shell copy
+gh attestation verify oci://ghcr.io/hyperglass-community/hyperglass:<version> -R hyperglass-community/hyperglass
+```
+
+The output names the workflow and commit that built the image. To verify the SBOM and print it:
+
+```shell copy
+gh attestation verify oci://ghcr.io/hyperglass-community/hyperglass:<version> -R hyperglass-community/hyperglass \
+    --predicate-type https://spdx.dev/Document/v2.3 \
+    --format json --jq '.[].verificationResult.statement.predicate'
+```
+
 ## Build from source
 
 Use the source build before RC2 is published or when testing source changes.

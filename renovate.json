@@ -17,9 +17,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Trivy scanner image version in the CI and published-image scan workflows.",
+      "description": "Trivy scanner image version in the CI and published-image scan workflows, and the index digest that pins it where a TRIVY_DIGEST line follows.",
       "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
-      "matchStrings": ["TRIVY_VERSION:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+)\"?"],
+      "matchStrings": ["TRIVY_VERSION:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+)\"?(?:\\s+TRIVY_DIGEST:\\s*\"?(?<currentDigest>sha256:[a-f0-9]{64})\"?)?"],
       "depNameTemplate": "aquasec/trivy",
       "datasourceTemplate": "docker"
     },
