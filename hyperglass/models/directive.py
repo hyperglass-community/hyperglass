@@ -236,6 +236,9 @@ def community_error(value: str) -> t.Optional[str]:
     `ASN32:VALUE32:VALUE32`; and extended `target:` or `origin:` followed by
     `ASN16:VALUE32`, `ASN32:VALUE16` (plain or asdot) or `IPv4:VALUE16`.
     """
+    # A leading zero would reach the device command as typed (`065000:0100`).
+    if any(len(part) > 1 and part.startswith("0") for part in re.split(r"[:.]", value)):
+        return "Community numbers must not have leading zeros"
     kind, _, rest = value.partition(":")
     if kind in ("target", "origin"):
         return _extended_community_error(rest)

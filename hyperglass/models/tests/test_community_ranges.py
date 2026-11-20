@@ -73,6 +73,16 @@ INVALID = (
     "target:256.0.0.1:1",
     "target:1.2.3:1",
     "target:1.2.3.4.5:1",
+    # leading zeros
+    "00",
+    "065000:0100",
+    "65000:01",
+    "01:1:1",
+    "1:1:01",
+    f"target:0{U16}:1",
+    "target:65000:01",
+    "target:1.01:1",
+    "target:192.0.2.01:1",
     # extended: shape
     "target:65000",
     "target:65000:1:2",
