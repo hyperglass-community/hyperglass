@@ -504,6 +504,21 @@ def write_custom_files(params: "UIParameters", ui_path: t.Optional[Path] = None)
             f.write("")
 
 
+def custom_files_digest(ui_path: t.Optional[Path] = None) -> t.Dict[str, str]:
+    """Hash the custom files written to the `ui` directory.
+
+    The build ID must change when the contents of these files change, because
+    they are read during `next build`.
+    """
+    ui_path = ui_path or PACKAGE_UI_DIR
+    digest = {}
+    for name in ("custom.js", "custom.html"):
+        file = ui_path / name
+        contents = file.read_bytes() if file.is_file() else b""
+        digest[name] = hashlib.sha256(contents).hexdigest()
+    return digest
+
+
 async def build_frontend(  # noqa: C901
     dev_mode: bool,
     dev_url: str,
@@ -557,10 +572,15 @@ async def build_frontend(  # noqa: C901
     log.bind(count=len(favicon_formats)).debug("Generated favicons")
     write_favicon_formats(favicon_formats, ui_dir)
 
+    # `next build` reads the custom files, so write them before the build and
+    # include their contents in the build ID.
+    write_custom_files(params, ui_dir)
+
     build_data = {
         "params": params.export_dict(),
         "version": __version__,
         "package_json": package_json,
+        "custom_files": custom_files_digest(ui_dir),
     }
 
     build_json = json.dumps(build_data, default=str)
@@ -615,8 +635,6 @@ async def build_frontend(  # noqa: C901
         log.debug("Running in developer mode, did not build new UI files")
 
     migrate_images(app_path, params)
-
-    write_custom_files(params, ui_dir)
 
     generate_opengraph(
         params.web.opengraph.image,

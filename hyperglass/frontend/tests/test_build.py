@@ -122,6 +122,8 @@ def test_failed_build_does_not_record_build_id(
 
     class Web:
         logo = Logo()
+        custom_javascript = None
+        custom_html = None
         opengraph = type("OpenGraph", (), {"image": package_ui / "opengraph.png"})()
         theme = type(
             "Theme",
@@ -188,3 +190,92 @@ def test_node_initial_returns_command_output(
     result = asyncio.run(node_initial(ui_path=tmp_path))
 
     assert result == "Lockfile is up to date\nDone in 1s"
+
+
+def _custom_files_params(custom_javascript: Path):
+    """Build a minimal UIParameters stand-in with a custom JavaScript file."""
+
+    class Web:
+        logo = type("Logo", (), {"favicon": custom_javascript})()
+        opengraph = type("OpenGraph", (), {"image": custom_javascript})()
+        theme = type(
+            "Theme",
+            (),
+            {
+                "colors": type("Colors", (), {"black": "#000000"})(),
+                "fonts": type("Fonts", (), {"body": "Nunito", "mono": "Fira Code"})(),
+            },
+        )()
+        custom_html = None
+
+    Web.custom_javascript = custom_javascript
+
+    class Params:
+        web = Web()
+
+        def export_json(self, by_alias: bool) -> str:
+            return "{}"
+
+        def export_dict(self) -> dict:
+            return {"web": {"custom_javascript": str(custom_javascript)}}
+
+    return Params()
+
+
+def test_custom_files_written_before_build_and_change_build_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Custom files must exist for the first build, and editing them must rebuild (#440)."""
+    # Project
+    from hyperglass.constants import __version__
+
+    package_ui = tmp_path / "package-ui"
+    package_ui.mkdir()
+    (package_ui / "package.json").write_text("{}")
+    (package_ui / "node_modules").mkdir()
+    monkeypatch.setattr("hyperglass.frontend.PACKAGE_UI_DIR", package_ui)
+
+    app_path = tmp_path / "app"
+    (app_path / "static" / "images" / "favicons").mkdir(parents=True)
+    custom_js = tmp_path / "custom.js"
+    custom_js.write_text("console.log('first');")
+
+    seen = []
+
+    async def fake_build_ui(app_path: Path, ui_path: Path) -> str:
+        seen.append((ui_path / "custom.js").read_text())
+        export = app_path / "static" / "ui"
+        export.mkdir(parents=True, exist_ok=True)
+        (export / "index.html").write_text(
+            f'<meta name="hyperglass-version" content="{__version__}" />'
+        )
+        return "built"
+
+    monkeypatch.setattr("hyperglass.frontend.build_ui", fake_build_ui)
+    monkeypatch.setattr("hyperglass.frontend.generate_favicons", lambda *args: ())
+    monkeypatch.setattr("hyperglass.frontend.self_host_fonts", lambda *args: True)
+    monkeypatch.setattr("hyperglass.frontend.migrate_images", lambda *args: True)
+    monkeypatch.setattr("hyperglass.frontend.generate_opengraph", lambda *args: True)
+
+    def run() -> None:
+        asyncio.run(
+            build_frontend(
+                dev_mode=False,
+                dev_url="http://localhost/",
+                prod_url="/api/",
+                params=_custom_files_params(custom_js),
+                app_path=app_path,
+            )
+        )
+
+    run()
+    assert seen == ["console.log('first');"]
+
+    # Unchanged contents: the recorded build ID matches, so no rebuild.
+    run()
+    assert len(seen) == 1
+
+    # Changed contents at the same path: the build ID changes, so rebuild.
+    custom_js.write_text("console.log('second');")
+    run()
+    assert seen == ["console.log('first');", "console.log('second');"]
