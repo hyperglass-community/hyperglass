@@ -68,7 +68,7 @@ cd /opt/hyperglass
 
 Clone into `/opt/hyperglass`. The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
 
-<Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Pushes to `main` publish `sha-<commit>` images. A version tag publishes no new image: after the required checks pass and a fresh vulnerability scan, it adds the version tag (and `latest` for a stable version) to the `sha-<commit>` image of the tagged commit. Pull requests do not publish images.</Callout>
+<Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Pushes to `main` publish `sha-<commit>` images. A version tag publishes no new image. It verifies that the `sha-<commit>` image of the tagged commit carries this repository's `main` attestation, scans it again, and adds the version tag (and `latest` for a stable version) to it. Pull requests do not publish images.</Callout>
 
 ### Optional: Quickstart
 

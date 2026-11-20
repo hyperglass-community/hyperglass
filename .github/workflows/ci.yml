@@ -619,9 +619,18 @@ jobs:
       - gate
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.gate.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `gh attestation verify` reads the attestations of the main image.
+      attestations: read
     outputs:
       digest: ${{ steps.find.outputs.digest }}
     steps:
+      # Pinned like the image job: `--prefer-index=false` and the inspect output
+      # depend on the buildx version, so do not rely on the runner's copy.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
       - name: Check that the tagged commit is on main
         env:
           GH_TOKEN: ${{ github.token }}
@@ -638,25 +647,52 @@ jobs:
           esac
 
       # A tag pushed right after a merge can arrive before the main run publishes,
-      # so wait for it. No image after that means main never published this
-      # commit: it was not the head of a push, or its run failed.
+      # so wait while the registry answers "not found". Any other error, such as an
+      # outage or a rate limit, fails after five attempts in a row instead of
+      # waiting the full 30 minutes and reporting a missing image.
       - name: Find the main image of the tagged commit
         id: find
         run: |
           set -euo pipefail
           ref="$IMAGE:sha-$GITHUB_SHA"
+          errors=0
           for attempt in $(seq 1 60); do
-            digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>/dev/null | jq -r .digest || true)
-            if [[ "$digest" == sha256:* ]]; then
-              echo "$ref is $digest"
-              echo "digest=$digest" >> "$GITHUB_OUTPUT"
-              exit 0
+            if output=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>&1); then
+              digest=$(jq -r .digest <<< "$output")
+              if [[ "$digest" == sha256:* ]]; then
+                echo "$ref is $digest"
+                echo "digest=$digest" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            elif grep -q ': not found' <<< "$output"; then
+              errors=0
+              echo "Waiting for $ref ($attempt/60)"
+            else
+              errors=$((errors + 1))
+              echo "::warning::Registry error ($errors/5): $output"
+              if [ "$errors" -ge 5 ]; then
+                echo "::error::The registry failed five times in a row while looking up $ref."
+                exit 1
+              fi
             fi
-            echo "Waiting for $ref ($attempt/60)"
             sleep 30
           done
           echo "::error::$ref does not exist. Release tags must be on a commit that main published; re-run this job once the main run for $GITHUB_SHA has published."
           exit 1
+
+      # A `sha-` tag proves nothing by itself: anyone who can write to the package
+      # can push an image under it. Promote only a digest that this workflow
+      # attested when it ran on main.
+      - name: Verify that main built the image
+        env:
+          DIGEST: ${{ steps.find.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify "oci://$IMAGE@$DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --source-ref refs/heads/main \
+            --deny-self-hosted-runners
 
       # The image carries the version its source declares. A tag whose version
       # differs means the wrong commit was tagged, or the version bump is missing.
@@ -703,6 +739,11 @@ jobs:
       contents: read
       packages: write
     steps:
+      # Pinned like the image job: `--prefer-index=false` and the inspect output
+      # depend on the buildx version, so do not rely on the runner's copy.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
