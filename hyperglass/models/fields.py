@@ -7,10 +7,13 @@ import typing as t
 # Third Party
 from pydantic import AfterValidator, BeforeValidator
 
+# Project
+from hyperglass.constants import SUPPORTED_DRIVERS
+
 IntFloat = t.TypeVar("IntFloat", int, float)
 J = t.TypeVar("J")
 
-SupportedDriver = t.Literal["netmiko", "hyperglass_agent", "hyperglass_http_client"]
+SupportedDriver = t.Literal[SUPPORTED_DRIVERS]
 HttpAuthMode = t.Literal["basic", "api_key"]
 HttpProvider = t.Literal["msteams", "slack", "generic"]
 LogFormat = t.Literal["text", "json"]

@@ -8,7 +8,7 @@ import typing as t
 from netmiko.ssh_dispatcher import CLASS_MAPPER  # type: ignore
 
 # Project
-from hyperglass.constants import DRIVER_MAP
+from hyperglass.constants import DRIVER_MAP, SUPPORTED_DRIVERS
 
 if t.TYPE_CHECKING:
     # Standard Library
@@ -36,9 +36,7 @@ def get_driver(_type: str, driver: t.Optional[str]) -> str:
         # fallback.
         return DRIVER_MAP.get(_type, "netmiko")
 
-    all_drivers = {*DRIVER_MAP.values(), "netmiko"}
-
-    if driver in all_drivers:
+    if driver in SUPPORTED_DRIVERS:
         # If a driver is set and it is valid, allow it.
         return driver
 
