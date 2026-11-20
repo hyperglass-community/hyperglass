@@ -26,7 +26,7 @@ Remove device passwords, private keys, tokens and unredacted internal addresses 
 | 3.x     | Yes       |
 | < 3.0   | No        |
 
-Security fixes are released for the 3.x series only.
+Security fixes are released for the 3.x series only. Until 3.0.0 is released, the 3.0.0 release candidates are the supported line: 2.0.4, the latest stable release, does not receive fixes. Upgrade to the latest release candidate to get them.
 
 ## Response targets
 
