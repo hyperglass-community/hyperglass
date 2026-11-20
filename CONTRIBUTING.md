@@ -9,6 +9,7 @@ Hyperglass is maintained by the community. Contributions must preserve deploymen
 - Add or update tests for behaviour that can be tested automatically.
 - Update the documentation when configuration, installation, or user-visible behaviour changes.
 - Remove credentials, tokens, private keys, and private network details from examples and issue reports.
+- Report security vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue or pull request.
 
 ## Development standards
 
