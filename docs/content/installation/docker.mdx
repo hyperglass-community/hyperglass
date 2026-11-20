@@ -120,7 +120,7 @@ The configuration files only need to be readable by UID `10001`.
 
 ## Health check
 
-The image's Docker `HEALTHCHECK` runs [`hyperglass healthcheck`](/configuration/config/monitoring.mdx#hyperglass-healthcheck), which requests `/api/health` and checks Redis, the loaded configuration and the built UI. The first start builds the UI before Hyperglass listens, so failed checks do not count during a 10 minute start period. `docker compose ps` shows the container as `healthy` once the checks pass. Images published before the health check was added have no `HEALTHCHECK`, so Compose shows no health status for them.
+The image's Docker `HEALTHCHECK` runs [`hyperglass healthcheck`](/configuration/config/monitoring.mdx#hyperglass-healthcheck), which requests `/api/health` and checks Redis, the loaded configuration and the built UI. The first start builds the UI before Hyperglass listens, so failed checks do not count during a 10 minute start period. `docker compose ps` shows the container as `healthy` once the checks pass. Images published before the health check was added have no `HEALTHCHECK`. Until `compose.yaml` pins an image that has one, it defines its own `healthcheck`, which requests `/api/info` and replaces the image's check.
 
 ## Client addresses and host nginx
 

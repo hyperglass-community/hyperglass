@@ -12,6 +12,8 @@
 
 Hyperglass responds `200` when every check passes and `503` otherwise. Failure details are written to the log, not returned.
 
+The endpoint needs no authentication, so each worker runs the checks at most once per second: requests that arrive during a check wait for its result, and requests in the following second reuse it. The Redis check reuses one connection.
+
 ```json
 { "status": "ok", "checks": { "redis": "ok", "state": "ok", "ui": "ok" } }
 ```

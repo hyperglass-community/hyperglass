@@ -2,10 +2,12 @@
 
 # Standard Library
 import time
+import asyncio
+import threading
 
 # Third Party
 import pytest
-from litestar.testing import TestClient
+from litestar.testing import TestClient, AsyncTestClient
 from redis.exceptions import RedisError
 
 # Project
@@ -14,6 +16,19 @@ from hyperglass.state.recovery import REQUIRED_KEYS
 
 # hyperglass.api reads state when it is imported, so it is imported inside the
 # fixtures, after the autouse fixture in conftest.py has seeded the isolated store.
+
+
+@pytest.fixture(autouse=True)
+def fresh_health_check():
+    """Start each test without a shared check run or cached Redis client."""
+    # Project
+    from hyperglass.api import routes
+
+    routes.shared_health_check.reset()
+    routes._health_redis.clear()
+    yield
+    routes.shared_health_check.reset()
+    routes._health_redis.clear()
 
 
 @pytest.fixture
@@ -149,33 +164,122 @@ def test_health_not_in_openapi_schema(client):
     assert "/api/health" not in app.openapi_schema.paths
 
 
-def test_ping_redis_uses_short_timeouts(monkeypatch):
+class FakeRedis:
+    """Record client creation and pings instead of connecting to Redis."""
+
+    created = []
+    pings = 0
+
+    @classmethod
+    def from_url(cls, dsn, **kwargs):
+        """Record the client options instead of connecting."""
+        cls.created.append({"dsn": dsn, **kwargs})
+        return cls()
+
+    def ping(self):
+        """Count the ping."""
+        type(self).pings += 1
+
+
+@pytest.fixture
+def fake_redis(monkeypatch):
     # Project
     from hyperglass.api import routes
 
-    calls = {}
-
-    class FakeRedis:
-        @classmethod
-        def from_url(cls, dsn, **kwargs):
-            calls.update(dsn=dsn, **kwargs)
-            return cls()
-
-        def ping(self):
-            calls["pinged"] = True
-
-        def close(self):
-            calls["closed"] = True
-
+    FakeRedis.created = []
+    FakeRedis.pings = 0
     monkeypatch.setattr(routes, "Redis", FakeRedis)
+    return FakeRedis
+
+
+def test_ping_redis_uses_short_timeouts(fake_redis):
+    # Project
+    from hyperglass.api import routes
+
     routes.ping_redis("redis://[2001:db8::1]:6379/1")
-    assert calls == {
-        "dsn": "redis://[2001:db8::1]:6379/1",
-        "socket_connect_timeout": routes.HEALTH_REDIS_TIMEOUT,
-        "socket_timeout": routes.HEALTH_REDIS_TIMEOUT,
-        "pinged": True,
-        "closed": True,
-    }
+    assert fake_redis.created == [
+        {
+            "dsn": "redis://[2001:db8::1]:6379/1",
+            "socket_connect_timeout": routes.HEALTH_REDIS_TIMEOUT,
+            "socket_timeout": routes.HEALTH_REDIS_TIMEOUT,
+        }
+    ]
+    assert fake_redis.pings == 1
+
+
+def test_ping_redis_reuses_one_client(fake_redis):
+    """Repeated probes share one client, so they do not open new connections."""
+    # Project
+    from hyperglass.api import routes
+
+    for _ in range(5):
+        routes.ping_redis("redis://127.0.0.1:6379/1")
+    assert len(fake_redis.created) == 1
+    assert fake_redis.pings == 5
+
+
+def test_health_reuses_result_within_interval(populate, ui_built, fake_redis):
+    # Project
+    from hyperglass.api import app
+
+    with TestClient(app=app) as client:
+        responses = [client.get("/api/health") for _ in range(10)]
+    assert {response.status_code for response in responses} == {200}
+    assert len(fake_redis.created) == 1
+    assert fake_redis.pings == 1
+
+
+def test_health_checks_again_after_interval(populate, ui_built, fake_redis, monkeypatch):
+    # Project
+    from hyperglass.api import app, routes
+
+    monkeypatch.setattr(routes, "HEALTH_CACHE_SECONDS", 0.05)
+    with TestClient(app=app) as client:
+        client.get("/api/health")
+        time.sleep(0.1)
+        client.get("/api/health")
+    assert fake_redis.pings == 2
+    assert len(fake_redis.created) == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_health_requests_share_one_probe(populate, ui_built, monkeypatch):
+    """Requests that arrive during a probe wait for it instead of starting more."""
+    # Project
+    from hyperglass.api import app
+
+    pings = 0
+    release = threading.Event()
+
+    def slow_ping(_):
+        nonlocal pings
+        pings += 1
+        release.wait(5)
+
+    monkeypatch.setattr("hyperglass.api.routes.ping_redis", slow_ping)
+    async with AsyncTestClient(app=app) as client:
+        requests = [asyncio.ensure_future(client.get("/api/health")) for _ in range(10)]
+        await asyncio.sleep(0.2)
+        release.set()
+        responses = await asyncio.gather(*requests)
+    assert {response.status_code for response in responses} == {200}
+    assert pings == 1
+
+
+@pytest.mark.asyncio
+async def test_disconnected_request_does_not_cancel_shared_probe(populate, ui_built, monkeypatch):
+    # Project
+    from hyperglass.api import routes
+    from hyperglass.state import use_state
+
+    release = threading.Event()
+    monkeypatch.setattr(routes, "ping_redis", lambda _: release.wait(5))
+    first = asyncio.ensure_future(routes.shared_health_check.checks(use_state()))
+    second = asyncio.ensure_future(routes.shared_health_check.checks(use_state()))
+    await asyncio.sleep(0.1)
+    first.cancel()
+    release.set()
+    assert (await second)["redis"] == "ok"
 
 
 def test_ping_redis_fails_fast_when_unreachable(monkeypatch):
