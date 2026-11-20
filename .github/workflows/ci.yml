@@ -206,9 +206,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # Only a version tag publishes. It publishes its version. Only a stable
-      # version moves `latest`: a version with a hyphen, such as v2.1.0-rc.1, is
-      # a prerelease. Pull requests and main build and scan the image only.
+      # A version tag publishes its version. Only a stable version moves
+      # `latest`: a version with a hyphen, such as v2.1.0-rc.1, is a prerelease.
+      # A push to main publishes only an immutable `sha-<commit>` tag, for
+      # testing unreleased changes; it never moves `latest` and there is no
+      # floating `main` tag. Pull requests build and scan the image only.
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -218,6 +220,7 @@ jobs:
             latest=false
           tags: |
             type=semver,pattern={{version}}
+            type=sha,format=long,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
 
       - name: Build image
@@ -267,13 +270,13 @@ jobs:
 
       - name: Export scanned image
         id: export
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && steps.scan.outcome == 'success' }}
+        if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && steps.scan.outcome == 'success' }}
         run: |
           echo "image-id=$(docker image inspect --format '{{.Id}}' hyperglass:scan)" >> "$GITHUB_OUTPUT"
           docker save --output "$RUNNER_TEMP/scanned-image.tar" hyperglass:scan
 
       - name: Upload scanned image
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && steps.scan.outcome == 'success' }}
+        if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && steps.scan.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: scanned-image
@@ -397,7 +400,7 @@ jobs:
     needs:
       - gate
       - image
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.gate.result == 'success' && needs.image.outputs.scan == 'success' }}
+    if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && needs.gate.result == 'success' && needs.image.outputs.scan == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -435,6 +438,11 @@ jobs:
           IMAGE_TAGS: ${{ needs.image.outputs.tags }}
           EXPECTED_IMAGE_ID: ${{ needs.image.outputs.image-id }}
         run: |
+          # Defence in depth: only a version tag may move `latest`.
+          if [ "$GITHUB_REF_TYPE" != "tag" ] && grep -qE ':latest$' <<< "$IMAGE_TAGS"; then
+            echo "::error::Refusing to publish latest from $GITHUB_REF."
+            exit 1
+          fi
           while IFS= read -r tag; do
             docker tag "$EXPECTED_IMAGE_ID" "$tag"
             docker push "$tag"
