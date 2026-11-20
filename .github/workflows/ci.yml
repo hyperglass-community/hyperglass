@@ -26,7 +26,10 @@ permissions:
 env:
   NODE_VERSION: "24"
   PNPM_VERSION: "11.28.11"
+  # Trivy runs by the index digest of the aquasec/trivy:<TRIVY_VERSION> tag, so a
+  # replaced tag cannot change what runs. Renovate updates both lines together.
   TRIVY_VERSION: 0.74.0
+  TRIVY_DIGEST: sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
@@ -235,12 +238,25 @@ jobs:
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            "aquasec/trivy:${TRIVY_VERSION}" image \
+            "aquasec/trivy:${TRIVY_VERSION}@${TRIVY_DIGEST}" image \
             --scanners vuln \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
             --timeout 20m \
+            hyperglass:scan
+
+      # The SBOM is generated here, from the image the scan checked, so the
+      # publish job runs no third-party container. It ships with the scanned image.
+      - name: Generate SBOM
+        if: ${{ steps.scan.outcome == 'success' }}
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP:/out" \
+            "aquasec/trivy:${TRIVY_VERSION}@${TRIVY_DIGEST}" image \
+            --format spdx-json \
+            --output /out/sbom.spdx.json \
             hyperglass:scan
 
       - name: Report scan result
@@ -261,7 +277,9 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: scanned-image
-          path: ${{ runner.temp }}/scanned-image.tar
+          path: |
+            ${{ runner.temp }}/scanned-image.tar
+            ${{ runner.temp }}/sbom.spdx.json
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
@@ -429,6 +447,7 @@ jobs:
         env:
           IMAGE_TAGS: ${{ needs.image.outputs.tags }}
         run: |
+          set -euo pipefail
           digest=""
           while IFS= read -r tag; do
             tag_digest=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | jq -r .digest)
@@ -445,16 +464,6 @@ jobs:
           esac
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Generate SBOM
-        run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$RUNNER_TEMP:/out" \
-            "aquasec/trivy:${TRIVY_VERSION}" image \
-            --format spdx-json \
-            --output /out/sbom.spdx.json \
-            hyperglass:scan
-
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -463,6 +472,7 @@ jobs:
           push-to-registry: true
           create-storage-record: false
 
+      # The SBOM comes from the image job, in the scanned-image artifact.
       - name: Attest SBOM
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
