@@ -16,9 +16,12 @@ mkdir -p /opt/hyperglass /etc/hyperglass
 cd /opt/hyperglass
 curl -fsSLo compose.yaml https://raw.githubusercontent.com/hyperglass-community/hyperglass/v3.0.0-rc.2/compose.yaml
 curl -fsSLo /etc/hyperglass/devices.yaml https://raw.githubusercontent.com/hyperglass-community/hyperglass/v3.0.0-rc.2/.samples/sample_devices.yaml
+chown -R 10001:10001 /etc/hyperglass
 docker compose pull
 docker compose up -d
 ```
+
+The container runs as UID `10001`, so it must own `/etc/hyperglass`. See [container user and file ownership](#container-user-and-file-ownership).
 
 The sample device returns fake output. Replace it with your devices after checking the page at `http://localhost:8001`. The first start builds the configuration-specific UI.
 
@@ -62,11 +65,12 @@ Use the source build before RC2 is published or when testing source changes.
 ```shell copy
 mkdir /etc/hyperglass
 touch /etc/hyperglass/hyperglass.env
+chown -R 10001:10001 /etc/hyperglass
 git clone https://github.com/hyperglass-community/hyperglass.git --depth=1 /opt/hyperglass
 cd /opt/hyperglass
 ```
 
-Clone into `/opt/hyperglass`. The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
+Clone into `/opt/hyperglass`. The `chown` gives `/etc/hyperglass` to the container user, UID `10001`; see [container user and file ownership](#container-user-and-file-ownership). The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
 
 <Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Pushes to `main` publish `sha-<commit>` images. A version tag publishes no new image. It verifies that the `sha-<commit>` image of the tagged commit carries this repository's `main` attestation, scans it again, and adds the version tag (and `latest` for a stable version) to it. Pull requests do not publish images.</Callout>
 
@@ -97,6 +101,22 @@ systemctl start hyperglass
 ```
 
 </Steps>
+
+## Container user and file ownership
+
+The image runs Hyperglass as the unprivileged user `hyperglass`, with the fixed UID and GID `10001`. On first start, Hyperglass writes into `/etc/hyperglass`: the UI build workspace (`.ui`), the built UI and images (`static`) and user plugins (`plugins`). That directory must be writable by UID `10001`.
+
+A host directory created with `mkdir` as root is owned by root, and the container exits with `Permission denied: '/etc/hyperglass/plugins'`. Give the directory to the container user before the first start, and again after upgrading from an image that ran as root, since that image left root-owned files behind:
+
+```shell copy
+sudo chown -R 10001:10001 /etc/hyperglass
+```
+
+The configuration files only need to be readable by UID `10001`.
+
+- **Custom application path.** Compose mounts `HYPERGLASS_APP_PATH` from the host when it is set. Change the owner of that directory, not `/etc/hyperglass`.
+- **Logs and query samples.** A host directory mounted for `logging.directory` or `logging.samples.path` must be writable by UID `10001`.
+- **SSH keys.** A key file referenced by a credential's `key` must be readable by UID `10001`. A root-owned key with mode `0600` is not. Change its owner to `10001` and keep mode `0600`.
 
 ## Client addresses and host nginx
 

@@ -8,9 +8,12 @@ docker compose down
 docker compose rm -f
 git fetch --tags
 git checkout "$RELEASE_TAG"
+chown -R 10001:10001 /etc/hyperglass
 docker compose pull
 docker compose up -d
 ```
+
+From 3.0.0 the container runs as UID `10001` instead of root. The `chown` gives it the configuration directory and the `.ui` and `static` directories that an older image left owned by root. Without it, the container stops with `Permission denied` and restarts in a loop. If `HYPERGLASS_APP_PATH` is set, change the owner of that directory instead. See [container user and file ownership](/installation/docker.mdx#container-user-and-file-ownership) for log directories and SSH keys.
 
 The Compose file pulls the published image for the checked-out release. It no longer builds the checkout. To run local source changes, add the build override:
 
@@ -44,6 +47,7 @@ Hyperglass 3.0.0 adds these changes:
 - Custom directives now quote substituted arguments on shell-backed platforms, including permissive rules. Review templates that depend on shell expansion or split one target into multiple arguments. Use explicit placeholders for separate arguments. Never pass visitor input to `eval` or `sh -c`. See [custom directive quoting](/configuration/directives.mdx).
 - Valid zero-route MikroTik results complete without repeated SSH sessions.
 - Docker Compose pulls the published image and runs Valkey 8 as the `redis` service. It no longer builds the checkout; add `compose.build.yaml` for a source build. Existing `HYPERGLASS_REDIS_*` settings keep their meaning, and the bundled cache starts empty.
+- The container runs as the unprivileged user `hyperglass` (UID and GID `10001`) instead of root. The host directory mounted at `/etc/hyperglass`, any mounted log directory and SSH key files must belong to that user. See [Using Docker](#using-docker).
 - The automatic worker count follows CPU affinity and the container CPU quota, and stops at eight. Set `HYPERGLASS_WORKERS` to keep a higher count.
 - Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`.
 - IP rules refuse link-local targets (IPv4 `169.254.0.0/16`, IPv6 `fe80::/10`) and IPv6 targets with a zone, such as `fe80::1%eth0`, including with a `0.0.0.0/0` or `::/0` rule and on built-in directives. To query link-local addresses from a custom directive, set `allow_link_local: true` on its IP rule. Zones are then accepted only on link-local host addresses. See [IP rules](/configuration/directives.mdx).
