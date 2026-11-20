@@ -194,6 +194,69 @@ IPV6_ZONE_PATTERN = re.compile(r"[A-Za-z0-9-]+")
 IPV4_LINK_LOCAL = IPv4Network("169.254.0.0/16")
 IPV6_LINK_LOCAL = IPv6Network("fe80::/10")
 
+_UINT16 = 0xFFFF
+_UINT32 = 0xFFFFFFFF
+
+
+def _uint(value: str, maximum: int) -> bool:
+    return value.isdecimal() and int(value) <= maximum
+
+
+def _extended_community_error(value: str) -> t.Optional[str]:
+    """Check the `ADMIN:VALUE` part of an extended community (RFC 4360, RFC 5668)."""
+    admin, _, number = value.partition(":")
+    if not number.isdecimal():
+        return "An extended community needs one administrator and one value"
+    if admin.count(".") == 3:
+        try:
+            ip_address(admin)
+        except ValueError:
+            return "The extended community administrator is not an IPv4 address"
+        maximum = _UINT16
+    elif admin.count(".") == 1:
+        # asdot notation names a 4-octet ASN.
+        if not all(_uint(part, _UINT16) for part in admin.split(".")):
+            return "Each asdot ASN half must be 0-65535"
+        maximum = _UINT16
+    elif _uint(admin, _UINT16):
+        maximum = _UINT32
+    elif _uint(admin, _UINT32):
+        maximum = _UINT16
+    else:
+        return "The extended community administrator is not an ASN or IPv4 address"
+    if int(number) > maximum:
+        return f"The extended community value must be 0-{maximum} for this administrator"
+    return None
+
+
+def community_error(value: str) -> t.Optional[str]:
+    """Return why a BGP community is malformed or out of range, or `None` (#441).
+
+    Accepted forms: a 32-bit community number; standard `ASN16:VALUE16`; large
+    `ASN32:VALUE32:VALUE32`; and extended `target:` or `origin:` followed by
+    `ASN16:VALUE32`, `ASN32:VALUE16` (plain or asdot) or `IPv4:VALUE16`.
+    """
+    # A leading zero would reach the device command as typed (`065000:0100`).
+    if any(len(part) > 1 and part.startswith("0") for part in re.split(r"[:.]", value)):
+        return "Community numbers must not have leading zeros"
+    kind, _, rest = value.partition(":")
+    if kind in ("target", "origin"):
+        return _extended_community_error(rest)
+    parts = value.split(":")
+    if not all(part.isdecimal() for part in parts):
+        return "Only extended communities may contain an IPv4 address or asdot ASN"
+    if len(parts) == 1:
+        return None if _uint(value, _UINT32) else "A community number must be 0-4294967295"
+    if len(parts) == 2:
+        if all(_uint(part, _UINT16) for part in parts):
+            return None
+        return "Standard community parts must be 0-65535"
+    if len(parts) == 3:
+        if all(_uint(part, _UINT32) for part in parts):
+            return None
+        return "Large community parts must be 0-4294967295"
+    return "A community has at most three parts"
+
 
 def is_link_local(target: IPvAnyNetwork) -> bool:
     """Return whether the whole target prefix is link-local."""
@@ -607,6 +670,10 @@ class BuiltinDirective(Directive, unique_by=("id", "table_output", "platforms"))
                 continue
             if not valid or len(value) > 256:
                 raise InputValidationError(error="Invalid BGP target syntax", target=value)
+            if self.query_kind == "bgp_community":
+                reason = community_error(value)
+                if reason is not None:
+                    raise InputValidationError(error=reason, target=value)
 
 
 DirectiveT = t.Union[BuiltinDirective, Directive]
