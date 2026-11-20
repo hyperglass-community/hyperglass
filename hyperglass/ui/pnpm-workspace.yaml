@@ -8,7 +8,7 @@ allowBuilds:
 # Migrated from package.json `pnpm.overrides` (pnpm 11 no longer reads that key).
 # Security pins for transitive deps:
 #   ua-parser-js   >=0.7.36  (ReDoS CVEs in older 0.7.x)
-#   @babel/runtime, @babel/helpers  pinned to a patched release
+#   @babel/runtime, @babel/helpers  ^7.26.10 (patched floor, kept on 7.x: 8.x is latest)
 #   browserslist  >=4.28.7   (CVE-2026-73088, CVE-2026-73089)
 #   source-map-js >=1.2.2    (CVE-2026-93749, DoS via malformed indexed source maps;
 #                             transitive floor under postcss@8.5.18, which accepts ^1.2.0)
@@ -24,8 +24,8 @@ allowBuilds:
 #   that sit in the dev toolchain installed into the image's pnpm store.
 overrides:
   ua-parser-js: '^0.7.36'
-  '@babel/runtime': '7.26.10'
-  '@babel/helpers': '7.26.10'
+  '@babel/runtime': '^7.26.10'
+  '@babel/helpers': '^7.26.10'
   browserslist: '>=4.28.7'
   nanoid: '3.3.18'
   postcss: '8.5.32'
