@@ -26,9 +26,7 @@ The Compose file uses `ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2` and V
 
 ## Verify a published image
 
-{/* TODO: if #458 merges, `sha-` images from main are attested too. Say so here. */}
-
-Release images carry a signed build provenance attestation and an SPDX SBOM attestation. Images published before attestations were introduced have none, so verification fails for them. Verify that an image was built by this repository's CI with the [GitHub CLI](https://cli.github.com/), replacing `<version>` with the image tag:
+Images published from `main` carry a signed build provenance attestation and an SPDX SBOM attestation. A release does not build a new image: it adds the version tag to the `sha-<commit>` image that `main` built, scanned and published for the tagged commit, so a release image is byte-for-byte the tested `main` image and carries the same attestations. The provenance therefore names the `main` workflow run that built the image. Images published before attestations were introduced have none, so verification fails for them. Verify that an image was built by this repository's CI with the [GitHub CLI](https://cli.github.com/), replacing `<version>` with the image tag:
 
 ```shell copy
 gh attestation verify oci://ghcr.io/hyperglass-community/hyperglass:<version> -R hyperglass-community/hyperglass
@@ -70,7 +68,7 @@ cd /opt/hyperglass
 
 Clone into `/opt/hyperglass`. The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
 
-<Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Version tags publish release images to GHCR after the required checks pass. Pushes to `main` publish only `sha-<commit>` images. Pull requests do not publish images.</Callout>
+<Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Pushes to `main` publish `sha-<commit>` images. A version tag publishes no new image. It verifies that the `sha-<commit>` image of the tagged commit carries this repository's `main` attestation, scans it again, and adds the version tag (and `latest` for a stable version) to it. Pull requests do not publish images.</Callout>
 
 ### Optional: Quickstart
 

@@ -18,6 +18,7 @@ Small, focused pull requests are easier to review, revert and bisect.
 - Keep each pull request to one concern. Open separate pull requests for unrelated fixes, features, or toolchain changes.
 - Put generated fixtures and other generated files in their own commit, separate from the change that needs them.
 - Release pull requests change only the version and the changelog. Merge runtime changes in their own pull requests first.
+- Tag a release on the release pull request's merge commit on `main`, after the `main` run for that commit has published its `sha-<commit>` image. The tag run promotes that image instead of building a new one. It fails for a commit that `main` did not publish, or when the tag differs from the version that commit declares (`python3 version.py <version>` sets it).
 - When you carry work over from another pull request, keep the original author on those commits or add a `Co-authored-by:` trailer.
 - Every pull request to `main` needs an approving review from someone other than its author.
 

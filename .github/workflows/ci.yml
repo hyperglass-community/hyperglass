@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 # A new push to a pull request cancels the superseded run. Runs on main and on
-# tags are never cancelled, because a tag run publishes.
+# tags are never cancelled, because both publish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -304,24 +304,42 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # A version tag publishes its version. Only a stable version moves
-      # `latest`: a version with a hyphen, such as v2.1.0-rc.1, is a prerelease.
-      # A push to main publishes only an immutable `sha-<commit>` tag, for
-      # testing unreleased changes; it never moves `latest` and there is no
-      # floating `main` tag. Pull requests build and scan the image only.
+      # Only main builds an image to publish: a push to main publishes an
+      # immutable `sha-<commit>` tag, and never `latest`. A version tag builds
+      # nothing here: the release-image and promote jobs give the tested main
+      # image of the tagged commit its version tags. Pull requests build and
+      # scan the image only.
+      # A release promotes this image unchanged, so its version label must be
+      # right when it is built: the version the source declares, in the release
+      # form that version.py writes to package.json and that tags use
+      # (3.0.0-rc.2, not 3.0.0rc2). It is what `hyperglass` in the image reports.
+      - name: Read the source version
+        id: version
+        if: ${{ github.ref_type != 'tag' }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version hyperglass/ui/package.json)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "::error::hyperglass/ui/package.json has an unexpected version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Extract image metadata
         id: meta
+        if: ${{ github.ref_type != 'tag' }}
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
           flavor: |
             latest=false
           tags: |
-            type=semver,pattern={{version}}
             type=sha,format=long,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build image
+        if: ${{ github.ref_type != 'tag' }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -336,6 +354,7 @@ jobs:
       # Fixable HIGH or CRITICAL findings fail the image job and required CI gate.
       - name: Scan image for vulnerabilities
         id: scan
+        if: ${{ github.ref_type != 'tag' }}
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
@@ -368,13 +387,13 @@ jobs:
 
       - name: Export scanned image
         id: export
-        if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && steps.scan.outcome == 'success' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.scan.outcome == 'success' }}
         run: |
           echo "image-id=$(docker image inspect --format '{{.Id}}' hyperglass:scan)" >> "$GITHUB_OUTPUT"
           docker save --output "$RUNNER_TEMP/scanned-image.tar" hyperglass:scan
 
       - name: Upload scanned image
-        if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && steps.scan.outcome == 'success' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.scan.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: scanned-image
@@ -498,7 +517,7 @@ jobs:
     needs:
       - gate
       - image
-    if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && needs.gate.result == 'success' && needs.image.outputs.scan == 'success' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.gate.result == 'success' && needs.image.outputs.scan == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -536,9 +555,10 @@ jobs:
           IMAGE_TAGS: ${{ needs.image.outputs.tags }}
           EXPECTED_IMAGE_ID: ${{ needs.image.outputs.image-id }}
         run: |
-          # Defence in depth: only a version tag may move `latest`.
-          if [ "$GITHUB_REF_TYPE" != "tag" ] && grep -qE ':latest$' <<< "$IMAGE_TAGS"; then
-            echo "::error::Refusing to publish latest from $GITHUB_REF."
+          # Defence in depth: main publishes `sha-<commit>` only. Version tags and
+          # `latest` come from the promote job.
+          if grep -qvE ':sha-[0-9a-f]{40}$' <<< "$IMAGE_TAGS"; then
+            echo "::error::Refusing to publish a tag other than sha-<commit> from $GITHUB_REF."
             exit 1
           fi
           while IFS= read -r tag; do
@@ -588,13 +608,183 @@ jobs:
           push-to-registry: true
           create-storage-record: false
 
+  # A version tag releases the image that main already built, scanned, attested
+  # and published as `sha-<commit>`, rather than building a new one. Builds are
+  # not reproducible, so a rebuild would release bytes nobody tested (#499).
+  # This job has read access only: it checks the tag, finds that image and scans
+  # it again against the current vulnerability database.
+  release-image:
+    name: Scan the main image for release
+    needs:
+      - gate
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.gate.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `gh attestation verify` reads the attestations of the main image.
+      attestations: read
+    outputs:
+      digest: ${{ steps.find.outputs.digest }}
+    steps:
+      # Pinned like the image job: `--prefer-index=false` and the inspect output
+      # depend on the buildx version, so do not rely on the runner's copy.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Check that the tagged commit is on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # `ahead` or `identical`: main contains the tagged commit.
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$GITHUB_SHA...main" --jq .status)
+          case "$status" in
+            ahead|identical) ;;
+            *)
+              echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main (compare status: $status). Tag a commit that main has published."
+              exit 1
+              ;;
+          esac
+
+      # A tag pushed right after a merge can arrive before the main run publishes,
+      # so wait while the registry answers "not found". Any other error, such as an
+      # outage or a rate limit, fails after five attempts in a row instead of
+      # waiting the full 30 minutes and reporting a missing image.
+      - name: Find the main image of the tagged commit
+        id: find
+        run: |
+          set -euo pipefail
+          ref="$IMAGE:sha-$GITHUB_SHA"
+          errors=0
+          for attempt in $(seq 1 60); do
+            if output=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>&1); then
+              digest=$(jq -r .digest <<< "$output")
+              if [[ "$digest" == sha256:* ]]; then
+                echo "$ref is $digest"
+                echo "digest=$digest" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            elif grep -q ': not found' <<< "$output"; then
+              errors=0
+              echo "Waiting for $ref ($attempt/60)"
+            else
+              errors=$((errors + 1))
+              echo "::warning::Registry error ($errors/5): $output"
+              if [ "$errors" -ge 5 ]; then
+                echo "::error::The registry failed five times in a row while looking up $ref."
+                exit 1
+              fi
+            fi
+            sleep 30
+          done
+          echo "::error::$ref does not exist. Release tags must be on a commit that main published; re-run this job once the main run for $GITHUB_SHA has published."
+          exit 1
+
+      # A `sha-` tag proves nothing by itself: anyone who can write to the package
+      # can push an image under it. Promote only a digest that this workflow
+      # attested when it ran on main.
+      - name: Verify that main built the image
+        env:
+          DIGEST: ${{ steps.find.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify "oci://$IMAGE@$DIGEST" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+            --source-ref refs/heads/main \
+            --deny-self-hosted-runners
+
+      # The image carries the version its source declares. A tag whose version
+      # differs means the wrong commit was tagged, or the version bump is missing.
+      - name: Check the image version against the tag
+        env:
+          DIGEST: ${{ steps.find.outputs.digest }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          label=$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json .Image}}' \
+            | jq -r '.config.Labels["org.opencontainers.image.version"] // empty')
+          if [ "$label" != "${VERSION#v}" ]; then
+            echo "::error::The image of $GITHUB_SHA is labelled version '${label:-none}', but the tag is $VERSION."
+            exit 1
+          fi
+
+      # Fixable HIGH or CRITICAL findings block the release, as they do on main.
+      # Trivy pulls the public image by digest itself, so no Docker socket is
+      # mounted.
+      - name: Scan the main image again
+        env:
+          DIGEST: ${{ steps.find.outputs.digest }}
+        run: |
+          docker run --rm \
+            "aquasec/trivy:${TRIVY_VERSION}@${TRIVY_DIGEST}" image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --timeout 20m \
+            "$IMAGE@$DIGEST"
+
+  # Adds the version tag, and `latest` for a stable version, to the scanned
+  # digest. The image keeps its digest, so the provenance and SBOM attestations
+  # from main apply to the version tags as they are.
+  promote:
+    name: Promote the main image
+    needs:
+      - gate
+      - release-image
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.gate.result == 'success' && needs.release-image.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # Pinned like the image job: `--prefer-index=false` and the inspect output
+      # depend on the buildx version, so do not rely on the runner's copy.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only a stable version moves `latest`: a version with a hyphen, such as
+      # v3.0.0-rc.3, is a prerelease. The version tag goes first, so a failed
+      # check leaves `latest` untouched. `--prefer-index=false` keeps the single
+      # manifest as it is: without it, imagetools wraps the manifest in a new
+      # index with a new digest, which the attestations would not cover.
+      - name: Tag the main image with the release version
+        env:
+          DIGEST: ${{ needs.release-image.outputs.digest }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          tags=("$IMAGE:$version")
+          case "$version" in
+            *-*) ;;
+            *) tags+=("$IMAGE:latest") ;;
+          esac
+          for tag in "${tags[@]}"; do
+            docker buildx imagetools create --prefer-index=false --tag "$tag" "$IMAGE@$DIGEST"
+            actual=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' | jq -r .digest)
+            if [ "$actual" != "$DIGEST" ]; then
+              echo "::error::$tag resolves to $actual, expected $DIGEST."
+              exit 1
+            fi
+            echo "$tag -> $DIGEST" >> "$GITHUB_STEP_SUMMARY"
+          done
+
   release:
     name: Publish GitHub release
     needs:
       - gate
       - package
-      - publish
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.gate.result == 'success' && needs.publish.result == 'success' }}
+      - promote
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && needs.gate.result == 'success' && needs.promote.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
