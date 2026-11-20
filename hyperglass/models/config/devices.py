@@ -421,12 +421,20 @@ class Devices(MultiModel, model=Device, unique_by="id"):
         return {k: tuple(v) for k, v in result.items()}
 
     def directive_names(self) -> t.List[str]:
-        """Get all directive names for all devices."""
-        return list({directive.name for device in self for directive in device.directives})
+        """Get all directive names for all devices, in first-seen order."""
+        # A dict keeps first-seen order; a set's order changes with the hash seed (#492).
+        return list(
+            dict.fromkeys(directive.name for device in self for directive in device.directives)
+        )
 
     def frontend(self: "Devices") -> t.List[t.Dict[str, t.Any]]:
-        """Export grouped devices for UIParameters."""
-        groups = {device.group for device in self}
+        """Export grouped devices for UIParameters.
+
+        Groups keep the order in which they first appear in the devices file. With a set,
+        the order changed with the process hash seed, so the UI build ID changed on every
+        restart and the location menu could reorder (#492).
+        """
+        groups = dict.fromkeys(device.group for device in self)
         return [
             {
                 "group": group,
