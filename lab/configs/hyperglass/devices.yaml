@@ -71,6 +71,18 @@ devices:
       source4: 10.250.6.1
       source6: fd00:250:6::1
 
+  - name: lab-crpd
+    address: 192.168.250.33
+    group: Juniper
+    credential:
+      username: root
+      password: admin@123
+    platform: juniper
+    structured_output: true
+    attrs:
+      source4: 10.250.12.1
+      source6: fd00:250:12::1
+
   - name: lab-arista
     address: 192.168.250.17
     group: Arista

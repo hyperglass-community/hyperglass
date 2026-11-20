@@ -78,6 +78,7 @@ Run `scripts/verify-policy-matrix.py --help` for structured-policy and RPKI chec
 - Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`. A bare IPv6 host becomes `/128` and is rejected.
 - IOSv IPv6 traceroute accepts only its destination. Its custom lab directive omits the source address.
 - Junos forwarding requires an online FPC.
+- Juniper cRPD runs as a native container without KVM. Load the vendor archive with `docker load -i junos-routing-crpd-amd64-26.2R1.7.tgz` to get `crpd:26.2R1.7`, then run `./lab-up.sh crpd`. Hyperglass logs in as `root`, because the setuid Junos CLI does not run for other users under `no-new-privileges`. The topology writes the root password with `chpasswd`. Without a licence, rpd logs `RPD_CONTAINER_LICENSE_ERROR` and BGP still establishes. cRPD keeps BGP routes out of the kernel, and its ping and traceroute print Linux tool output.
 - Huawei VRPv8 uses `huawei_vrpv8`. Configure its routed data port with `scripts/configure-huawei.py`.
 - Start one Huawei VM at a time.
 - RouterOS 6 requires its IPv6 package for IPv6 queries.

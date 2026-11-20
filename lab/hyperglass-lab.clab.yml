@@ -105,6 +105,26 @@ topology:
       mgmt-ipv6: fd00:250:ffff::16
       startup-config: configs/vjunos/config.conf
 
+    # Juniper cRPD: Junos routing stack as a native container, no KVM. Load the
+    # vendor archive with `docker load`. The CLI binary is setuid, which
+    # no-new-privileges blocks for other users, so Hyperglass logs in as root.
+    crpd:
+      kind: juniper_crpd
+      image: crpd:26.2R1.7
+      mgmt-ipv4: 192.168.250.33
+      mgmt-ipv6: fd00:250:ffff::33
+      cpu: 1
+      memory: 4Gb
+      startup-config: configs/crpd/juniper.conf
+      exec:
+        - ip addr add 10.250.12.1/31 dev eth1
+        - ip addr add fd00:250:12::1/127 dev eth1
+        # All non-management traffic goes to the core; eth0 keeps the management subnet.
+        - ip route replace default via 10.250.12.0 dev eth1
+        - "ip -6 route replace default via fd00:250:12:: dev eth1"
+        # mgd does not write root-authentication to /etc/shadow in an unprivileged container.
+        - "bash -c 'echo root:admin@123 | chpasswd'"
+
     arista:
       kind: arista_ceos
       image: ceos:4.36.3M
@@ -206,3 +226,4 @@ topology:
     - endpoints: ["core:eth9", "iol:eth1"]
     - endpoints: ["core:eth10", "ioll2:eth1"]
     - endpoints: ["core:eth11", "huawei-ne40:eth1"]
+    - endpoints: ["core:eth12", "crpd:eth1"]
