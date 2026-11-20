@@ -201,7 +201,8 @@ class ThemeFonts(HyperglassModel):
     body: str = "Nunito"
     mono: str = "Fira Code"
     # Download non-default fonts from Google Fonts when the UI is built. The default
-    # fonts ship with hyperglass, so the build never contacts Google unless enabled.
+    # fonts ship with hyperglass. When this is off, a non-default font is linked from
+    # Google Fonts, so visitors' browsers fetch it from Google.
     download: bool = False
 
 
