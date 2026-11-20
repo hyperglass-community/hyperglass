@@ -145,9 +145,16 @@ async function failed(): Promise<void> {
   await waitFor(() => expect(statusIcon()).toBeInTheDocument(), IMPORT_WAIT);
 }
 
-/** The copy and requery buttons, in the order they appear after the optional AS path button. */
-function actionButtons(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>('a.chakra-button'));
+/**
+ * The optional AS path button, then the copy and requery buttons: the buttons next to the
+ * accordion header, not those inside the result.
+ */
+function actionButtons(): HTMLElement[] {
+  const row = header().parentElement;
+  if (row === null) {
+    throw new Error('The result header has no parent element');
+  }
+  return Array.from(row.querySelectorAll<HTMLElement>('.chakra-button'));
 }
 
 beforeEach(() => {
@@ -221,8 +228,8 @@ describe('Result', () => {
       expect(within(table).getByText('192.0.2.0/24')).toBeInTheDocument();
       expect(container.querySelector('pre')).not.toBeInTheDocument();
       // AS path, copy and requery.
-      expect(actionButtons(container)).toHaveLength(3);
-      await userEvent.hover(actionButtons(container)[0]);
+      expect(actionButtons()).toHaveLength(3);
+      await userEvent.hover(actionButtons()[0]);
       expect(
         await screen.findByRole('tooltip', { name: 'View AS Path' }, IMPORT_WAIT),
       ).toBeInTheDocument();
@@ -230,14 +237,14 @@ describe('Result', () => {
 
     it('renders a traceroute table and the AS path button', async () => {
       stubFetch(answer(response({ format: 'application/json', output: tracerouteOutput })));
-      const { container } = renderResult();
+      renderResult();
       await settled();
 
       const table = await screen.findByRole('table', { hidden: true });
       expect(within(table).getByText('2001:db8:1::1')).toBeInTheDocument();
       expect(within(table).getByText('2001:db8:2::1')).toBeInTheDocument();
       // Any structured output gets the AS path button, then copy and requery.
-      expect(actionButtons(container)).toHaveLength(3);
+      expect(actionButtons()).toHaveLength(3);
     });
 
     it('shows structured output sent as plain text as an error', async () => {
@@ -363,12 +370,14 @@ describe('Result', () => {
             }),
         ),
       );
-      const { container } = renderResult();
+      renderResult();
 
       await waitFor(() => expect(header()).toBeDisabled());
       expect(screen.getByText('Loading...')).toBeInTheDocument();
       expect(header()).toHaveAttribute('aria-expanded', 'false');
-      for (const button of actionButtons(container)) {
+      // Copy and requery; the AS path button only appears with structured output.
+      expect(actionButtons()).toHaveLength(2);
+      for (const button of actionButtons()) {
         expect(button).toHaveAttribute('disabled');
       }
 
@@ -392,7 +401,7 @@ describe('Result', () => {
       await settled();
       expect(container.querySelector('pre')).toHaveTextContent('first');
 
-      const requery = actionButtons(container)[1];
+      const requery = actionButtons()[1];
       await userEvent.hover(requery);
       expect(
         await screen.findByRole('tooltip', { name: 'Reload Query' }, IMPORT_WAIT),

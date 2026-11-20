@@ -52,9 +52,25 @@ describe('RequeryButton', () => {
     expect(button).toHaveAttribute('disabled');
   });
 
-  // The button renders as an `<a>`, where `disabled` has no effect, so a click while a
-  // query runs still calls `requery`. Enable this once the button ignores those clicks.
-  it.todo('ignores clicks while disabled');
+  // #510: as an `<a>`, `disabled` had no effect and a click while a query ran still
+  // called `requery`.
+  it('ignores clicks while disabled', async () => {
+    const { button, requery } = await renderButton({ isDisabled: true });
+
+    await userEvent.click(button);
+
+    expect(requery).not.toHaveBeenCalled();
+  });
+
+  it('can be reached and pressed with the keyboard', async () => {
+    const { button, requery } = await renderButton();
+
+    await userEvent.tab();
+    expect(button).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(requery).toHaveBeenCalledTimes(1);
+  });
 
   it('forwards its ref to the button element', async () => {
     const ref = createRef<HTMLButtonElement>();
