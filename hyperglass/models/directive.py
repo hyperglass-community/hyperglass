@@ -191,7 +191,14 @@ class Rule(HyperglassModel):
 
 IPV6_ZONE_PATTERN = re.compile(r"[A-Za-z0-9-]+")
 # Not `is_link_local`: newer Python releases also count IPv4-mapped 169.254.0.0/16.
+IPV4_LINK_LOCAL = IPv4Network("169.254.0.0/16")
 IPV6_LINK_LOCAL = IPv6Network("fe80::/10")
+
+
+def is_link_local(target: IPvAnyNetwork) -> bool:
+    """Return whether the whole target prefix is link-local."""
+    network = IPV4_LINK_LOCAL if target.version == 4 else IPV6_LINK_LOCAL
+    return target.subnet_of(network)
 
 
 class RuleWithIP(Rule):
@@ -201,6 +208,7 @@ class RuleWithIP(Rule):
     allow_reserved: bool = False
     allow_unspecified: bool = False
     allow_loopback: bool = False
+    allow_link_local: bool = False
     ge: int
     le: int
 
@@ -239,8 +247,9 @@ class RuleWithIP(Rule):
         The classes follow Python's `ipaddress` flags, which hold for a prefix only when the
         whole prefix is in the class. Loopback and unspecified are checked first, so `::1` and
         `::` need only `allow_loopback` or `allow_unspecified`, although IPv6 `::/8` is also
-        reserved. Documentation ranges, such as 192.0.2.0/24, are not reserved. A zone is
-        checked before any class, so no other option admits it (#439).
+        reserved. Documentation ranges, such as 192.0.2.0/24, are not reserved. Link-local is
+        IPv4 169.254.0.0/16 and IPv6 fe80::/10, so fe80::/64 is link-local and ::/0 is not. A
+        zone is checked before any class, so no other option admits it (#439).
         """
         if getattr(target.network_address, "scope_id", None) is not None:
             return None if self.zone_allowed(target) else "Zoned"
@@ -248,6 +257,8 @@ class RuleWithIP(Rule):
             return None if self.allow_loopback else "Loopback"
         if target.is_unspecified:
             return None if self.allow_unspecified else "Unspecified"
+        if is_link_local(target):
+            return None if self.allow_link_local else "Link-local"
         if target.is_reserved and not self.allow_reserved:
             return "Reserved"
         return None
@@ -256,11 +267,11 @@ class RuleWithIP(Rule):
         """Return whether a zoned target may be queried (#439).
 
         A zone lets a visitor choose the router interface for the query, so zones are refused
-        unless an IPv6 rule sets `allow_link_local`. Even then only a link-local host address
-        may carry one: a zone on a prefix or a global address has no valid use.
+        unless the rule sets `allow_link_local`. Even then only a link-local host address may
+        carry one: a zone on a prefix or a global address has no valid use.
         """
         return (
-            getattr(self, "allow_link_local", False)
+            self.allow_link_local
             and target.prefixlen == target.max_prefixlen
             and target.network_address in IPV6_LINK_LOCAL
         )
@@ -343,7 +354,6 @@ class RuleWithIPv6(RuleWithIP):
 
     _type: RuleTypeAttr = "ipv6"
     condition: IPv6Network
-    allow_link_local: bool = False
     ge: int = Field(0, ge=0, le=128)
     le: int = Field(128, ge=0, le=128)
 
