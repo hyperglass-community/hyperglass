@@ -11,6 +11,16 @@ Hyperglass is maintained by the community. Contributions must preserve deploymen
 - Remove credentials, tokens, private keys, and private network details from examples and issue reports.
 - Report security vulnerabilities privately as described in [SECURITY.md](SECURITY.md), not in a public issue or pull request.
 
+## Pull request scope
+
+Small, focused pull requests are easier to review, revert and bisect.
+
+- Keep each pull request to one concern. Open separate pull requests for unrelated fixes, features, or toolchain changes.
+- Put generated fixtures and other generated files in their own commit, separate from the change that needs them.
+- Release pull requests change only the version and the changelog. Merge runtime changes in their own pull requests first.
+- When you carry work over from another pull request, keep the original author on those commits or add a `Co-authored-by:` trailer.
+- Every pull request to `main` needs an approving review from someone other than its author.
+
 ## Development standards
 
 - Format Python with Black and keep imports ordered with isort.

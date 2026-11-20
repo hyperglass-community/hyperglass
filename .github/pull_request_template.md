@@ -1,5 +1,7 @@
 <!-- PLEASE CONSULT CONTRIBUTING POLICY PRIOR TO WORKING ON HYPERGLASS -->
 
+<!-- Keep this pull request to one concern. See https://github.com/hyperglass-community/hyperglass/blob/main/CONTRIBUTING.md#pull-request-scope -->
+
 <!-- Provide a general summary of your changes in the Title. -->
 
 # Description
