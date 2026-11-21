@@ -33,7 +33,8 @@ async def recover_state(request: Request) -> None:
     A request that finds state missing while it is being rebuilt elsewhere, or while a
     failed rebuild is cooling down, is rejected at once instead of waiting, so missing
     state cannot exhaust the worker's thread pool. 503 tells clients and load balancers
-    the condition is temporary.
+    the condition is temporary. An unreachable Redis raises its own errors here, which
+    `default_handler` answers with the same 503.
     """
     try:
         await use_state().ensure_ready()
