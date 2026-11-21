@@ -10,7 +10,9 @@ from litestar.exceptions import ValidationException
 # Project
 from hyperglass.log import log
 from hyperglass.state import HyperglassState, use_state
+from hyperglass.exceptions import PublicHyperglassError
 from hyperglass.state.store import STATE_UNAVAILABLE
+from hyperglass.exceptions.private import StateError
 
 # Local
 from .metrics import REDIS_UNAVAILABLE, record_query_error
@@ -75,7 +77,17 @@ def http_handler(request: Request, exc: BaseException) -> Response:
 
 
 def app_handler(request: Request, exc: BaseException) -> Response:
-    """Handle application errors."""
+    """Handle application errors.
+
+    Only public errors, whose messages come from `params.messages`, are returned as
+    raised. Any other error's message is internal, so it is logged and the client gets
+    the same answer as for an unexpected error. State missing from Redis mid-request is
+    the temporary condition `recover_state` reports, so it gets the same 503.
+    """
+    if isinstance(exc, StateError):
+        return unavailable_handler(request, exc)
+    if not isinstance(exc, PublicHyperglassError):
+        return default_handler(request, exc)
     log.bind(method=request.method, path=request.url.path, detail=exc.message).critical(
         "hyperglass Error"
     )
@@ -110,7 +122,7 @@ def general_message(state: HyperglassState) -> str:
 
 
 def unavailable_handler(request: Request, exc: BaseException) -> Response:
-    """Answer 503 when Redis is unreachable, before or during a request.
+    """Answer 503 when Redis is unreachable or state is missing, before or during a request.
 
     Configuration is read from Redis, so the message cannot come from `params.messages`.
     """
