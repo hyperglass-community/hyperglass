@@ -358,13 +358,47 @@ class TestForcedRefresh:
 
         response = metrics_client.post("/api/query", json=self.payload(force=True))
 
-        assert response.status_code >= 400
+        assert response.status_code == 500
         self.assert_counted(before, bypass=1)
         assert sample("hyperglass_query_errors_total", **LABELS, reason="device_timeout") == (
             reason + 1
         )
         assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
         assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations
+
+
+    def test_refresh_in_failure_counted_as_error_only(self, monkeypatch, device):
+        """A query that fails while building its response is an error, not a success."""
+        # Third Party
+        from redis.exceptions import ConnectionError as RedisConnectionError
+
+        # Project
+        from hyperglass.api.refresh import ForcedRefresh
+
+        def unreachable(_):
+            raise RedisConnectionError("Redis is unreachable")
+
+        refresh = {"enable": True, "min_interval": self.INTERVAL}
+        with build_client(
+            monkeypatch,
+            raise_server_exceptions=False,
+            fake_output=False,
+            metrics={"enable": True},
+            cache={"timeout": 120, "refresh": refresh},
+        ) as client:
+            monkeypatch.setattr(ForcedRefresh, "refresh_in", unreachable)
+            successes = sample("hyperglass_queries_total", **LABELS, status="success")
+            errors = sample("hyperglass_queries_total", **LABELS, status="error")
+            reason = sample("hyperglass_query_errors_total", **LABELS, reason="internal_error")
+
+            response = client.post("/api/query", json=self.payload())
+
+        assert response.status_code == 500
+        assert sample("hyperglass_queries_total", **LABELS, status="success") == successes
+        assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
+        assert sample("hyperglass_query_errors_total", **LABELS, reason="internal_error") == (
+            reason + 1
+        )
 
 
 def test_failure_counted_once_when_error_handler_fails(monkeypatch):

@@ -423,7 +423,6 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     if json_output:
         response_format = "application/json"
     _log.info("Execution completed")
-    record_query_success(request)
 
     response = {
         "output": cache_response,
@@ -438,6 +437,10 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         "level": "success",
         "keywords": [],
     }
+
+    # Last, after everything that can fail: `refresh_in` reads Redis, and a query
+    # that fails here is counted as an error instead.
+    record_query_success(request)
 
     return Response(
         response,

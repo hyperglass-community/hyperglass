@@ -64,7 +64,7 @@ The metrics endpoint answers while Redis is down, so it can report an outage.
 
 #### Cache Results
 
-Each query counts once in `hyperglass_query_cache_total`, by whether it ran on the device:
+Each query that reaches the cache lookup counts once in `hyperglass_query_cache_total`, by whether it ran on the device. Requests rejected before the lookup, such as invalid requests, unknown locations or Redis failing during the lookup, are not counted there; they appear in `hyperglass_query_errors_total`.
 
 | Result   | Meaning                                                                                                                       |
 | :------- | :---------------------------------------------------------------------------------------------------------------------------- |
