@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
-- Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the cached result is younger than `cache.refresh.min_interval` (default 30 seconds), or while another forced run of the same query is in progress or cooling down, so forced queries reach a device at most once per interval for each query. Responses include `refresh_in`, the seconds until a forced query would run ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
+- Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the query ran less than `cache.refresh.min_interval` (default 30 seconds) ago, or while another forced run of the same query is in progress, so forced queries reach a device at most once per interval for each query. Successful responses include `refresh_in`, the seconds until a forced query would run ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
 
 ### Changed
 

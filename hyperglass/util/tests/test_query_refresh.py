@@ -1,13 +1,13 @@
 """Forced refresh of cached query results through `force` on `/api/query`."""
 
 # Standard Library
-import time
 import asyncio
 import threading
 
 # Third Party
 import pytest
 from litestar.testing import create_test_client
+from redis.exceptions import RedisError
 
 # Project
 from hyperglass.state import use_state
@@ -37,12 +37,15 @@ class Device:
         self.calls = 0
         self.delay = 0.0
         self.error = None
+        self.during = None
 
     async def __call__(self, data):
         """Return a new output for each execution, after an optional delay or error."""
         self.calls += 1
         if self.delay:
             await asyncio.sleep(self.delay)
+        if self.during is not None:
+            self.during()
         if self.error is not None:
             raise self.error
         return f"output {self.calls}"
@@ -85,9 +88,18 @@ def client(device):
         yield test_client
 
 
+def lease_key(key):
+    redis = use_state().redis
+    return redis.key(f"{key}.refresh")
+
+
 def age_entry(key, seconds):
-    """Make the cached entry look as if it ran `seconds` ago."""
-    use_state().redis.set_map_item(key, "executed_at", time.time() - seconds)
+    """Make the cached entry's last run look `seconds` old, through its cooldown."""
+    instance = use_state().redis.instance
+    if seconds >= INTERVAL:
+        instance.delete(lease_key(key))
+    else:
+        instance.set(lease_key(key), "cooldown", ex=INTERVAL - seconds)
 
 
 def test_digest_excludes_force(device):
@@ -164,15 +176,14 @@ def test_lease_held_by_a_run_serves_cached(client, device):
     key = cache_key()
     age_entry(key, INTERVAL + 1)
     # Another worker's forced run of the same query is in progress.
-    redis = use_state().redis
-    redis.instance.set(redis.key(f"{key}.refresh"), "token", ex=params.request_timeout)
+    use_state().redis.instance.set(lease_key(key), "token", ex=params.request_timeout)
 
     forced = client.post("/api/query", json=body(force=True)).json()
 
     assert device.calls == 1
     assert forced["cached"] is True
-    # The run in progress, then the cooldown that follows it.
-    assert INTERVAL < forced["refresh_in"] <= params.request_timeout + INTERVAL
+    # The run in progress starts a cooldown of the interval when it ends.
+    assert forced["refresh_in"] == INTERVAL
 
 
 def test_concurrent_forced_queries_run_once(client, device):
@@ -211,18 +222,94 @@ def test_failed_forced_run_keeps_entry_and_cools_down(client, device):
     assert 0 < retried["refresh_in"] <= INTERVAL
 
 
-def test_forced_run_cools_down_for_the_interval(client, device):
+def test_forced_query_runs_again_after_the_cooldown(client, device):
     client.post("/api/query", json=body())
     age_entry(cache_key(), INTERVAL + 1)
+    first = client.post("/api/query", json=body(force=True)).json()
+    early = client.post("/api/query", json=body(force=True)).json()
+    age_entry(cache_key(), INTERVAL)
+
+    again = client.post("/api/query", json=body(force=True)).json()
+
+    assert device.calls == 3
+    assert (first["cached"], early["cached"], again["cached"]) == (False, True, False)
+    assert early["refresh_in"] == INTERVAL
+    assert again["output"] == "output 3"
+
+
+def test_lease_that_expires_mid_run_still_cools_down(client, device):
+    client.post("/api/query", json=body())
+    key = cache_key()
+    age_entry(key, INTERVAL + 1)
+    instance = use_state().redis.instance
+    # The run outlives its lease, then fails.
+    device.during = lambda: instance.delete(lease_key(key))
+    device.error = DeviceTimeout(error=TimeoutError(), device=use_state().devices["test"])
+
+    failed = client.post("/api/query", json=body(force=True))
+    device.during = device.error = None
+    retried = client.post("/api/query", json=body(force=True)).json()
+
+    assert failed.status_code >= 400
+    assert instance.get(lease_key(key)) == b"cooldown"
+    assert 0 < instance.ttl(lease_key(key)) <= INTERVAL
+    assert device.calls == 2
+    assert retried["cached"] is True
+
+
+def test_lease_outlives_the_device_deadline(client, device):
+    timeout = use_state().params.request_timeout
+    client.post("/api/query", json=body())
+    key = cache_key()
+    age_entry(key, INTERVAL + 1)
+    seen = []
+    device.during = lambda: seen.append(use_state().redis.instance.ttl(lease_key(key)))
+
     client.post("/api/query", json=body(force=True))
-    # Even if the entry's own age says otherwise, the cooldown holds.
-    age_entry(cache_key(), INTERVAL + 1)
+
+    # The device query is stopped at `request_timeout - 1`.
+    assert seen and seen[0] > timeout
+
+
+def test_entry_that_expires_during_a_forced_run_is_rewritten(client, device):
+    client.post("/api/query", json=body())
+    key = cache_key()
+    age_entry(key, INTERVAL + 1)
+    device.during = lambda: use_state().redis.delete(key)
 
     forced = client.post("/api/query", json=body(force=True)).json()
+    after = client.post("/api/query", json=body()).json()
 
-    assert device.calls == 2
-    assert forced["cached"] is True
-    assert 0 < forced["refresh_in"] <= INTERVAL
+    assert forced["cached"] is False
+    assert forced["output"] == "output 2"
+    assert after["cached"] is True
+    assert after["output"] == "output 2"
+    assert forced["refresh_in"] == INTERVAL
+
+
+def test_cooldown_failure_keeps_the_result(client, device, monkeypatch):
+    client.post("/api/query", json=body())
+    age_entry(cache_key(), INTERVAL + 1)
+    instance = use_state().redis.instance
+
+    def fail(*args, **kwargs):
+        raise RedisError("unavailable")
+
+    monkeypatch.setattr(instance, "eval", fail)
+
+    forced = client.post("/api/query", json=body(force=True))
+
+    assert forced.status_code == 201
+    assert forced.json()["output"] == "output 2"
+
+
+def test_force_must_be_a_boolean(client, device):
+    use_state().redis.set("params", Params())
+
+    response = client.post("/api/query", json=body(force="sometimes"))
+
+    assert response.status_code == 400
+    assert device.calls == 0
 
 
 def test_force_is_ignored_when_refresh_is_disabled(client, device):

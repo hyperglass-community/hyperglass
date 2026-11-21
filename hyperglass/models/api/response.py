@@ -63,7 +63,7 @@ schema_query_timestamp = {
 
 schema_query_refresh_in = {
     "title": "Refresh In",
-    "description": "Seconds until a query sent with `force` may run this query on the device again. `0` means now; `null` when forced refresh is disabled.",
+    "description": "Seconds until a query sent with `force` may run this query on the device again. `0` means now; `null` when forced refresh is disabled. Only on successful responses.",
     "example": 30,
 }
 

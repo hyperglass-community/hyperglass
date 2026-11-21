@@ -104,8 +104,8 @@ class Query(BaseModel):
     force: bool = Field(
         False,
         description="Run the query on the device again instead of answering from the cache, "
-        "if `cache.refresh.enable` is set and the cached result is at least "
-        "`cache.refresh.min_interval` seconds old.",
+        "if `cache.refresh.enable` is set and the query last ran at least "
+        "`cache.refresh.min_interval` seconds ago.",
     )
     _kwargs: t.Dict[str, t.Any]
     # The target as validated, before input plugins transform it.
