@@ -26,4 +26,4 @@ The `hyperglass healthcheck` command requests `/api/health` on the configured li
 hyperglass healthcheck
 ```
 
-The container image uses this command as its Docker `HEALTHCHECK`, every 30 seconds. The UI is built on first start, before Hyperglass starts listening, so the container has a 10 minute start period before failed checks count against it. `docker compose ps` shows the result.
+The container image uses this command as its Docker `HEALTHCHECK`, every 30 seconds. The UI is built on first start, before Hyperglass starts listening, so the container has a 10 minute start period before failed checks count against it. `docker compose ps` shows the result. A `healthcheck` defined in `compose.yaml` replaces the image's check; see [Health check](/installation/docker.mdx#health-check).
