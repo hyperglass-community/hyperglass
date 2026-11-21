@@ -13,6 +13,17 @@ import type { Config, Device, Directive } from '~/types';
 
 const { messages, web } = testConfig;
 
+// The form reads the address once the Next.js router is ready. Outside Next.js there is
+// no router: this stub is ready, and replaces the address as a shallow `replace` does.
+const router = vi.hoisted(() => ({
+  isReady: true,
+  replace: vi.fn(async (url: string): Promise<boolean> => {
+    window.history.replaceState(window.history.state, '', url);
+    return true;
+  }),
+}));
+vi.mock('next/router', () => ({ useRouter: () => router }));
+
 /** `messages.noInput` for a field label, as the form formats it. */
 const noInput = (field: string): string => messages.noInput.replace('{field}', field);
 
@@ -818,5 +829,261 @@ describe('LookingGlassForm location cards', () => {
       await useFormState.getState().reset();
     });
     expect(within(shown()).queryByText('Router Three')).not.toBeInTheDocument();
+  });
+});
+
+describe('LookingGlassForm prefill', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+    router.isReady = true;
+    router.replace.mockClear();
+  });
+
+  /** Open the form at an address with these parameters, as a link does. */
+  function renderPrefilled(params: Record<string, string | string[]>, config = testConfig) {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      for (const v of Array.isArray(value) ? value : [value]) {
+        search.append(key, v);
+      }
+    }
+    window.history.replaceState(null, '', `/?${search}`);
+    return renderWithProviders(<LookingGlassForm />, { config });
+  }
+
+  /** The value of react-select's form input with this name. */
+  function selectValue(name: string): string | undefined {
+    return document.querySelector<HTMLInputElement>(`input[name="${name}"]:not([hidden])`)?.value;
+  }
+
+  it('shows the values from the link and submits them only when asked', async () => {
+    renderPrefilled({
+      location: ['router_one', 'router_two'],
+      type: 'BGP Route',
+      target: '2001:db8::1',
+    });
+
+    expect(await targetInput()).toHaveValue('2001:db8::1');
+    const select = await screen.findByRole('combobox', { name: web.text.queryType });
+    const control = select.closest<HTMLElement>('[class*="-control"]');
+    expect(within(control as HTMLElement).getByText('BGP Route')).toBeInTheDocument();
+    // Filling the form doesn't submit it.
+    expect(useFormState.getState().status).toBe('form');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Submit Query' }));
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_one', 'router_two'],
+      queryType: '__hyperglass_juniper_bgp_route__',
+      queryTarget: ['2001:db8::1'],
+      queryVariables: {},
+    });
+  });
+
+  it('shows the locations from the link in the location select', async () => {
+    const config = makeConfig({ web: { locationDisplayMode: 'dropdown' } });
+    renderPrefilled({ location: ['router_three', 'router_one'] }, config);
+
+    const select = await screen.findByRole('combobox', { name: web.text.queryLocation });
+    const control = select.closest<HTMLElement>('[class*="-control"]');
+    expect(within(control as HTMLElement).getByText('Router Three')).toBeInTheDocument();
+    expect(within(control as HTMLElement).getByText('Router One')).toBeInTheDocument();
+  });
+
+  it('submits the query type of a mixed-vendor link under the first location', async () => {
+    renderPrefilled({
+      location: ['router_three', 'router_one'],
+      type: '__hyperglass_juniper_bgp_route__',
+      target: '2001:db8::/32',
+    });
+    await targetInput();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Submit Query' }));
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form.queryType).toBe('__hyperglass_frr_bgp_route__');
+  });
+
+  it('shows a select target from the link as chosen', async () => {
+    renderPrefilled({
+      location: 'router_three',
+      type: 'peer_communities',
+      target: '65000:2',
+    });
+
+    await waitFor(() => expect(selectValue('queryTarget')).toBe('65000:2'));
+  });
+
+  it('shows and submits the variables from the link', async () => {
+    const config = oneDeviceConfig(dev => ({
+      ...dev,
+      directives: [
+        dev.directives[3],
+        {
+          ...dev.directives[0],
+          variables: [
+            {
+              id: 'vrf',
+              name: 'VRF',
+              required: true,
+              options: [
+                { name: 'Default', value: 'default', description: null },
+                { name: 'Customer', value: 'customer', description: null },
+              ],
+            },
+          ],
+        } as unknown as Directive,
+      ],
+    }));
+    renderPrefilled(
+      {
+        location: 'router_one',
+        type: 'BGP Route',
+        target: '192.0.2.0/24',
+        'var.vrf': 'customer',
+      },
+      config,
+    );
+
+    await waitFor(() => expect(selectValue('queryVariables.vrf')).toBe('customer'));
+    await userEvent.click(screen.getByRole('button', { name: 'Submit Query' }));
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'customer' });
+  });
+
+  it('submits a query type without a field from the link', async () => {
+    const config = oneDeviceConfig(dev => ({
+      ...dev,
+      directives: [
+        dev.directives[3],
+        { ...dev.directives[0], fieldType: null } as unknown as Directive,
+      ],
+    }));
+    const { container } = renderPrefilled(
+      { location: 'router_one', type: 'BGP Route', target: '192.0.2.1' },
+      config,
+    );
+    await waitFor(() => expect(useFormState.getState().form.queryTarget).toEqual(['null']));
+
+    submit(container);
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+  });
+
+  it('leaves out the values the configuration does not offer, without a message', async () => {
+    renderPrefilled({
+      location: ['no_such_device', 'router_one'],
+      type: 'no_such_type',
+      target: '192.0.2.1',
+      'var.vrf': 'default',
+    });
+
+    expect(await screen.findByRole('combobox', { name: web.text.queryType })).toBeInTheDocument();
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_one'],
+      queryType: '',
+      queryTarget: [],
+      queryVariables: {},
+    });
+    expect(screen.queryByPlaceholderText(/.+/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(noInput(web.text.queryType))).not.toBeInTheDocument();
+  });
+
+  it('resolves a hostname target from the link before switching to the results', async () => {
+    // The resolver popover sends DNS queries; leave them pending.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => undefined));
+    renderPrefilled({
+      location: 'router_one',
+      type: 'Ping',
+      target: 'example.com',
+    });
+    await targetInput();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Submit Query' }));
+
+    await waitFor(() => expect(useFormState.getState().resolvedIsOpen).toBe(true));
+    expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('still requires the greeting to be acknowledged', async () => {
+    act(() => useGreeting.setState({ greetingReady: false }));
+    renderPrefilled({ location: 'router_one', type: 'Ping', target: '192.0.2.1' });
+    await targetInput();
+    expect(useFormState.getState().status).toBe('form');
+    // Stub the reload only now: the form reads its parameters from the real address.
+    const reload = vi.fn();
+    vi.spyOn(window, 'location', 'get').mockReturnValue({
+      ...window.location,
+      reload,
+    } as Location);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Submit Query' }));
+
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('waits for the router to be ready', async () => {
+    router.isReady = false;
+    const { rerender } = renderPrefilled({
+      location: 'router_one',
+      type: 'Ping',
+      target: '192.0.2.1',
+    });
+    await screen.findByText('Router One');
+    expect(useFormState.getState().form.queryLocation).toEqual([]);
+    expect(router.replace).not.toHaveBeenCalled();
+
+    router.isReady = true;
+    rerender(<LookingGlassForm />);
+
+    expect(await targetInput()).toHaveValue('192.0.2.1');
+  });
+
+  it('removes its parameters from the address through the router and keeps the others', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?utm_source=ticket&location=router_one&type=Ping&target=2001:db8::1&var.vrf=default#top',
+    );
+    renderWithProviders(<LookingGlassForm />);
+    await targetInput();
+
+    expect(router.replace).toHaveBeenCalledOnce();
+    expect(router.replace).toHaveBeenCalledWith('/?utm_source=ticket#top', undefined, {
+      shallow: true,
+      scroll: false,
+    });
+    expect(window.location.search).toBe('?utm_source=ticket');
+  });
+
+  it('leaves an address without its parameters as it is', async () => {
+    window.history.replaceState(null, '', '/?q=a%20b');
+    renderWithProviders(<LookingGlassForm />);
+    await screen.findByText('Router One');
+
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(window.location.search).toBe('?q=a%20b');
+  });
+
+  it('does not apply the link again when the form returns', async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderPrefilled({
+      location: 'router_one',
+      type: 'BGP Route',
+      target: '192.0.2.1',
+    });
+    await user.clear(await targetInput());
+    await user.type(await targetInput(), '2001:db8::/32');
+
+    // The form unmounts while the results show, and mounts again on its return.
+    unmount();
+    renderWithProviders(<LookingGlassForm />);
+
+    expect(await targetInput()).toHaveValue('2001:db8::/32');
+    expect(useFormState.getState().form.queryTarget).toEqual(['2001:db8::/32']);
   });
 });
