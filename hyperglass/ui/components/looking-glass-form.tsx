@@ -215,11 +215,30 @@ export const LookingGlassForm = (): JSX.Element => {
     register('queryType', { required: true });
   }, [register]);
 
+  // The store is the source of the form values; mirror it into react-hook-form, which
+  // validates them. This covers values the store sets on its own: the previous query
+  // restored after returning from results, the query type chosen when the selected
+  // locations have only one, and a reset from the header.
+  useEffect(() => {
+    if (isEqual(values, EMPTY_VALUES)) {
+      // The store was reset (or every value was removed): reset react-hook-form as well,
+      // so the errors and submitted state of the previous query go with its values.
+      reset(values);
+      return;
+    }
+    setValue('queryLocation', values.queryLocation);
+    setValue('queryType', values.queryType);
+    setValue('queryTarget', values.queryTarget);
+    setValue('queryVariables', values.queryVariables);
+  }, [values, reset, setValue]);
+
   // Fill the form from the parameters of the address, once the router is ready: the
   // page is exported statically, and Next.js replaces the address once it has read the
   // query string after hydration. This only fills the form: submitting still goes
   // through `submitHandler`, with its greeting check and hostname resolution. The store
-  // change reaches react-hook-form through the mirror below.
+  // change reaches react-hook-form through the mirror above. This effect comes after
+  // the mirror: on a mount with the router already ready, the mirror's reset of the
+  // empty form would otherwise clear an error that `locationChange` sets here.
   const prefillRead = useRef(false);
   useEffect(() => {
     if (!router.isReady || prefillRead.current) {
@@ -237,26 +256,14 @@ export const LookingGlassForm = (): JSX.Element => {
     // entries Next.js keeps (and Back restores) have the new address too.
     const rest = withoutPrefill(search);
     if (rest !== search) {
-      router.replace(`${pathname}${rest}${hash}`, undefined, { shallow: true, scroll: false });
+      // The route is the page's, not the address's path: the page can also be served as
+      // `/index.html`, which is not a route and would load the page again.
+      router.replace(`${router.pathname}${rest}`, `${pathname}${rest}${hash}`, {
+        shallow: true,
+        scroll: false,
+      });
     }
   }, [router.isReady]);
-
-  // The store is the source of the form values; mirror it into react-hook-form, which
-  // validates them. This covers values the store sets on its own: the previous query
-  // restored after returning from results, the query type chosen when the selected
-  // locations have only one, and a reset from the header.
-  useEffect(() => {
-    if (isEqual(values, EMPTY_VALUES)) {
-      // The store was reset (or every value was removed): reset react-hook-form as well,
-      // so the errors and submitted state of the previous query go with its values.
-      reset(values);
-      return;
-    }
-    setValue('queryLocation', values.queryLocation);
-    setValue('queryType', values.queryType);
-    setValue('queryTarget', values.queryTarget);
-    setValue('queryVariables', values.queryVariables);
-  }, [values, reset, setValue]);
 
   return (
     <FormProvider {...formInstance}>

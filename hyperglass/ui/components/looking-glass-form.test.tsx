@@ -14,11 +14,13 @@ import type { Config, Device, Directive } from '~/types';
 const { messages, web } = testConfig;
 
 // The form reads the address once the Next.js router is ready. Outside Next.js there is
-// no router: this stub is ready, and replaces the address as a shallow `replace` does.
+// no router: this stub is the index page's, ready unless a test says otherwise, and
+// replaces the address as a shallow `replace` does.
 const router = vi.hoisted(() => ({
   isReady: true,
-  replace: vi.fn(async (url: string): Promise<boolean> => {
-    window.history.replaceState(window.history.state, '', url);
+  pathname: '/',
+  replace: vi.fn(async (url: string, as?: string): Promise<boolean> => {
+    window.history.replaceState(window.history.state, '', as ?? url);
     return true;
   }),
 }));
@@ -839,7 +841,20 @@ describe('LookingGlassForm prefill', () => {
     router.replace.mockClear();
   });
 
-  /** Open the form at an address with these parameters, as a link does. */
+  /**
+   * Open the form at this address, as a link does: on a first load the router becomes
+   * ready only after the page is mounted.
+   */
+  function openAddress(address: string, config = testConfig) {
+    window.history.replaceState(null, '', address);
+    router.isReady = false;
+    const result = renderWithProviders(<LookingGlassForm />, { config });
+    router.isReady = true;
+    result.rerender(<LookingGlassForm />);
+    return result;
+  }
+
+  /** Open the form at an address with these parameters. */
   function renderPrefilled(params: Record<string, string | string[]>, config = testConfig) {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
@@ -847,8 +862,7 @@ describe('LookingGlassForm prefill', () => {
         search.append(key, v);
       }
     }
-    window.history.replaceState(null, '', `/?${search}`);
-    return renderWithProviders(<LookingGlassForm />, { config });
+    return openAddress(`/?${search}`, config);
   }
 
   /** The value of react-select's form input with this name. */
@@ -1027,12 +1041,9 @@ describe('LookingGlassForm prefill', () => {
   });
 
   it('waits for the router to be ready', async () => {
+    window.history.replaceState(null, '', '/?location=router_one&type=Ping&target=192.0.2.1');
     router.isReady = false;
-    const { rerender } = renderPrefilled({
-      location: 'router_one',
-      type: 'Ping',
-      target: '192.0.2.1',
-    });
+    const { rerender } = renderWithProviders(<LookingGlassForm />);
     await screen.findByText('Router One');
     expect(useFormState.getState().form.queryLocation).toEqual([]);
     expect(router.replace).not.toHaveBeenCalled();
@@ -1044,25 +1055,77 @@ describe('LookingGlassForm prefill', () => {
   });
 
   it('removes its parameters from the address through the router and keeps the others', async () => {
-    window.history.replaceState(
-      null,
-      '',
-      '/?utm_source=ticket&location=router_one&type=Ping&target=2001:db8::1&var.vrf=default#top',
+    openAddress(
+      '/?utm_source=ticket&location=router_one&type=Ping&target=2001:db8::1&var.vrf=default&q=a%20b&flag#top',
     );
-    renderWithProviders(<LookingGlassForm />);
     await targetInput();
 
     expect(router.replace).toHaveBeenCalledOnce();
-    expect(router.replace).toHaveBeenCalledWith('/?utm_source=ticket#top', undefined, {
+    expect(router.replace).toHaveBeenCalledWith(
+      '/?utm_source=ticket&q=a%20b&flag',
+      '/?utm_source=ticket&q=a%20b&flag#top',
+      { shallow: true, scroll: false },
+    );
+    expect(window.location.search).toBe('?utm_source=ticket&q=a%20b&flag');
+    expect(window.location.hash).toBe('#top');
+  });
+
+  it('keeps the address of a page served as index.html, on the index route', async () => {
+    openAddress('/index.html?location=router_one&type=Ping&target=192.0.2.1');
+    await targetInput();
+
+    // The route is the index page's; `/index.html` stays the address.
+    expect(router.replace).toHaveBeenCalledWith('/', '/index.html', {
       shallow: true,
       scroll: false,
     });
-    expect(window.location.search).toBe('?utm_source=ticket');
+    expect(window.location.pathname).toBe('/index.html');
+    expect(window.location.search).toBe('');
+  });
+
+  it('applies a link when the router is ready as the form mounts', async () => {
+    // As after a client-side navigation. The error `locationChange` reports must survive
+    // the mount, when react-hook-form is reset to the empty form.
+    const one = device('router_one');
+    const three = device('router_three');
+    const config = makeConfig({
+      devices: [
+        { group: 'North America', locations: [{ ...one, directives: one.directives.slice(0, 1) }] },
+        { group: 'Europe', locations: [{ ...three, directives: three.directives.slice(0, 1) }] },
+      ],
+    } as never);
+    window.history.replaceState(null, '', '/?location=router_one&location=router_three');
+    renderWithProviders(<LookingGlassForm />, { config });
+
+    expect(
+      await screen.findByText(
+        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+      ),
+    ).toBeInTheDocument();
+    expect(useFormState.getState().form.queryLocation).toEqual(['router_one', 'router_three']);
+    expect(window.location.search).toBe('');
+  });
+
+  it('reports locations from a link without query types in common', async () => {
+    const one = device('router_one');
+    const three = device('router_three');
+    const config = makeConfig({
+      devices: [
+        { group: 'North America', locations: [{ ...one, directives: one.directives.slice(0, 1) }] },
+        { group: 'Europe', locations: [{ ...three, directives: three.directives.slice(0, 1) }] },
+      ],
+    } as never);
+    renderPrefilled({ location: ['router_one', 'router_three'] }, config);
+
+    expect(
+      await screen.findByText(
+        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('leaves an address without its parameters as it is', async () => {
-    window.history.replaceState(null, '', '/?q=a%20b');
-    renderWithProviders(<LookingGlassForm />);
+    openAddress('/?q=a%20b');
     await screen.findByText('Router One');
 
     expect(router.replace).not.toHaveBeenCalled();

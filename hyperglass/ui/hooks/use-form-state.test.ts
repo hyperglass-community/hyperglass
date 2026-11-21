@@ -764,6 +764,62 @@ describe('useFormState', () => {
       expect(target.display).toBe('');
     });
 
+    it('leaves out the target and variables of an unknown query type, also when one is chosen', () => {
+      // With only Ping offered, `locationChange` chooses it; the link's target was meant
+      // for another query type.
+      const ping = device('router_one').directives[3];
+      const byId = routerOneWith([{ ...ping, variables: [vrf] } as Directive]);
+      prefill(
+        {
+          queryLocation: ['router_one'],
+          queryType: 'Traceroute',
+          queryTarget: 'example.com',
+          queryVariables: { vrf: 'default' },
+        },
+        byId,
+      );
+
+      const { form, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(form.queryTarget).toEqual([]);
+      expect(form.queryVariables).toEqual({});
+      expect(target.display).toBe('');
+    });
+
+    it.each([
+      ['a line feed', '192.0.2.1\nshow running-config'],
+      ['a carriage return', '192.0.2.1\r'],
+      ['a NUL', '192.0.2.1\u0000'],
+      ['a zero-width space', '2001:db8::\u200b1'],
+      ['a line separator', '192.0.2.1\u2028'],
+    ])('leaves out a target with %s', (_, value) => {
+      prefill({ queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: value });
+
+      expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_bgp_route__');
+      expect(useFormState.getState().form.queryTarget).toEqual([]);
+      expect(useFormState.getState().target.display).toBe('');
+    });
+
+    it('sets variables named like Object properties, and no inherited value', () => {
+      const route = device('router_one').directives[0];
+      const constructorVar = { ...vrf, id: 'constructor', name: 'Constructor' };
+      const toStringVar = { ...vrf, id: 'toString', name: 'To String' };
+      const byId = routerOneWith([
+        { ...route, variables: [constructorVar, toStringVar] } as Directive,
+      ]);
+      prefill(
+        {
+          queryLocation: ['router_one'],
+          queryType: 'BGP Route',
+          queryVariables: { toString: 'default' },
+        },
+        byId,
+      );
+
+      // `constructor` isn't in the link: the object's inherited `constructor` is no value.
+      expect(useFormState.getState().form.queryVariables).toEqual({ toString: 'default' });
+    });
+
     it('fills the form without submitting it', () => {
       prefill({ queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: '192.0.2.1' });
 
@@ -928,6 +984,13 @@ describe('parsePrefill', () => {
     });
   });
 
+  it('reads variables named like Object properties', () => {
+    expect(
+      parsePrefill('?location=router_one&var.constructor=default&var.toString=customer')
+        ?.queryVariables,
+    ).toEqual({ constructor: 'default', toString: 'customer' });
+  });
+
   it('skips a variable without an ID or a value', () => {
     expect(parsePrefill('?location=router_one&var.=default&var.vrf=')?.queryVariables).toEqual({});
   });
@@ -944,6 +1007,16 @@ describe('withoutPrefill', () => {
 
   it('returns an empty query string when only its parameters are there', () => {
     expect(withoutPrefill('?location=router_one&target=')).toBe('');
+  });
+
+  it('keeps the other parameters as they were written', () => {
+    expect(withoutPrefill('?q=a%20b&location=router_one&flag&r=x+y&var.vrf=default')).toBe(
+      '?q=a%20b&flag&r=x+y',
+    );
+  });
+
+  it('removes its parameters however their names are encoded', () => {
+    expect(withoutPrefill('?%6Cocation=router_one&var%2Evrf=default&a=1')).toBe('?a=1');
   });
 
   it('returns a query string without its parameters unchanged', () => {

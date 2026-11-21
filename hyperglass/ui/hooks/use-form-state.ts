@@ -65,6 +65,12 @@ interface LocationChangeExtra {
   text: Text;
 }
 
+/**
+ * Control characters and line separators, which the backend rejects in a query target
+ * (`validate_query_target_characters` in `models/api/query.py`).
+ */
+const CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
 /** Query parameter prefix of directive variables, e.g. `var.vrf=default`. */
 const VARIABLE_PARAM = 'var.';
 
@@ -84,7 +90,12 @@ export function parsePrefill(search: string): FormPrefill | null {
   const queryVariables: Record<string, string> = {};
   for (const [key, value] of params) {
     const id = key.slice(VARIABLE_PARAM.length);
-    if (key.startsWith(VARIABLE_PARAM) && id !== '' && value !== '' && !(id in queryVariables)) {
+    if (
+      key.startsWith(VARIABLE_PARAM) &&
+      id !== '' &&
+      value !== '' &&
+      !Object.hasOwn(queryVariables, id)
+    ) {
       queryVariables[id] = value;
     }
   }
@@ -99,23 +110,27 @@ export function parsePrefill(search: string): FormPrefill | null {
   return { queryLocation, queryType, queryTarget, queryVariables };
 }
 
+/** Whether `parsePrefill` reads the query parameter with this (decoded) name. */
+function isPrefillParam(key: string): boolean {
+  return ['location', 'type', 'target'].includes(key) || key.startsWith(VARIABLE_PARAM);
+}
+
 /**
- * The query string without the parameters `parsePrefill` reads, keeping the others:
- * `''` or a string that starts with `?`. Without such parameters, `search` unchanged.
+ * The query string without the parameters `parsePrefill` reads, keeping the others as
+ * they were written: `''` or a string that starts with `?`. Without such parameters,
+ * `search` unchanged.
  */
 export function withoutPrefill(search: string): string {
-  const params = new URLSearchParams(search);
-  const read = Array.from(params.keys()).filter(
-    key => ['location', 'type', 'target'].includes(key) || key.startsWith(VARIABLE_PARAM),
-  );
-  if (read.length === 0) {
+  const parts = search.replace(/^\?/, '').split('&');
+  // Each part's name, decoded as `URLSearchParams` decodes it.
+  const keep = parts.filter(part => {
+    const [key] = Array.from(new URLSearchParams(part).keys());
+    return key !== undefined && !isPrefillParam(key);
+  });
+  if (keep.length === parts.filter(part => part !== '').length) {
     return search;
   }
-  for (const key of read) {
-    params.delete(key);
-  }
-  const rest = params.toString();
-  return rest === '' ? '' : `?${rest}`;
+  return keep.length === 0 ? '' : `?${keep.join('&')}`;
 }
 
 interface FormStateType<Opt extends SingleOption = SingleOption> {
@@ -374,6 +389,11 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
         : offered.find(d => d.id === wanted) ??
           offered.find(d => d.name === wanted) ??
           offered.find(d => d.name === ofLocation?.name);
+    if (wanted !== null && queryType === undefined) {
+      // A query type the locations don't offer: its target and variables can't apply,
+      // also not to a query type `locationChange` chose on its own.
+      return;
+    }
     if (queryType !== undefined && queryType.id !== get().form.queryType) {
       // As choosing a query type does, clear the target and variables.
       set(state => ({
@@ -394,10 +414,12 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
     }
     // A directive without a field type has no target; the form fills in its own. A
     // select target must be one of the options. A text target is checked on submit, as
-    // a typed one is.
+    // a typed one is, except for control characters and line separators: the backend
+    // rejects them in any target, and the input wouldn't show them.
     const target = prefill.queryTarget;
     if (
       target !== null &&
+      !CONTROL_CHARACTERS.test(target) &&
       directive.fieldType !== null &&
       (!isSelectDirective(directive) || directive.options.some(o => o.value === target))
     ) {
@@ -409,6 +431,10 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
 
     const variables: Record<string, string> = {};
     for (const variable of directive.variables ?? []) {
+      // Own values only: an ID such as `constructor` would otherwise read Object's.
+      if (!Object.hasOwn(prefill.queryVariables, variable.id)) {
+        continue;
+      }
       const value = prefill.queryVariables[variable.id];
       if (variable.options.some(o => o.value === value)) {
         variables[variable.id] = value;
