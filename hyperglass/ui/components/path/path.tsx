@@ -9,27 +9,34 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import 'reactflow/dist/style.css';
-import { useBreakpointValue, useColorValue, useFormState, useStrf } from '~/hooks';
+import { useBreakpointValue, useColorValue, useStrf } from '~/hooks';
 import { useConfig } from '~/context';
 import { Chart } from './chart';
 import { PathButton } from './path-button';
 
-interface PathProps {
-  device: string;
+export interface PathProps {
+  /** The response whose AS path to chart. */
+  response: QueryResponse | null;
+  /** The query target as the user typed it, shown in the modal title. */
+  displayTarget: string;
+  /**
+   * Receives `response` with the ASN organizations looked up when the modal opens. Without
+   * it, nothing is looked up: no request to `/api/aspath/enrich` is made.
+   */
+  onEnriched?(response: QueryResponse): void;
 }
 
+/**
+ * The AS path button and modal for one response.
+ */
 export const Path = (props: PathProps): JSX.Element => {
-  const { device } = props;
+  const { response, displayTarget, onEnriched } = props;
   const { web } = useConfig();
   const strF = useStrf();
-  const displayTarget = useFormState(s => s.target.display);
-  const getResponse = useFormState(s => s.response);
   const { isOpen, onClose, onOpen } = useDisclosure();
-  const response = getResponse(device);
   const output = response?.output as AllStructuredResponses;
   const bg = useColorValue('light.50', 'dark.900');
   const centered = useBreakpointValue({ base: false, lg: true }) ?? true;
-  const addResponse = useFormState(s => s.addResponse);
   return (
     <>
       <PathButton
@@ -38,6 +45,7 @@ export const Path = (props: PathProps): JSX.Element => {
           // if the response does not already contain ASN organization data.
           try {
             onOpen();
+            if (!onEnriched) return;
             if (!web.aspathEnrichment) return;
             if (!response) return;
             const out = response.output;
@@ -67,7 +75,7 @@ export const Path = (props: PathProps): JSX.Element => {
             if (j?.success && j.asn_organizations) {
               // Merge ASN orgs into the stored response and update state
               out.asn_organizations = { ...(out.asn_organizations || {}), ...j.asn_organizations };
-              addResponse(device, { ...response, output: out });
+              onEnriched({ ...response, output: out });
             }
           } catch (e) {
             // Ignore enrichment failures
