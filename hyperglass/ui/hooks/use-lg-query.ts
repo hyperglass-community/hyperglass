@@ -23,6 +23,7 @@ type LGQueryOptions = Omit<
   | 'refetchOnWindowFocus'
   | 'refetchInterval'
   | 'refetchOnMount'
+  | 'retry'
 >;
 
 /**
@@ -80,6 +81,10 @@ export function useLGQuery(
     refetchInterval: false,
     // Don't refetch on component remount.
     refetchOnMount: false,
+    // Don't retry a failed query. Each attempt runs the command on the device again, and a
+    // timeout or network error usually means the device or server is already struggling.
+    // Requerying is left to the user.
+    retry: false,
     ...options,
   });
 

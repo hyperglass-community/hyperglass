@@ -5,8 +5,7 @@ import { HyperglassContext } from '~/context';
 import { useFormState } from './use-form-state';
 import { useLGQuery } from './use-lg-query';
 
-import type { QueryClient } from '@tanstack/react-query';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Config, FormQuery } from '~/types';
 
 // `fetch` is replaced in every test. `useLGQuery` reads only `requestTimeout` from the
@@ -281,6 +280,79 @@ describe('useLGQuery timeout with a running clock', () => {
     expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(false);
     expect(result.current.isSuccess).toBe(true);
     expect(result.current.error).toBeNull();
+  });
+});
+
+describe('useLGQuery retries', () => {
+  // A client with React Query's defaults, as the app creates in `HyperglassProvider`, not
+  // the test helper's client, which turns retries off for every query. The defaults retry
+  // a failed query three times, with backoff of up to 4 s between attempts.
+  let client: QueryClient;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    client = new QueryClient();
+  });
+
+  afterEach(() => {
+    client.clear();
+    vi.useRealTimers();
+  });
+
+  function renderWithDefaults() {
+    const { result } = renderQuery(query, { client });
+    // Read `isError` now, as a component would in render: React Query re-renders only for
+    // the result properties that have been read.
+    expect(result.current.isError).toBe(false);
+    return result;
+  }
+
+  /** Run the timers far past the request timeout and every default retry delay. */
+  async function runPastRetries(): Promise<void> {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4 * (testConfig.requestTimeout * 1000 + 30_000));
+    });
+  }
+
+  it('sends a query that times out once', async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('This operation was aborted', 'AbortError')),
+          );
+        }),
+    );
+    const result = renderWithDefaults();
+
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect((result.current.error as DOMException).name).toBe('AbortError');
+  });
+
+  it('sends a query whose request cannot be sent once', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const result = renderWithDefaults();
+
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+
+  it('sends a query whose response is not JSON once', async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response('<html>Bad Gateway</html>', { status: 502, statusText: 'Bad Gateway' }),
+    );
+    const result = renderWithDefaults();
+
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 });
 
