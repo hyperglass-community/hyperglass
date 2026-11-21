@@ -204,6 +204,108 @@ describe('useFormState', () => {
       });
     });
 
+    it('clears a query type the new locations do not offer, with its target and variables', () => {
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_three'],
+          queryType: 'peer_communities',
+          queryTarget: ['65000:1'],
+          queryVariables: { stale: 'value' },
+        },
+        filtered: { types: device('router_three').directives, groups: [] },
+        selections: {
+          queryLocation: [],
+          queryType: { value: 'peer_communities', label: 'Peer Communities' },
+        },
+        target: { display: '65000:1' },
+      });
+
+      changeLocations(['router_three', 'router_one']);
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('');
+      expect(form.queryTarget).toEqual([]);
+      expect(form.queryVariables).toEqual({});
+      expect(target.display).toBe('');
+      expect(selections.queryType).toBeNull();
+    });
+
+    it('clears the query type when every location is removed', () => {
+      changeLocations(['router_one']);
+      useFormState.setState(state => ({
+        form: {
+          ...state.form,
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['192.0.2.0/24'],
+        },
+        selections: {
+          ...state.selections,
+          queryType: { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' },
+        },
+      }));
+
+      changeLocations([]);
+
+      const { form, selections } = useFormState.getState();
+      expect(form.queryType).toBe('');
+      expect(form.queryTarget).toEqual([]);
+      expect(selections.queryType).toBeNull();
+    });
+
+    it('keeps a query type the new locations still offer, with its target and variables', () => {
+      const selection = { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' };
+      const form = {
+        queryLocation: ['router_one'],
+        queryType: '__hyperglass_juniper_bgp_route__',
+        queryTarget: ['2001:db8::/32'],
+        queryVariables: { kept: 'value' },
+      };
+      useFormState.setState({
+        form,
+        filtered: { types: device('router_one').directives, groups: [] },
+        selections: { queryLocation: [], queryType: selection },
+        target: { display: '2001:db8::/32' },
+      });
+
+      changeLocations(['router_one', 'router_two']);
+
+      const state = useFormState.getState();
+      expect(state.form).toEqual({ ...form, queryLocation: ['router_one', 'router_two'] });
+      expect(state.target.display).toBe('2001:db8::/32');
+      expect(state.selections.queryType).toEqual(selection);
+    });
+
+    it('moves the query type to the same-named directive of the remaining location', () => {
+      // With Router One and Router Three selected, the offered directives carry Router
+      // One's Juniper IDs. With Router One removed, BGP Route is still offered, under
+      // Router Three's FRR ID.
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one', 'router_three'],
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: {},
+        },
+        filtered: { types: device('router_one').directives, groups: [] },
+        selections: {
+          queryLocation: [],
+          queryType: { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' },
+        },
+        target: { display: '2001:db8::/32' },
+      });
+
+      changeLocations(['router_three']);
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_frr_bgp_route__');
+      expect(selections.queryType).toEqual({
+        value: '__hyperglass_frr_bgp_route__',
+        label: 'BGP Route',
+      });
+      expect(form.queryTarget).toEqual(['2001:db8::/32']);
+      expect(target.display).toBe('2001:db8::/32');
+    });
+
     it('reports locations without directives in common', () => {
       const one = {
         ...device('router_one'),

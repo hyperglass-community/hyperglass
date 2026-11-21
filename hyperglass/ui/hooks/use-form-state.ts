@@ -145,6 +145,9 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
   ): void {
     const { setError, clearErrors, getDevice, text } = extra;
 
+    // The current query type's directive among the ones offered until now.
+    const previous = get().getDirective();
+
     clearErrors('queryLocation');
     set(state => ({ form: { ...state.form, queryLocation: locations } }));
 
@@ -181,7 +184,6 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
 
     set({ filtered: { groups: intersecting, types: directives } });
 
-    // If there is only one intersecting group, set it as the form value so the user doesn't have to.
     const { selections, form } = get();
     if (
       (form.queryLocation.length > 1 || locations.length > 1) &&
@@ -192,12 +194,41 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       const types = plur(text.queryType, 2);
       const message = `${start} ${locationsAnd} have no ${types} in common.`;
       setError('queryLocation', { message });
+    }
+
+    // Keep the current query type if the new locations still offer it. Directives are
+    // intersected by `name` and the offered IDs are the first location's, so the same
+    // query type can be offered under another ID: follow it there.
+    const kept =
+      previous === null
+        ? undefined
+        : directives.find(d => d.id === previous.id) ??
+          directives.find(d => d.name === previous.name);
+
+    if (kept !== undefined) {
+      if (kept.id !== form.queryType) {
+        // The target and variables stay: the backend resolves each location's
+        // directive by this name too.
+        set(state => ({
+          form: { ...state.form, queryType: kept.id },
+          selections: { ...state.selections, queryType: { value: kept.id, label: kept.name } },
+        }));
+      }
     } else if (intersectingDirectives.length === 1) {
+      // If there is only one intersecting directive, choose it so the user doesn't have to.
       const [only] = intersectingDirectives;
       set(state => ({
         form: { ...state.form, queryType: only.id, queryVariables: {} },
         // Select the option too, so the query type select shows it.
         selections: { ...state.selections, queryType: { value: only.id, label: only.name } },
+      }));
+    } else if (form.queryType !== '') {
+      // The new locations don't offer the current query type: clear it and what depends
+      // on it, as choosing another query type does.
+      set(state => ({
+        form: { ...state.form, queryType: '', queryTarget: [], queryVariables: {} },
+        selections: { ...state.selections, queryType: null },
+        target: { display: '' },
       }));
     }
   },

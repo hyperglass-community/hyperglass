@@ -265,6 +265,54 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().target.display).toBe('');
   });
 
+  it('clears a query type the newly selected locations do not offer', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router Three');
+    await chooseQueryType('Peer Communities');
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    await userEvent.click(targetSelect);
+    await userEvent.click(within(await openMenu()).getByText('Peer routes'));
+
+    // Router One has no Peer Communities directive.
+    await chooseLocation('Router One');
+
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_three', 'router_one'],
+      queryType: '',
+      queryTarget: [],
+      queryVariables: {},
+    });
+    const select = await screen.findByRole('combobox', { name: web.text.queryType });
+    const control = select.closest<HTMLElement>('[class*="-control"]');
+    expect(within(control as HTMLElement).queryByText('Peer Communities')).not.toBeInTheDocument();
+
+    submit(container);
+
+    expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('keeps the query type and target when the remaining location offers it by name', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await chooseLocation('Router Three');
+    await chooseQueryType('BGP Route');
+    await user.type(await targetInput(), '2001:db8::/32');
+
+    // Without Router One, BGP Route is offered under Router Three's FRR ID.
+    await chooseLocation('Router One');
+    submit(container);
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_three'],
+      queryType: '__hyperglass_frr_bgp_route__',
+      queryTarget: ['2001:db8::/32'],
+      queryVariables: {},
+    });
+  });
+
   it('marks a location without query types in common as an error', async () => {
     const one = device('router_one');
     const three = device('router_three');
