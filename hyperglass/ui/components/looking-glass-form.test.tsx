@@ -481,6 +481,40 @@ describe('LookingGlassForm validation', () => {
     expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
   });
+
+  it('clears the errors of an empty submit when the form is reset', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryLocation))).toBeInTheDocument();
+
+    // The header title resets the store while the form stays mounted.
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText(noInput(web.text.queryLocation))).not.toBeInTheDocument(),
+    );
+  });
+
+  it('does not show the errors from before a reset on the next query', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await chooseQueryType('BGP Route');
+    await targetInput();
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+    // Another location: a card keeps its own checked state across a reset.
+    await chooseLocation('Router Three');
+    await chooseQueryType('BGP Route');
+    await targetInput();
+
+    expect(screen.queryByText(noInput(web.text.queryTarget))).not.toBeInTheDocument();
+  });
 });
 
 describe('LookingGlassForm submission', () => {
