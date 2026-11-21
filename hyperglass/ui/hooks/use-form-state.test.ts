@@ -4,7 +4,7 @@ import { testConfig } from '~/__tests__/render';
 import { queryClient } from '~/context';
 import { useFormInteractive, useFormSelections, useFormState, useView } from './use-form-state';
 
-import type { Device } from '~/types';
+import type { Device, Directive } from '~/types';
 
 test('back - returns to the form and keeps the last query', () => {
   const form = {
@@ -352,6 +352,107 @@ describe('useFormState', () => {
       });
       expect(form.queryTarget).toEqual(['2001:db8::/32']);
       expect(target.display).toBe('2001:db8::/32');
+    });
+
+    describe('when the query type moves to a same-named directive with another ID', () => {
+      // Two custom directives may share a name and differ in everything else: their
+      // variables, their target options, even their field type.
+      const option = (value: string) => ({ name: value, value, description: null });
+      const variable = (id: string, values: string[]) => ({
+        id,
+        name: id,
+        required: false,
+        options: values.map(option),
+      });
+      const lookup = (id: string, extra: Record<string, unknown>): Directive =>
+        ({
+          ...device('router_one').directives[0],
+          id,
+          name: 'Lookup',
+          variables: [],
+          ...extra,
+        }) as Directive;
+
+      /**
+       * Select Router One (offering `first`) and Router Three (offering `second`) with
+       * `first`'s query type and these values, then remove Router One.
+       */
+      function removeFirst(
+        first: Directive,
+        second: Directive,
+        values: { queryTarget: string[]; queryVariables: Record<string, string> },
+      ) {
+        const one = { ...device('router_one'), directives: [first] };
+        const three = { ...device('router_three'), directives: [second] };
+        const byId = (id: string): Device | null =>
+          id === 'router_one' ? one : id === 'router_three' ? three : null;
+        useFormState.setState({
+          form: { queryLocation: ['router_one', 'router_three'], queryType: first.id, ...values },
+          filtered: { types: [first], groups: [] },
+          selections: { queryLocation: [], queryType: { value: first.id, label: 'Lookup' } },
+          target: { display: values.queryTarget[0] ?? '' },
+        });
+
+        changeLocations(['router_three'], byId);
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryType).toBe(second.id);
+        return { form, target };
+      }
+
+      it('keeps only the variables and values the new directive offers', () => {
+        const first = lookup('lookup_a', {
+          variables: [
+            variable('vrf', ['blue', 'red']),
+            variable('afi', ['ipv4', 'ipv6']),
+            variable('table', ['inet.0']),
+          ],
+        });
+        const second = lookup('lookup_b', {
+          variables: [variable('vrf', ['blue']), variable('afi', ['ipv4', 'ipv6'])],
+        });
+
+        const { form } = removeFirst(first, second, {
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: { vrf: 'red', afi: 'ipv6', table: 'inet.0' },
+        });
+
+        // `table` isn't defined and `red` isn't offered by the new directive.
+        expect(form.queryVariables).toEqual({ afi: 'ipv6' });
+        expect(form.queryTarget).toEqual(['2001:db8::/32']);
+      });
+
+      it.each([
+        ['keeps', '65000:1', ['65000:1']],
+        ['clears', '65000:2', []],
+      ])('%s a select target by whether the new options offer it (%s)', (_, value, expected) => {
+        const first = lookup('lookup_a', {
+          fieldType: 'select',
+          options: [option('65000:1'), option('65000:2')],
+        });
+        const second = lookup('lookup_b', { fieldType: 'select', options: [option('65000:1')] });
+
+        const { form, target } = removeFirst(first, second, {
+          queryTarget: [value],
+          queryVariables: {},
+        });
+
+        expect(form.queryTarget).toEqual(expected);
+        expect(target.display).toBe(expected[0] ?? '');
+      });
+
+      it('clears the target when the new directive has another field type', () => {
+        const first = lookup('lookup_a', { fieldType: 'select', options: [option('65000:1')] });
+        const second = lookup('lookup_b', {});
+
+        const { form, target } = removeFirst(first, second, {
+          queryTarget: ['65000:1'],
+          queryVariables: {},
+        });
+
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+      });
     });
 
     it('reports locations without directives in common', () => {

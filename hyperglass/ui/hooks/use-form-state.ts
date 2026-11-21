@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import isEqual from 'react-fast-compare';
 import create from 'zustand';
 import { queryClient } from '~/context';
+import { isSelectDirective } from '~/types';
 import { all, andJoin, dedupObjectArray, withDev } from '~/util';
 
 import type { UseFormClearErrors, UseFormSetError } from 'react-hook-form';
@@ -78,6 +79,33 @@ interface FormStateType<Opt extends SingleOption = SingleOption> {
       text: Text;
     },
   ): void;
+}
+
+/**
+ * Whether `to` offers the target entered for `from`, a directive of the same name: it
+ * takes the same kind of target and, for a select, offers every selected value.
+ */
+function offersTarget(from: Directive, to: Directive, target: string[]): boolean {
+  if (from.fieldType !== to.fieldType) {
+    return false;
+  }
+  if (isSelectDirective(to)) {
+    return target.every(value => to.options.some(option => option.value === value));
+  }
+  return true;
+}
+
+/** The variable values that `directive` defines and offers, keyed by variable ID. */
+function offeredVariables(
+  directive: Directive,
+  values: Record<string, string>,
+): Record<string, string> {
+  const variables = directive.variables ?? [];
+  return Object.fromEntries(
+    Object.entries(values).filter(([id, value]) =>
+      variables.some(v => v.id === id && v.options.some(option => option.value === value)),
+    ),
+  );
 }
 
 const formState: StateCreator<FormStateType> = (set, get) => ({
@@ -205,14 +233,26 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
         : directives.find(d => d.id === previous.id) ??
           directives.find(d => d.name === previous.name);
 
-    if (kept !== undefined) {
-      if (kept.id !== form.queryType) {
-        // The target and variables stay: the backend resolves each location's
-        // directive by this name too.
-        set(state => ({
-          form: { ...state.form, queryType: kept.id },
-          selections: { ...state.selections, queryType: { value: kept.id, label: kept.name } },
-        }));
+    if (kept !== undefined && previous !== null) {
+      if (kept.id !== previous.id) {
+        // The same query type under another ID. Builtin directives differ only by vendor,
+        // but two custom directives can share a name and nothing else, so keep only what
+        // the new directive offers: values it doesn't define would be submitted unseen
+        // and rejected (or, for a select target, shown in a field that no longer offers
+        // them). A text target stays, as it is shown and checked against the new rules.
+        set(state => {
+          const keepTarget = offersTarget(previous, kept, state.form.queryTarget);
+          return {
+            form: {
+              ...state.form,
+              queryType: kept.id,
+              queryTarget: keepTarget ? state.form.queryTarget : [],
+              queryVariables: offeredVariables(kept, state.form.queryVariables),
+            },
+            selections: { ...state.selections, queryType: { value: kept.id, label: kept.name } },
+            target: keepTarget ? state.target : { display: '' },
+          };
+        });
       }
     } else if (intersectingDirectives.length === 1) {
       // If there is only one intersecting directive, choose it so the user doesn't have to.

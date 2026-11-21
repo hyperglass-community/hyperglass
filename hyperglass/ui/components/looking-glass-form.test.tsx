@@ -313,6 +313,103 @@ describe('LookingGlassForm rendering', () => {
     });
   });
 
+  it('drops a variable the same-named query type of the remaining location does not define', async () => {
+    // Two custom directives share a name, but not their ID or their variables.
+    const lookup = (id: string, variable: string): Directive =>
+      ({
+        ...device('router_one').directives[0],
+        id,
+        name: 'Lookup',
+        variables: [
+          {
+            id: variable,
+            name: variable.toUpperCase(),
+            required: false,
+            options: [{ name: `${variable} one`, value: 'one', description: null }],
+          },
+        ],
+      }) as unknown as Directive;
+    const config = makeConfig({
+      devices: [
+        {
+          group: 'North America',
+          locations: [{ ...device('router_one'), directives: [lookup('lookup_a', 'vrf')] }],
+        },
+        {
+          group: 'Europe',
+          locations: [{ ...device('router_three'), directives: [lookup('lookup_b', 'table')] }],
+        },
+      ],
+    } as never);
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LookingGlassForm />, { config });
+    await chooseLocation('Router One');
+    await chooseLocation('Router Three');
+    await chooseQueryType('Lookup');
+    await user.type(await targetInput(), '2001:db8::/32');
+    await userEvent.click(screen.getAllByRole('combobox').at(-1) as HTMLElement);
+    await userEvent.click(within(await openMenu()).getByText('vrf one'));
+    expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'one' });
+
+    // Without Router One, Lookup is offered under Router Three's ID, without `vrf`.
+    await chooseLocation('Router One');
+    expect(await screen.findByText('TABLE')).toBeInTheDocument();
+    expect(screen.queryByText('VRF')).not.toBeInTheDocument();
+    submit(container);
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_three'],
+      queryType: 'lookup_b',
+      queryTarget: ['2001:db8::/32'],
+      queryVariables: {},
+    });
+  });
+
+  it('clears a select target the same-named query type of the remaining location does not offer', async () => {
+    const option = (value: string) => ({ name: `Community ${value}`, value, description: null });
+    const lookup = (id: string, values: string[]): Directive =>
+      ({
+        ...device('router_three').directives[0],
+        id,
+        name: 'Lookup',
+        options: values.map(option),
+      }) as unknown as Directive;
+    const config = makeConfig({
+      devices: [
+        {
+          group: 'North America',
+          locations: [
+            { ...device('router_one'), directives: [lookup('lookup_a', ['65000:1', '65000:2'])] },
+          ],
+        },
+        {
+          group: 'Europe',
+          locations: [{ ...device('router_three'), directives: [lookup('lookup_b', ['65000:1'])] }],
+        },
+      ],
+    } as never);
+    const { container } = renderWithProviders(<LookingGlassForm />, { config });
+    await chooseLocation('Router One');
+    await chooseLocation('Router Three');
+    await chooseQueryType('Lookup');
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    await userEvent.click(targetSelect);
+    await userEvent.click(within(await openMenu()).getByText('Community 65000:2'));
+    expect(useFormState.getState().form.queryTarget).toEqual(['65000:2']);
+    expect(screen.getByText('Community 65000:2')).toBeInTheDocument();
+
+    // Router Three's Lookup doesn't offer 65000:2.
+    await chooseLocation('Router One');
+
+    expect(useFormState.getState().form.queryType).toBe('lookup_b');
+    expect(useFormState.getState().form.queryTarget).toEqual([]);
+    expect(screen.queryByText('Community 65000:2')).not.toBeInTheDocument();
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
   it('marks a location without query types in common as an error', async () => {
     const one = device('router_one');
     const three = device('router_three');

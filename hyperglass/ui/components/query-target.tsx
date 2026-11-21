@@ -55,6 +55,12 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
 
   const options = useMemo(() => buildOptions(directive), [directive]);
   const isSelect = useMemo(() => directive !== null && isSelectDirective(directive), [directive]);
+  // Show the store's target, so a target the store clears (another location's options
+  // don't offer it) isn't still shown as selected.
+  const selected = useMemo(
+    () => options.find(o => queryTarget.includes(o.value)) ?? null,
+    [options, queryTarget],
+  );
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>): void {
     setTarget({ display: e.target.value });
@@ -80,6 +86,7 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
         <Select<OptionWithDescription, false>
           name={name}
           options={options}
+          value={selected}
           components={{ Option }}
           onChange={handleSelectChange}
         />
