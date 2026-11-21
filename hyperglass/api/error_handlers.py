@@ -5,11 +5,14 @@ import typing as t
 
 # Third Party
 from litestar import Request, Response
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from redis.exceptions import ConnectionError as RedisConnectionError
 from litestar.exceptions import ValidationException
 
 # Project
 from hyperglass.log import log
-from hyperglass.state import use_state
+from hyperglass.state import HyperglassState, use_state
+from hyperglass.state.store import STATE_UNAVAILABLE
 
 # Local
 from .metrics import record_query_error
@@ -19,7 +22,12 @@ __all__ = (
     "http_handler",
     "app_handler",
     "validation_handler",
+    "unavailable_handler",
 )
+
+# Redis being unreachable is temporary, so these are answered with 503. Other Redis
+# errors, such as a command error, are bugs and stay 500.
+REDIS_UNAVAILABLE = (RedisConnectionError, RedisTimeoutError)
 
 
 def get_validation_exception_detail(exc: ValidationException) -> Response:
@@ -51,11 +59,13 @@ def get_validation_exception_detail(exc: ValidationException) -> Response:
 
 def default_handler(request: Request, exc: BaseException) -> Response:
     """Handle uncaught errors."""
+    if isinstance(exc, REDIS_UNAVAILABLE):
+        return unavailable_handler(request, exc)
     state = use_state()
     log.bind(method=request.method, path=request.url.path, detail=str(exc)).critical("Error")
     record_query_error(request, exc)
     return Response(
-        {"output": state.params.messages.general, "level": "danger", "keywords": []},
+        {"output": general_message(state), "level": "danger", "keywords": []},
         status_code=500,
     )
 
@@ -91,3 +101,29 @@ def validation_handler(request: Request, exc: ValidationException) -> Response:
     log.bind(method=request.method, path=request.url.path, detail=exc).warning("Validation Error")
     record_query_error(request, exc)
     return get_validation_exception_detail(exc)
+
+
+def general_message(state: HyperglassState) -> str:
+    """Get the configured message for unexpected errors, without depending on Redis.
+
+    Params are read from Redis, so when they cannot be read the response uses the
+    fixed message `recover_state` answers with, rather than failing in turn.
+    """
+    try:
+        return state.params.messages.general
+    except Exception:  # noqa: BLE001 - an error response must not fail
+        return STATE_UNAVAILABLE
+
+
+def unavailable_handler(request: Request, exc: BaseException) -> Response:
+    """Answer 503 when Redis is unreachable, before or during a request.
+
+    Configuration is read from Redis, so the message cannot come from `params.messages`.
+    """
+    log.bind(method=request.method, path=request.url.path, detail=str(exc)).critical(
+        "Redis Unavailable"
+    )
+    return Response(
+        {"output": STATE_UNAVAILABLE, "level": "danger", "keywords": []},
+        status_code=503,
+    )

@@ -25,6 +25,10 @@ if t.TYPE_CHECKING:
 
 PluginT = t.TypeVar("PluginT", bound="HyperglassPlugin")
 
+# Not user-configurable: shown when configuration cannot be read from Redis, so it
+# cannot come from `params.messages`.
+STATE_UNAVAILABLE = "Hyperglass state is unavailable"
+
 
 class HyperglassState(StateManager):
     """Primary hyperglass state container."""
@@ -89,7 +93,7 @@ class HyperglassState(StateManager):
     async def ensure_ready(self) -> None:
         """Recover configuration and plugins outside the request event loop."""
         if not await asyncio.to_thread(rebuild_state, self.redis):
-            raise StateError("Hyperglass state is unavailable")
+            raise StateError(STATE_UNAVAILABLE)
 
     @property
     def cache(self) -> "RedisManager":
