@@ -459,6 +459,16 @@ web:
     copy_output: "Copy Output"
     reload_query: "Reload Query"
     view_as_path: "View AS Path"
+    # AS path chart: modal heading ({target} is the query target) and zoom controls.
+    as_path_title: "Path to {target}"
+    zoom_in: "Zoom In"
+    zoom_out: "Zoom Out"
+    fit_nodes: "Fit Nodes"
+    # Table pagination buttons: screen reader names.
+    first_page: "First Page"
+    previous_page: "Previous Page"
+    next_page: "Next Page"
+    last_page: "Last Page"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

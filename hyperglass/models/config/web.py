@@ -154,6 +154,16 @@ class Text(HyperglassModel):
     copy_output: str = "Copy Output"
     reload_query: str = "Reload Query"
     view_as_path: str = "View AS Path"
+    # AS path chart: modal heading and the accessible names of its zoom controls.
+    as_path_title: str = "Path to {target}"  # Formatted by Javascript
+    zoom_in: str = "Zoom In"
+    zoom_out: str = "Zoom Out"
+    fit_nodes: str = "Fit Nodes"
+    # Accessible names of the table pagination buttons.
+    first_page: str = "First Page"
+    previous_page: str = "Previous Page"
+    next_page: str = "Next Page"
+    last_page: str = "Last Page"
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:
