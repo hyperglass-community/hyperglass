@@ -184,6 +184,35 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().target.display).toBe('65000:1');
   });
 
+  it('removes a select target when the select is cleared', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router Three');
+    await chooseQueryType('Peer Communities');
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    await userEvent.click(targetSelect);
+    await userEvent.click(within(await openMenu()).getByText('Peer routes'));
+    // react-select's own form input holds the chosen option's value. The fixture's options
+    // have no name, so the select shows no label to look for.
+    const shown = (): string | undefined =>
+      document.querySelector<HTMLInputElement>('input[name="queryTarget"]:not([hidden])')?.value;
+    expect(shown()).toBe('65000:1');
+    const control = targetSelect.closest<HTMLElement>('[class*="-control"]') as HTMLElement;
+
+    const clear = control.querySelector('[class*="indicatorContainer"]');
+    if (clear === null) {
+      throw new Error('No clear indicator');
+    }
+    await userEvent.click(clear);
+
+    expect(shown()).toBe('');
+    expect(useFormState.getState().form.queryTarget).toEqual([]);
+    expect(useFormState.getState().target.display).toBe('');
+    // The target is required again.
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
   it('chooses the query type when the selected location has only one', async () => {
     const config = oneDeviceConfig(dev => ({ ...dev, directives: dev.directives.slice(3, 4) }));
     renderWithProviders(<LookingGlassForm />, { config });

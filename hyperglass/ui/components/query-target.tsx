@@ -71,6 +71,10 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
     if (isSingleValue(e)) {
       onChange({ field: name, value: e.value });
       setTarget({ display: e.value });
+    } else {
+      // Cleared: remove the target, as the query type select does with its value.
+      onChange({ field: name, value: [] });
+      setTarget({ display: '' });
     }
   };
 
