@@ -197,6 +197,11 @@ describe('useFormState', () => {
 
       expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_traceroute__');
       expect(useFormState.getState().form.queryVariables).toEqual({});
+      // The select shows the chosen query type.
+      expect(useFormState.getState().selections.queryType).toEqual({
+        value: '__hyperglass_juniper_traceroute__',
+        label: 'Traceroute',
+      });
     });
 
     it('reports locations without directives in common', () => {

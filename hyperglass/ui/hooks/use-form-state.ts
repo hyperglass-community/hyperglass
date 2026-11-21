@@ -193,8 +193,11 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       const message = `${start} ${locationsAnd} have no ${types} in common.`;
       setError('queryLocation', { message });
     } else if (intersectingDirectives.length === 1) {
+      const [only] = intersectingDirectives;
       set(state => ({
-        form: { ...state.form, queryType: intersectingDirectives[0].id, queryVariables: {} },
+        form: { ...state.form, queryType: only.id, queryVariables: {} },
+        // Select the option too, so the query type select shows it.
+        selections: { ...state.selections, queryType: { value: only.id, label: only.name } },
       }));
     }
   },

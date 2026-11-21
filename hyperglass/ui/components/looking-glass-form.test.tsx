@@ -193,21 +193,49 @@ describe('LookingGlassForm rendering', () => {
     expect(await targetInput()).toBeInTheDocument();
   });
 
-  it('does not pass an automatically chosen query type to the form validation', async () => {
-    // Current behaviour, likely a bug: `locationChange` sets the query type in the store
-    // but not in react-hook-form, and the select shows no selection. Submitting reports a
-    // missing query type until the user picks the only option by hand.
+  it('shows and submits an automatically chosen query type', async () => {
     const config = oneDeviceConfig(dev => ({ ...dev, directives: dev.directives.slice(3, 4) }));
     const user = userEvent.setup();
     const { container } = renderWithProviders(<LookingGlassForm />, { config });
     await chooseLocation('Router One');
-    await user.type(await targetInput(), '192.0.2.1');
 
+    // The select shows the only query type.
+    expect(useFormState.getState().selections.queryType).toEqual({
+      value: '__hyperglass_juniper_ping__',
+      label: 'Ping',
+    });
+    const select = await screen.findByRole('combobox', { name: web.text.queryType });
+    const control = select.closest<HTMLElement>('[class*="-control"]');
+    expect(within(control as HTMLElement).getByText('Ping')).toBeInTheDocument();
+
+    await user.type(await targetInput(), '192.0.2.1');
     submit(container);
 
-    expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(screen.queryByText(noInput(web.text.queryType))).not.toBeInTheDocument();
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_one'],
+      queryType: '__hyperglass_juniper_ping__',
+      queryTarget: ['192.0.2.1'],
+      queryVariables: {},
+    });
+  });
+
+  it('does not submit the previous query after the form is reset', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await chooseQueryType('BGP Route');
+    await user.type(await targetInput(), '192.0.2.1');
+
+    // The header title resets the store while the form stays mounted.
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+    submit(container);
+
+    expect(await screen.findByText(noInput(web.text.queryLocation))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
-    expect(useFormState.getState().selections.queryType).toBeNull();
   });
 
   it('hides the target field and fills it for a directive without a field type', async () => {
@@ -366,22 +394,44 @@ describe('LookingGlassForm validation', () => {
     await waitFor(() => expect(useFormState.getState().status).toBe('results'));
   });
 
-  it('accepts a target that was typed and then cleared', async () => {
-    // Current behaviour: clearing the input leaves `['']` as the target, which passes the
-    // "not empty" check, so the form switches to results with an empty target.
+  it.each([
+    ['typed and then cleared', ''],
+    ['only whitespace', '   '],
+  ])('reports a target that is %s with the configured message', async (_, typed) => {
     const user = userEvent.setup();
     const { container } = renderWithProviders(<LookingGlassForm />);
     await chooseLocation('Router One');
     await chooseQueryType('BGP Route');
     const input = await targetInput();
-    await user.type(input, '1');
-    await user.clear(input);
-    expect(useFormState.getState().form.queryTarget).toEqual(['']);
+    await user.type(input, typed === '' ? '1' : typed);
+    if (typed === '') {
+      await user.clear(input);
+    }
+    expect(useFormState.getState().form.queryTarget).toEqual([typed]);
 
     submit(container);
 
-    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
-    expect(screen.queryByText(noInput(web.text.queryTarget))).not.toBeInTheDocument();
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('reports an empty value among several targets', async () => {
+    useFormState.setState({
+      form: {
+        queryLocation: ['router_one'],
+        queryType: '__hyperglass_juniper_bgp_route__',
+        queryTarget: ['192.0.2.1', ''],
+        queryVariables: {},
+      },
+      filtered: { types: device('router_one').directives, groups: [] },
+    });
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await targetInput();
+
+    submit(container);
+
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
   });
 });
 
