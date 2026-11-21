@@ -14,7 +14,7 @@ from .echo import echo
 from .onboard import onboard
 
 
-def _version(value: bool) -> None:
+def _print_version(value: bool) -> None:
     # Project
     from hyperglass import __version__
 
@@ -29,13 +29,13 @@ cli.add_typer(onboard, name="onboard")
 
 def run():
     """Run the Hyperglass CLI."""
-    return typer.run(cli())
+    return cli()
 
 
 @cli.callback()
-def _version(
+def _main(
     version: t.Optional[bool] = typer.Option(
-        None, "--version", help="Hyperglass version", callback=_version
+        None, "--version", help="Hyperglass version", callback=_print_version, is_eager=True
     ),
 ) -> None:
     """Hyperglass"""
@@ -187,7 +187,7 @@ def _devices(
     """Show all configured devices"""
     # Third Party
     from rich.columns import Columns
-    from rich._inspect import Inspect
+    from rich._inspect import Inspect  # Private: rich.inspect() prints and returns None.
 
     # Project
     from hyperglass.state import use_state
@@ -236,7 +236,7 @@ def _directives(
     """Show all configured directives"""
     # Third Party
     from rich.columns import Columns
-    from rich._inspect import Inspect
+    from rich._inspect import Inspect  # Private: rich.inspect() prints and returns None.
 
     # Project
     from hyperglass.state import use_state
@@ -281,12 +281,8 @@ def _directives(
 @cli.command(name="plugins")
 def _plugins(
     search: t.Optional[str] = typer.Argument(None, help="Plugin ID or Name Search Pattern"),
-    _input: bool = typer.Option(
-        False, "--input", show_default=False, is_flag=True, help="Show Input Plugins"
-    ),
-    output: bool = typer.Option(
-        False, "--output", show_default=False, is_flag=True, help="Show Output Plugins"
-    ),
+    _input: bool = typer.Option(False, "--input", show_default=False, help="Show Input Plugins"),
+    output: bool = typer.Option(False, "--output", show_default=False, help="Show Output Plugins"),
 ):
     """Show all registered plugins"""
     # Third Party
@@ -329,7 +325,7 @@ def _params(
     from operator import attrgetter
 
     # Third Party
-    from rich._inspect import Inspect
+    from rich._inspect import Inspect  # Private: rich.inspect() prints and returns None.
 
     # Project
     from hyperglass.state import use_state
