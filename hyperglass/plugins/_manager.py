@@ -37,9 +37,9 @@ class PluginManager(t.Generic[PluginT]):
 
     def __init_subclass__(cls: "PluginManager", **kwargs: PluginType) -> None:
         """Set this plugin manager's type on subclass initialization."""
-        _type = kwargs.get("type", None) or cls._type
+        _type = kwargs.get("type", None) or getattr(cls, "_type", None)
         if _type is None:
-            raise PluginError("Plugin '{}' is missing a 'type', keyword argument", repr(cls))
+            raise PluginError("Plugin '{p}' is missing a 'type' keyword argument", p=repr(cls))
         cls._type = _type
         return super().__init_subclass__()
 
@@ -102,7 +102,7 @@ class PluginManager(t.Generic[PluginT]):
                 self._state.remove_plugin(self._type, plugin)
 
                 return
-        raise PluginError("Plugin '{}' is not a valid hyperglass plugin", repr(plugin))
+        raise PluginError("Plugin '{p}' is not a valid hyperglass plugin", p=repr(plugin))
 
     def register(self: "PluginManager", plugin: PluginT, *args: t.Any, **kwargs: t.Any) -> None:
         """Add a plugin to currently active plugins."""

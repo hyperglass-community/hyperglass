@@ -181,3 +181,18 @@ def test_juniper_empty_ipv4_keeps_ipv6_table(empty):
     assert table is not None
     assert table.count > 0
     assert [route.prefix for route in table.routes] == [route.prefix for route in expected.routes]
+
+
+DEVICE_ERROR = """<rpc-reply xmlns:junos="http://xml.juniper.net/junos/26.2R1.7/junos">
+    <xnm:error xmlns="http://xml.juniper.net/xnm/1.1/xnm" xmlns:xnm="http://xml.juniper.net/xnm/1.1/xnm">
+        <message>syntax error, expecting &lt;command&gt;</message>
+    </xnm:error>
+</rpc-reply>"""
+
+
+def test_juniper_device_error_is_reported():
+    """An error the device returns is raised as a ParsingError carrying its message (#547)."""
+    with pytest.raises(ParsingError) as exc:
+        parse_juniper([DEVICE_ERROR])
+
+    assert exc.value.message == 'Error from device: "syntax error, expecting <command>"'

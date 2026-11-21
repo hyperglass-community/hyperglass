@@ -12,7 +12,7 @@ from hyperglass.configuration import init_ui_params
 from hyperglass.models.directive import Directives
 from hyperglass.models.config.params import Params
 from hyperglass.models.config.devices import Devices
-from hyperglass.exceptions.private import InputValidationError
+from hyperglass.exceptions.private import ConfigError, InputValidationError
 from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.plugins import InputPluginManager
 from hyperglass.plugins._builtin import BGPRoutePluginHuawei
@@ -95,6 +95,24 @@ def test_construct(state):
     )
     constructor = Construct(device=state.devices["test1"], query=query)
     assert constructor.target == "192.0.2.0/24"
+
+
+def test_construct_missing_attribute_is_a_danger_config_error(state):
+    """A command attribute the device lacks raises ConfigError at the danger level (#547)."""
+    query = Query(
+        queryLocation="test1",
+        queryTarget="192.0.2.0/24",
+        queryType="juniper_bgp_route",
+    )
+    constructor = Construct(device=state.devices["test1"], query=query)
+
+    with pytest.raises(ConfigError) as exc:
+        constructor.format("show route {missing}")
+
+    assert exc.value.level == "danger"
+    assert exc.value.message == (
+        "Command 'BGP Route' has attribute 'missing', which is missing from device 'test1'"
+    )
 
 
 def test_construct_normalizes_cidr_host_bits(state):

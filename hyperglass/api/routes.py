@@ -360,7 +360,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         _log.debug("Runtime: {!s} seconds", elapsedtime)
 
         if output is None:
-            raise HyperglassError(message=_state.params.messages.general, alert="danger")
+            raise HyperglassError(message=_state.params.messages.general, level="danger")
 
         json_output = is_type(output, OutputDataModel)
 

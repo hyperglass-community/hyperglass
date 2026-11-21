@@ -77,3 +77,39 @@ def test_builtin_ids_honor_structured_feature_flags(kind, flag):
     )
     assert query.device.structured_output is False
     assert state.devices["test"].structured_output is True
+
+
+@pytest.mark.asyncio
+async def test_query_without_output_raises_a_danger_hyperglass_error(monkeypatch, routes):
+    """A query that returns no output raises HyperglassError at the danger level (#547).
+
+    The route passed `alert="danger"`, which `HyperglassError` does not accept, so a query
+    with no output raised `TypeError` instead.
+    """
+    from hyperglass.exceptions import HyperglassError
+
+    state = use_state()
+    params = Params()
+    state.cache.set("params", params)
+    state.cache.set(
+        "devices",
+        Devices(
+            {
+                "name": "test",
+                "address": "192.0.2.1",
+                "platform": "frr",
+                "credential": {"username": "test", "password": "test"},
+                "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
+            }
+        ),
+    )
+    monkeypatch.setattr(routes, "_execute_query", AsyncMock(return_value=None))
+    query = Query(
+        queryLocation="test", queryType="__hyperglass_frr_bgp_route__", queryTarget="192.0.2.0/24"
+    )
+
+    with pytest.raises(HyperglassError) as exc:
+        await routes.query.fn(_state=state, request=None, data=query)
+
+    assert exc.value.level == "danger"
+    assert exc.value.message == params.messages.general
