@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useConfig } from '~/context';
 import { fetchWithTimeout } from '~/util';
 
@@ -33,7 +33,6 @@ export function useLGQuery(
   options: LGQueryOptions = {} as LGQueryOptions,
 ): QueryObserverResult<QueryResponse> {
   const { requestTimeout, cache } = useConfig();
-  const controller = useMemo(() => new AbortController(), []);
 
   const runQuery: QueryFunction<QueryResponse, LGQueryKey> = async (
     ctx: QueryFunctionContext<LGQueryKey>,
@@ -52,9 +51,11 @@ export function useLGQuery(
           queryVariables,
         }),
         mode: 'cors',
+        // React Query aborts this signal when the query is cancelled, such as when the last
+        // component using it unmounts.
+        signal: ctx.signal,
       },
       requestTimeout * 1000,
-      controller,
     );
     try {
       const data = await res.json();
@@ -63,14 +64,6 @@ export function useLGQuery(
       throw new Error(res.statusText);
     }
   };
-
-  // Cancel any still-running queries on unmount.
-  useEffect(
-    () => () => {
-      controller.abort();
-    },
-    [controller],
-  );
 
   const queryClient = useQueryClient();
   const result = useQuery<
