@@ -594,6 +594,28 @@ describe('LookingGlassForm validation', () => {
     );
   });
 
+  it('clears the errors of the previous query when every location is removed', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await screen.findByRole('combobox', { name: web.text.queryType });
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
+
+    // Removing the only location empties the store, as a reset does.
+    await chooseLocation('Router One');
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: [],
+      queryType: '',
+      queryTarget: [],
+      queryVariables: {},
+    });
+    await chooseLocation('Router One');
+
+    // The query type field is back, without the error of the previous submit.
+    expect(await screen.findByRole('combobox', { name: web.text.queryType })).toBeInTheDocument();
+    expect(screen.queryByText(noInput(web.text.queryType))).not.toBeInTheDocument();
+  });
+
   it('does not show the errors from before a reset on the next query', async () => {
     const { container } = renderWithProviders(<LookingGlassForm />);
     await chooseLocation('Router One');
