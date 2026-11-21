@@ -73,4 +73,9 @@ RUN pip3 install --no-cache-dir -e . --no-deps \
 # A fixed UID/GID lets operators chown a bind-mounted /etc/hyperglass to match.
 USER 10001:10001
 EXPOSE ${HYPERGLASS_PORT}
+# GET /api/health on the configured listen address: Redis, configuration state
+# and the built UI. The UI is built on first start, before the server listens,
+# which can take several minutes; failures during the start period do not count.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10m --retries=3 \
+  CMD ["python3", "-m", "hyperglass.console", "healthcheck"]
 CMD ["python3", "-m", "hyperglass.console", "start"]

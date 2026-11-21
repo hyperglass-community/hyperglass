@@ -17,7 +17,7 @@ if t.TYPE_CHECKING:
     # Project
     from hyperglass.state import HyperglassState
 
-__all__ = ("create_cors_config", "recover_state", "COMPRESSION_CONFIG")
+__all__ = ("create_cors_config", "recover_state", "skip_state_recovery", "COMPRESSION_CONFIG")
 
 COMPRESSION_CONFIG = CompressionConfig(backend="brotli", brotli_gzip_fallback=True)
 
@@ -40,6 +40,15 @@ async def recover_state(request: Request) -> None:
     except StateError as error:
         # The message cannot come from `params.messages`: params are what is missing.
         raise ServiceUnavailableException(detail=str(error)) from error
+
+
+async def skip_state_recovery(_: Request) -> None:
+    """Replace `recover_state` on a handler that must answer while Redis is down.
+
+    Litestar uses the closest layer's `before_request` hook, so setting this on a
+    handler disables the app-wide hook for it.
+    """
+    return None
 
 
 def create_cors_config(state: "HyperglassState") -> CORSConfig:

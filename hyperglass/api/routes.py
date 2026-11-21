@@ -11,6 +11,7 @@ from uuid import uuid4
 from datetime import UTC, datetime
 
 # Third Party
+from redis import Redis
 from litestar import Request, Response, get, post
 from litestar.di import Provide
 from litestar.background_tasks import BackgroundTask
@@ -34,14 +35,26 @@ from hyperglass.models.config.devices import Devices, APIDevice
 from .state import get_state, get_params, get_devices
 from .tasks import enrich_query_output, send_webhook
 from .client_address import client_address
+from .middleware import skip_state_recovery
 from .fake_output import fake_output
 from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
+
+# Not user-configurable: an internal bound so an unreachable Redis reports
+# unhealthy promptly instead of waiting on the OS TCP connect timeout. It stays
+# well under the `hyperglass healthcheck` and container HEALTHCHECK timeouts.
+HEALTH_REDIS_TIMEOUT = 3
+
+# Not user-configurable: `/api/health` is unauthenticated, so its checks run at
+# most once per interval in each worker. Concurrent requests wait for the check
+# in progress, and later requests within the interval get its result.
+HEALTH_CACHE_SECONDS = 1.0
 
 __all__ = (
     "device",
     "devices",
     "queries",
     "info",
+    "health",
     "query",
     "aspath_enrich",
     "query_enrichment",
@@ -158,6 +171,123 @@ async def queries(devices: Devices) -> t.List[str]:
 async def info(params: Params) -> APIParams:
     """Retrieve looking glass parameters."""
     return params.export_api()
+
+
+# One client per DSN, reused by every probe: a new connection per request would
+# let a flood of health checks open connections to Redis.
+_health_redis: t.Dict[str, Redis] = {}
+
+
+def ping_redis(dsn: str) -> None:
+    """Ping Redis over a dedicated, short-timeout connection.
+
+    The shared connection pool has no socket timeouts, so a ping through it can
+    hang for as long as the operating system waits on an unreachable host.
+    """
+    client = _health_redis.get(dsn)
+    if client is None:
+        client = _health_redis[dsn] = Redis.from_url(
+            dsn,
+            socket_connect_timeout=HEALTH_REDIS_TIMEOUT,
+            socket_timeout=HEALTH_REDIS_TIMEOUT,
+        )
+    client.ping()
+
+
+async def run_health_checks(state: HyperglassState) -> t.Dict[str, str]:
+    """Check Redis, configuration state and the UI build."""
+    checks = {}
+
+    try:
+        # In a thread, so a slow Redis does not block the worker's event loop.
+        await asyncio.to_thread(ping_redis, str(state.settings.redis_dsn))
+        checks["redis"] = "ok"
+    except Exception as error:  # noqa: BLE001 - any failure means unhealthy
+        log.bind(check="redis", error=str(error)).error("Health check failed")
+        checks["redis"] = "error"
+
+    if checks["redis"] == "ok":
+        try:
+            # Recovers configuration lost from Redis, as other requests do. State
+            # that cannot be recovered means queries are answered with 503.
+            await state.ensure_ready()
+            checks["state"] = "ok"
+        except Exception as error:  # noqa: BLE001 - any failure means unhealthy
+            log.bind(check="state", error=str(error)).error("Health check failed")
+            checks["state"] = "error"
+    else:
+        # State lives in Redis, so it cannot be read or recovered without it.
+        checks["state"] = "error"
+
+    if state.settings.disable_ui:
+        checks["ui"] = "disabled"
+    elif (state.settings.static_path / "ui" / "index.html").exists():
+        checks["ui"] = "ok"
+    else:
+        log.bind(check="ui").error("Health check failed: the UI is not built")
+        checks["ui"] = "error"
+
+    return checks
+
+
+class SharedHealthCheck:
+    """Share one run of the health checks between requests in a worker.
+
+    A run in progress is shared by every request that arrives during it, and a
+    finished run is reused for `HEALTH_CACHE_SECONDS`. A run belongs to the event
+    loop that started it, so a new loop (a new test client) starts its own.
+    """
+
+    def __init__(self) -> None:
+        """Start with no run."""
+        self.task: t.Optional["asyncio.Task[t.Dict[str, str]]"] = None
+        self.finished_at = 0.0
+
+    def _reusable(self, loop: asyncio.AbstractEventLoop) -> bool:
+        task = self.task
+        if task is None or task.get_loop() is not loop:
+            return False
+        if not task.done():
+            return True
+        return time.monotonic() - self.finished_at < HEALTH_CACHE_SECONDS
+
+    def _finished(self, _: "asyncio.Task[t.Dict[str, str]]") -> None:
+        self.finished_at = time.monotonic()
+
+    async def checks(self, state: HyperglassState) -> t.Dict[str, str]:
+        """Return the current checks, running them only when no run can be reused."""
+        loop = asyncio.get_running_loop()
+        if not self._reusable(loop):
+            self.task = loop.create_task(run_health_checks(state))
+            self.task.add_done_callback(self._finished)
+        # A client that disconnects cancels its own wait, not the shared run.
+        return dict(await asyncio.shield(self.task))
+
+    def reset(self) -> None:
+        """Forget the last run."""
+        self.task = None
+        self.finished_at = 0.0
+
+
+shared_health_check = SharedHealthCheck()
+
+
+# Replaces the app-wide `recover_state` hook. That hook reads Redis through the
+# shared pool, which has no timeouts, so an unreachable Redis would hang the
+# check before it runs. The checks probe Redis first, then recover state.
+@get("/api/health", before_request=skip_state_recovery, include_in_schema=False)
+async def health() -> Response:
+    """Report whether hyperglass can serve queries.
+
+    Responds 200 when every check passes, else 503. Failure details are logged
+    rather than returned, as this endpoint is unauthenticated.
+    """
+    checks = await shared_health_check.checks(use_state())
+    healthy = all(value != "error" for value in checks.values())
+    return Response(
+        {"status": "ok" if healthy else "error", "checks": checks},
+        status_code=200 if healthy else 503,
+    )
 
 
 @post("/api/query", dependencies={"_state": Provide(get_state)})

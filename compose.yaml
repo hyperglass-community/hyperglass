@@ -28,6 +28,9 @@ services:
         healthcheck:
             # /api/info reads Redis-backed state. The UI root does not, so it keeps
             # returning 200 through a total query outage.
+            # The image pinned above predates the image's own HEALTHCHECK
+            # (`hyperglass healthcheck`, GET /api/health). When this file pins an
+            # image that has it, remove this block so the image's check applies.
             test:
                 [
                     "CMD-SHELL",
