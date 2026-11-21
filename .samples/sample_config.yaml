@@ -455,6 +455,10 @@ web:
     ip_button: "My IP"
     ip_lookup_notice: "This sends your IP address to myip.wtf to look it up."
     ip_lookup_confirm: "Look up my IP"
+    # Icon-only result buttons: tooltip and screen reader name.
+    copy_output: "Copy Output"
+    reload_query: "Reload Query"
+    view_as_path: "View AS Path"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

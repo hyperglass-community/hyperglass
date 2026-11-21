@@ -150,6 +150,10 @@ class Text(HyperglassModel):
     # Shown before the external lookup when `web.my_ip` is `external`.
     ip_lookup_notice: str = "This sends your IP address to myip.wtf to look it up."
     ip_lookup_confirm: str = "Look up my IP"
+    # Tooltips and accessible names of the icon-only result buttons.
+    copy_output: str = "Copy Output"
+    reload_query: str = "Reload Query"
+    view_as_path: str = "View AS Path"
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

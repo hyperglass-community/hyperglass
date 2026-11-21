@@ -48,6 +48,9 @@ interface _Text {
   ip_button: string;
   ip_lookup_notice: string;
   ip_lookup_confirm: string;
+  copy_output: string;
+  reload_query: string;
+  view_as_path: string;
 }
 
 interface _Greeting {
