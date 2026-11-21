@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from hyperglass.constants import DNS_OVER_HTTPS
 
 # Local
-from ..config.web import Logo, DnsOverHttps
+from ..config.web import Logo, Text, DnsOverHttps
 
 
 @pytest.mark.parametrize("value", (50, "50", "50%"))
@@ -61,3 +61,21 @@ def test_dns_provider_invalid(data):
     assert "web.dns_provider" in message
     for name in DNS_OVER_HTTPS:
         assert name in message
+
+
+def test_result_button_text_defaults():
+    """The icon-only result buttons keep their English labels by default (#533)."""
+    text = Text()
+    assert (text.copy_output, text.reload_query, text.view_as_path) == (
+        "Copy Output",
+        "Reload Query",
+        "View AS Path",
+    )
+
+
+def test_result_button_text_exported_camel_case():
+    """The UI reads the labels as camelCase keys of `web.text`."""
+    exported = Text(copy_output="Copier").model_dump(by_alias=True)
+    assert exported["copyOutput"] == "Copier"
+    assert exported["reloadQuery"] == "Reload Query"
+    assert exported["viewAsPath"] == "View AS Path"

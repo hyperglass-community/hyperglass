@@ -367,6 +367,7 @@
       "cacheIcon": "Cached from {time} UTC",
       "cachePrefix": "Results cached for ",
       "completeTime": "Completed in {seconds}",
+      "copyOutput": "Copy Output",
       "fqdnError": "Unable to resolve {fqdn}",
       "fqdnErrorButton": "Try Again",
       "fqdnMessage": "Your browser has resolved {fqdn} to",
@@ -381,13 +382,15 @@
       "queryLocation": "Location",
       "queryTarget": "Target",
       "queryType": "Query Type",
+      "reloadQuery": "Reload Query",
       "rpkiInvalid": "Invalid",
       "rpkiUnknown": "No ROAs Exist",
       "rpkiUnverified": "Not Verified",
       "rpkiValid": "Valid",
       "subtitle": "Network Looking Glass",
       "title": "Hyperglass",
-      "titleMode": "logo_only"
+      "titleMode": "logo_only",
+      "viewAsPath": "View AS Path"
     },
     "theme": {
       "colors": {

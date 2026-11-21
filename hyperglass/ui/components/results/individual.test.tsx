@@ -227,8 +227,12 @@ describe('Result', () => {
       expect(within(table).getByText('Prefix')).toBeInTheDocument();
       expect(within(table).getByText('192.0.2.0/24')).toBeInTheDocument();
       expect(container.querySelector('pre')).not.toBeInTheDocument();
-      // AS path, copy and requery.
-      expect(actionButtons()).toHaveLength(3);
+      // AS path, copy and requery, each named by its `web.text` label (#533).
+      expect(actionButtons()).toEqual([
+        screen.getByRole('button', { name: 'View AS Path' }),
+        screen.getByRole('button', { name: 'Copy Output' }),
+        screen.getByRole('button', { name: 'Reload Query' }),
+      ]);
       await userEvent.hover(actionButtons()[0]);
       expect(
         await screen.findByRole('tooltip', { name: 'View AS Path' }, IMPORT_WAIT),

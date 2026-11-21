@@ -449,6 +449,9 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.cache_prefix` | String | `Results cached for ` | Prefix for cache countdown timer. Hyperglass adds one trailing space. |
 | `web.text.cache_icon` | String | `Cached from {time} UTC` | Tooltip for cached result indicator. |
 | `web.text.complete_time` | String | `Completed in {seconds}` | Tooltip showing query completion time. |
+| `web.text.copy_output` | String | `Copy Output` | Tooltip and accessible name of the button that copies a result. |
+| `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
+| `web.text.view_as_path` | String | `View AS Path` | Tooltip and accessible name of the button that opens the AS path chart. |
 
 #### BGP/RPKI Status Text
 
@@ -1156,6 +1159,10 @@ web:
     ip_button: "My IP"
     ip_lookup_notice: "This sends your IP address to myip.wtf to look it up."
     ip_lookup_confirm: "Look up my IP"
+    # Icon-only result buttons: tooltip and screen reader name.
+    copy_output: "Copy Output"
+    reload_query: "Reload Query"
+    view_as_path: "View AS Path"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).
