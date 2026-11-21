@@ -85,7 +85,7 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
       case 'success':
         e = level;
         break;
-      case 'warning' || 'error':
+      case 'warning':
         e = 'warning';
         break;
     }
@@ -119,7 +119,9 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
   );
 
   const isQuerying = isLoading || isFetching;
-  const isError = useMemo(() => isLGOutputOrError(data), [data, error]);
+  // A request can fail without an error body (a timeout, a network error, a response that is
+  // not JSON). Then there is no `data` to flag, only `error`.
+  const isError = useMemo(() => error !== null || isLGOutputOrError(data), [data, error]);
 
   const isCached = useMemo(() => data?.cached || !isFetchedAfterMount, [data, isFetchedAfterMount]);
 
@@ -145,7 +147,12 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
     if (isFetchError(error)) {
       return startCase(error.statusText);
     }
-    if (isStackError(error) && error.message.toLowerCase().startsWith('timeout')) {
+    // `fetchWithTimeout` aborts a request once `requestTimeout` passes, and `fetch` then
+    // rejects with an `AbortError` whose message doesn't mention the timeout.
+    if (
+      isStackError(error) &&
+      (error.name === 'AbortError' || error.message.toLowerCase().startsWith('timeout'))
+    ) {
       return messages.requestTimeout;
     }
     if (isStackError(error)) {
