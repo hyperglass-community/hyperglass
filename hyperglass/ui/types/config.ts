@@ -51,6 +51,14 @@ interface _Text {
   copy_output: string;
   reload_query: string;
   view_as_path: string;
+  as_path_title: string;
+  zoom_in: string;
+  zoom_out: string;
+  fit_nodes: string;
+  first_page: string;
+  previous_page: string;
+  next_page: string;
+  last_page: string;
 }
 
 interface _Greeting {

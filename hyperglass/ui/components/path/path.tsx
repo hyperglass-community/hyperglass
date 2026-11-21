@@ -9,7 +9,7 @@ import {
   useDisclosure,
 } from '@chakra-ui/react';
 import 'reactflow/dist/style.css';
-import { useBreakpointValue, useColorValue, useFormState } from '~/hooks';
+import { useBreakpointValue, useColorValue, useFormState, useStrf } from '~/hooks';
 import { useConfig } from '~/context';
 import { Chart } from './chart';
 import { PathButton } from './path-button';
@@ -21,6 +21,7 @@ interface PathProps {
 export const Path = (props: PathProps): JSX.Element => {
   const { device } = props;
   const { web } = useConfig();
+  const strF = useStrf();
   const displayTarget = useFormState(s => s.target.display);
   const getResponse = useFormState(s => s.response);
   const { isOpen, onClose, onOpen } = useDisclosure();
@@ -84,7 +85,7 @@ export const Path = (props: PathProps): JSX.Element => {
           maxH={{ base: '80%', lg: '60%' }}
           maxW={{ base: '100%', lg: '80%' }}
         >
-          <ModalHeader>{`Path to ${displayTarget}`}</ModalHeader>
+          <ModalHeader>{strF(web.text.asPathTitle, { target: displayTarget })}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <Skeleton isLoaded={response != null}>

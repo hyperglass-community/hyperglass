@@ -79,3 +79,32 @@ def test_result_button_text_exported_camel_case():
     assert exported["copyOutput"] == "Copier"
     assert exported["reloadQuery"] == "Reload Query"
     assert exported["viewAsPath"] == "View AS Path"
+
+
+def test_as_path_and_pagination_text_defaults():
+    """The AS path chart and table pagination text defaults to English (#541)."""
+    text = Text()
+    assert text.as_path_title == "Path to {target}"
+    assert (text.zoom_in, text.zoom_out, text.fit_nodes) == ("Zoom In", "Zoom Out", "Fit Nodes")
+    assert (text.first_page, text.previous_page, text.next_page, text.last_page) == (
+        "First Page",
+        "Previous Page",
+        "Next Page",
+        "Last Page",
+    )
+
+
+def test_as_path_and_pagination_text_exported_camel_case():
+    """The UI reads the text as camelCase keys of `web.text`."""
+    exported = Text(as_path_title="Chemin vers {target}").model_dump(by_alias=True)
+    assert exported["asPathTitle"] == "Chemin vers {target}"
+    for key in (
+        "zoomIn",
+        "zoomOut",
+        "fitNodes",
+        "firstPage",
+        "previousPage",
+        "nextPage",
+        "lastPage",
+    ):
+        assert key in exported
