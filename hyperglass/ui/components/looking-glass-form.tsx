@@ -191,13 +191,18 @@ export const LookingGlassForm = (): JSX.Element => {
   useEffect(() => {
     register('queryLocation', { required: true });
     register('queryType', { required: true });
-    // Restore the previous query after returning from results.
-    const { form } = useFormState.getState();
+  }, [register]);
+
+  // The store is the source of the form values; mirror it into react-hook-form, which
+  // validates them. This covers values the store sets on its own: the previous query
+  // restored after returning from results, the query type chosen when the selected
+  // locations have only one, and a reset from the header.
+  useEffect(() => {
     setValue('queryLocation', form.queryLocation);
     setValue('queryType', form.queryType);
     setValue('queryTarget', form.queryTarget);
     setValue('queryVariables', form.queryVariables);
-  }, [register, setValue]);
+  }, [form, setValue]);
 
   return (
     <FormProvider {...formInstance}>
