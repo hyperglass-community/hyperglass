@@ -22,16 +22,16 @@ cache:
 
 ### Forced refresh
 
-With `cache.refresh.enable: true`, a query sent to `POST /api/query` with `"force": true` skips its cached result, runs on the device again and replaces the cache entry. `force` is not part of the cache key, so the forced query and the same query without it share one entry. With `cache.refresh.enable: false`, the default, `force` is ignored. It must be a boolean either way: any other value is rejected with HTTP 400.
+With `cache.refresh.enable: true`, a query sent to `POST /api/query` with `"force": true` skips its cached result, runs on the device again and replaces the cache entry. `force` is not part of the cache key, so the forced query and the same query without it share one entry. With `cache.refresh.enable: false`, the default, `force` is ignored. It must be a boolean either way: a value that cannot be read as one, including `null`, is rejected with HTTP 400.
 
 `force` needs no authentication, so the server bounds forced runs for each query (location, query type, target and variables), whoever sends them:
 
 - If the query ran less than `cache.refresh.min_interval` seconds ago, forced or not, the server answers from the cache.
-- Only one forced run of a query happens at a time, across all workers. A forced query that arrives while another runs is answered from the cache. This relies on Redis keeping the run's lease key: if Redis evicts it under `maxmemory` pressure, a second forced run can start. The lease has an expiry, so `volatile-*` policies can evict it too; give Redis enough memory, or use `noeviction`, if that matters.
+- At most one forced run of a query starts per `cache.refresh.min_interval`, across all workers. A forced query that arrives while another forced request is in progress is answered from the cache. This bounds when runs start, not how long a device session stays open: a Netmiko (SSH or telnet) session runs in a thread that the request timeout cannot stop, so a device that hangs can still hold the session of one forced run when the next one starts. Queries that miss the cache behave the same way. This also relies on Redis keeping the run's lease key: if Redis evicts it under `maxmemory` pressure, a second forced run can start. The lease has an expiry, so `volatile-*` policies can evict it too; give Redis enough memory, or use `noeviction`, if that matters.
 - After a forced run ends, whether it succeeded or failed, the next forced run of that query waits `cache.refresh.min_interval` seconds. Errors are not cached, so this also keeps a failing device from being queried again at once.
 - A failed forced run returns the device's error, like any failed query, and keeps the previous cached result for the next request.
 
-A query reaches the device through `force` at most once per `cache.refresh.min_interval`, plus the time the run takes. A query with no cached result runs as usual, with or without `force`.
+A forced run of a query starts on the device at most once per `cache.refresh.min_interval`, plus the time the request takes. A query with no cached result runs as usual, with or without `force`.
 
 If a worker stops in the middle of a forced run, its lease blocks forced runs of that query until the lease expires, `request_timeout` plus 5 seconds after the run started. Meanwhile `refresh_in` reports `min_interval`, and forced queries are answered from the cache.
 

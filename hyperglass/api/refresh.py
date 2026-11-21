@@ -6,9 +6,13 @@ cache key with one Redis key next to the cached result, `<cache key>.refresh`:
 
 - Every run of the query, forced or not, sets it to a cooldown that expires after
   `cache.refresh.min_interval` seconds, unless another request's forced run holds it.
-- A forced query takes it with `SET NX` before running, so only one forced run of a
-  query happens at a time, across all workers, and none during a cooldown.
+- A forced query takes it with `SET NX` before running, so at most one forced run of
+  a query starts per interval, across all workers, and none during a cooldown.
 - When a forced run ends, successful or not, it becomes a cooldown again.
+
+The lease covers the request, not the device session. A Netmiko (SSH or telnet)
+session runs in an executor thread that the request timeout cannot stop, so a session
+that outlives the timeout can still be open when the next forced run starts.
 
 Only Redis expiry times are compared, never the clocks of the workers.
 """
@@ -33,9 +37,12 @@ if t.TYPE_CHECKING:
 # Value of the key during a cooldown. During a forced run it holds the run's token.
 COOLDOWN = "cooldown"
 
-# Seconds a forced run's lease outlives the run's own deadline. `_execute_query` stops a
-# device query at `request_timeout - 1`; the margin keeps the lease from expiring, and
-# a second forced run from starting, while a late run is still writing its result.
+# Seconds a forced run's lease outlives the request's own deadline. `_execute_query`
+# stops waiting for the device at `request_timeout - 1`; the margin keeps the lease
+# from expiring, and a second forced run from starting, while a late request is still
+# writing its result. It does not cover the device session: a Netmiko session runs in
+# an executor thread that keeps going after the request stops waiting, so it can
+# overlap the next forced run, which can start once the cooldown ends.
 LEASE_MARGIN = 5
 
 # Turn this request's lease into a cooldown. Also start one if the lease expired, so a

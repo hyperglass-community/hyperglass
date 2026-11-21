@@ -333,8 +333,8 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         cache.delete(cache_key)
         cache_response = None
 
-    # A forced query runs again only when no other run of it is in progress or cooling
-    # down; otherwise it is answered from the cache.
+    # A forced query runs again only when no other request's forced run of it holds the
+    # lease and no cooldown is running; otherwise it is answered from the cache.
     refresh = ForcedRefresh(cache, cache_key, _state.params)
     cache_response = refresh.check(cache_response, force=data.force)
 
