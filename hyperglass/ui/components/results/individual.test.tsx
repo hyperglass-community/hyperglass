@@ -168,6 +168,7 @@ beforeEach(() => {
 afterEach(() => {
   useFormState.setState(initialFormState, true);
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -427,7 +428,10 @@ describe('Result', () => {
       expect(screen.getByText(testConfig.web.text.cachePrefix.trim())).toBeInTheDocument();
     });
 
-    it('shows the cache time in a tooltip on wide screens', async () => {
+    it("shows the cache time in a tooltip on wide screens, in the viewer's time zone", async () => {
+      // The backend's timestamp is naive UTC. Run in a zone that isn't UTC (UTC-5 in
+      // November) so that showing the raw value, or reading it as local time, would differ.
+      vi.stubEnv('TZ', 'America/Toronto');
       // Match only the open-ended widest breakpoint query, so Chakra picks a desktop layout.
       vi.spyOn(window, 'matchMedia').mockImplementation(
         query =>
@@ -458,13 +462,10 @@ describe('Result', () => {
 
       await userEvent.hover(lightning);
 
-      expect(
-        await screen.findByRole(
-          'tooltip',
-          { name: 'Cached from 2026-11-20 08:00:00 UTC' },
-          IMPORT_WAIT,
-        ),
-      ).toBeInTheDocument();
+      // The date layout and zone name follow the runner's locale; the hour doesn't.
+      const tooltip = await screen.findByRole('tooltip', {}, IMPORT_WAIT);
+      expect(tooltip).toHaveAccessibleName(/^Cached from .*\b03:00:00\b/);
+      expect(tooltip).not.toHaveAccessibleName(/08:00:00|UTC/);
     });
 
     it('hides the cache countdown for a fresh response', async () => {

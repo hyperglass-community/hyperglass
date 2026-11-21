@@ -136,7 +136,7 @@ class Text(HyperglassModel):
     fqdn_error: str = "Unable to resolve {fqdn}"  # Formatted by Javascript
     fqdn_error_button: str = "Try Again"
     cache_prefix: str = "Results cached for "
-    cache_icon: str = "Cached from {time} UTC"  # Formatted by Javascript
+    cache_icon: str = "Cached from {time}"  # Formatted by Javascript
     complete_time: str = "Completed in {seconds}"  # Formatted by Javascript
     rpki_invalid: str = "Invalid"
     rpki_valid: str = "Valid"

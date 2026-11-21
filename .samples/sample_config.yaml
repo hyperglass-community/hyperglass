@@ -453,7 +453,7 @@ web:
     fqdn_error_button: "Try Again"
     # Cache and timing.
     cache_prefix: "Results cached for "
-    cache_icon: "Cached from {time} UTC"
+    cache_icon: "Cached from {time}"
     complete_time: "Completed in {seconds}"
     # RPKI states and the empty-communities label.
     rpki_invalid: "Invalid"

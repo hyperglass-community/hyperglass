@@ -365,7 +365,7 @@
     },
     "text": {
       "asPathTitle": "Path to {target}",
-      "cacheIcon": "Cached from {time} UTC",
+      "cacheIcon": "Cached from {time}",
       "cachePrefix": "Results cached for ",
       "completeTime": "Completed in {seconds}",
       "copyOutput": "Copy Output",

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Show the cached-result time in the viewer's locale and time zone, with a 24-hour clock and the zone name, for example `Nov 20, 2026, 03:00:00 EST`. The backend's timestamp is UTC without a zone designator, and the tooltip showed it as received ([#TBD](https://github.com/hyperglass-community/hyperglass/issues/TBD)). **Default change:** `web.text.cache_icon` is now `Cached from {time}`; it was `Cached from {time} UTC`. A configuration that sets `cache_icon` to the old text now labels a local time as UTC; remove the setting or the word `UTC`.
+
 ### Fixed
 
 - Return HTTP 400 with the failed fields for malformed query requests. Request validation errors previously returned HTTP 200 and were logged as critical ([#412](https://github.com/hyperglass-community/hyperglass/pull/412), [#490](https://github.com/hyperglass-community/hyperglass/issues/490)). **API change:** this applies to every route, and external clients that received HTTP 200 with `"status_code": 422` in the body now receive HTTP 400 with the same body keys.
