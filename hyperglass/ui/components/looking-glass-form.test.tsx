@@ -656,8 +656,7 @@ describe('LookingGlassForm validation', () => {
     await act(async () => {
       await useFormState.getState().reset();
     });
-    // Another location: a card keeps its own checked state across a reset.
-    await chooseLocation('Router Three');
+    await chooseLocation('Router One');
     await chooseQueryType('BGP Route');
     await targetInput();
 
@@ -723,5 +722,101 @@ describe('LookingGlassForm submission', () => {
     expect(useFormState.getState().status).toBe('form');
     // The form is reset so nothing is submitted after the reload.
     expect(useFormState.getState().form.queryLocation).toEqual([]);
+  });
+});
+
+describe('LookingGlassForm location cards', () => {
+  /** The card of the location with this name. */
+  function card(name: string): HTMLElement {
+    const found = screen.getByText(name).closest<HTMLElement>('[data-checked]');
+    if (found === null) {
+      throw new Error(`No card for '${name}'`);
+    }
+    return found;
+  }
+
+  /** Select locations in the store without clicking, as a prefilled link does. */
+  function selectInStore(...ids: string[]): void {
+    const options = ids.map(id => ({ value: id, label: device(id).name }));
+    act(() => {
+      useFormState.setState(state => ({
+        form: { ...state.form, queryLocation: ids },
+        selections: { ...state.selections, queryLocation: options },
+      }));
+    });
+  }
+
+  it('selects a card with one click after the form is reset', async () => {
+    renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+
+    // The header title resets the store while the form stays mounted.
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+    expect(card('Router One')).toHaveAttribute('data-checked', 'false');
+
+    await chooseLocation('Router One');
+
+    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
+    expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
+      'router_one',
+    ]);
+  });
+
+  it('shows the locations selected in the store without a click', async () => {
+    renderWithProviders(<LookingGlassForm />);
+    expect(card('Router Three')).toHaveAttribute('data-checked', 'false');
+
+    // Only `form.queryLocation`, which the cards follow.
+    act(() => {
+      useFormState.setState(state => ({
+        form: { ...state.form, queryLocation: ['router_one', 'router_three'] },
+      }));
+    });
+
+    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router Two')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router Three')).toHaveAttribute('data-checked', 'true');
+
+    // One click removes a location selected that way, from the card and the store.
+    await chooseLocation('Router Three');
+
+    expect(card('Router Three')).toHaveAttribute('data-checked', 'false');
+    expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
+  });
+
+  it('shows the locations of a prefilled selection and lets a click remove one', async () => {
+    renderWithProviders(<LookingGlassForm />);
+
+    selectInStore('router_one', 'router_three');
+    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router Three')).toHaveAttribute('data-checked', 'true');
+
+    await chooseLocation('Router One');
+
+    expect(card('Router One')).toHaveAttribute('data-checked', 'false');
+    expect(useFormState.getState().form.queryLocation).toEqual(['router_three']);
+    expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
+      'router_three',
+    ]);
+  });
+
+  it('shows the store in the location select too', async () => {
+    renderWithProviders(<LookingGlassForm />, {
+      config: makeConfig({ web: { locationDisplayMode: 'dropdown' } }),
+    });
+    const select = screen.getByRole('combobox', { name: web.text.queryLocation });
+    const shown = (): HTMLElement => select.closest('form') as HTMLElement;
+
+    selectInStore('router_three');
+    expect(within(shown()).getByText('Router Three')).toBeInTheDocument();
+
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+    expect(within(shown()).queryByText('Router Three')).not.toBeInTheDocument();
   });
 });
