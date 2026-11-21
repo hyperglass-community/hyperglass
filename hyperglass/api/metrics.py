@@ -142,9 +142,13 @@ def record_query_cache(result: t.Literal["hit", "miss", "bypass"]) -> None:
 
 
 @_never_raise
-def record_query_duration(request: Request, seconds: float) -> None:
-    """Record the device execution time of a successful query."""
-    QUERY_DURATION.labels(*_query_labels(request)).observe(seconds)
+def record_query_duration(request: Request, seconds: t.Optional[float]) -> None:
+    """Record the device execution time of a successful query.
+
+    `seconds` is `None` when the query was answered from the cache; nothing is recorded then.
+    """
+    if seconds is not None:
+        QUERY_DURATION.labels(*_query_labels(request)).observe(seconds)
 
 
 @_never_raise

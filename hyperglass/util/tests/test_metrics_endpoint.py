@@ -366,16 +366,21 @@ class TestForcedRefresh:
         assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
         assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations
 
+    @pytest.mark.parametrize("failing", ["cache_write", "refresh_in"])
+    def test_failure_after_device_run_counted_as_error_only(self, monkeypatch, device, failing):
+        """A query that fails after its device run is an error, without a success or duration.
 
-    def test_refresh_in_failure_counted_as_error_only(self, monkeypatch, device):
-        """A query that fails while building its response is an error, not a success."""
+        Writing the result to the cache and building the response both read Redis
+        after the device has answered.
+        """
         # Third Party
         from redis.exceptions import ConnectionError as RedisConnectionError
 
         # Project
         from hyperglass.api.refresh import ForcedRefresh
+        from hyperglass.state.redis import RedisManager
 
-        def unreachable(_):
+        def unreachable(*_, **__):
             raise RedisConnectionError("Redis is unreachable")
 
         refresh = {"enable": True, "min_interval": self.INTERVAL}
@@ -386,19 +391,25 @@ class TestForcedRefresh:
             metrics={"enable": True},
             cache={"timeout": 120, "refresh": refresh},
         ) as client:
-            monkeypatch.setattr(ForcedRefresh, "refresh_in", unreachable)
+            if failing == "cache_write":
+                monkeypatch.setattr(RedisManager, "pipeline", unreachable)
+            else:
+                monkeypatch.setattr(ForcedRefresh, "refresh_in", unreachable)
             successes = sample("hyperglass_queries_total", **LABELS, status="success")
             errors = sample("hyperglass_queries_total", **LABELS, status="error")
             reason = sample("hyperglass_query_errors_total", **LABELS, reason="internal_error")
+            durations = sample("hyperglass_query_duration_seconds_count", **LABELS)
 
             response = client.post("/api/query", json=self.payload())
 
         assert response.status_code == 500
+        assert len(device) == 1
         assert sample("hyperglass_queries_total", **LABELS, status="success") == successes
         assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
         assert sample("hyperglass_query_errors_total", **LABELS, reason="internal_error") == (
             reason + 1
         )
+        assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations
 
 
 def test_failure_counted_once_when_error_handler_fails(monkeypatch):

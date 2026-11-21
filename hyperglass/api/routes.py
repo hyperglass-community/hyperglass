@@ -344,6 +344,8 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     enrichment_status = "complete"
     enrichment_output = None
     enrichment_generation = None
+    # Device execution time of a cache miss or bypass, recorded once the query succeeds.
+    elapsedtime = None
 
     if cache_response:
         _log.bind(cache_key=cache_key).debug("Cache hit")
@@ -383,8 +385,6 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
         if output is None:
             raise HyperglassError(message=_state.params.messages.general, alert="danger")
-
-        record_query_duration(request, elapsedtime)
 
         json_output = is_type(output, OutputDataModel)
 
@@ -438,8 +438,9 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         "keywords": [],
     }
 
-    # Last, after everything that can fail: `refresh_in` reads Redis, and a query
-    # that fails here is counted as an error instead.
+    # Last, after everything that can fail: writing the cache and `refresh_in` both
+    # use Redis, and a query that fails there is counted as an error instead.
+    record_query_duration(request, elapsedtime)
     record_query_success(request)
 
     return Response(
