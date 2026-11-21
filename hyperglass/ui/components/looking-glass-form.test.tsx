@@ -905,6 +905,34 @@ describe('LookingGlassForm prefill', () => {
     expect(within(control as HTMLElement).getByText('Router One')).toBeInTheDocument();
   });
 
+  it('shows the location from the link as a selected card that a click toggles', async () => {
+    const config = makeConfig({ web: { locationDisplayMode: 'gallery' } });
+    renderPrefilled({ location: 'router_one', type: 'BGP Route' }, config);
+    const card = (name: string) => screen.getByText(name).closest('[data-checked]');
+
+    await waitFor(() =>
+      expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_bgp_route__'),
+    );
+    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router Two')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router Three')).toHaveAttribute('data-checked', 'false');
+
+    // One click removes the prefilled location, from the store and the card.
+    await chooseLocation('Router One');
+    expect(card('Router One')).toHaveAttribute('data-checked', 'false');
+    expect(useFormState.getState().form.queryLocation).toEqual([]);
+    expect(useFormState.getState().selections.queryLocation).toEqual([]);
+
+    // A second click selects it again.
+    await chooseLocation('Router One');
+    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
+    expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
+      'router_one',
+    ]);
+    expect(card('Router Two')).toHaveAttribute('data-checked', 'false');
+  });
+
   it('submits the query type of a mixed-vendor link under the first location', async () => {
     renderPrefilled({
       location: ['router_three', 'router_one'],
