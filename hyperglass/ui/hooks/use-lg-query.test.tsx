@@ -283,10 +283,11 @@ describe('useLGQuery timeout with a running clock', () => {
   });
 });
 
-describe('useLGQuery retries', () => {
+describe('useLGQuery with the default client options', () => {
   // A client with React Query's defaults, as the app creates in `HyperglassProvider`, not
   // the test helper's client, which turns retries off for every query. The defaults retry
-  // a failed query three times, with backoff of up to 4 s between attempts.
+  // a failed query three times, with backoff of up to 4 s between attempts, refetch a
+  // query when the browser comes back online, and refetch a failed query on remount.
   let client: QueryClient;
 
   beforeEach(() => {
@@ -353,6 +354,47 @@ describe('useLGQuery retries', () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+
+  /** Tell React Query the browser is back online, as after a network drop. */
+  async function goOnline(): Promise<void> {
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+  }
+
+  it('does not resend a failed query when the browser comes back online', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const result = renderWithDefaults();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    await goOnline();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not resend a successful query when the browser comes back online', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(success));
+    const { result } = renderQuery(query, { client });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await goOnline();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not resend a failed query when its panel mounts again', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const first = renderQuery(query, { client });
+    await waitFor(() => expect(first.result.current.isError).toBe(true));
+    first.unmount();
+
+    const { result } = renderQuery(query, { client });
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.current.isError).toBe(true);
   });
 });
 
