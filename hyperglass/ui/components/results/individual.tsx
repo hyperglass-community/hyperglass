@@ -54,7 +54,8 @@ interface ResultProps {
  */
 export interface ResultQueryState {
   data: QueryResponse | undefined;
-  error: unknown;
+  /** The request's error, or `null` when there is none, as for a stored result. */
+  error: Response | QueryResponse | Error | null;
   isLoading: boolean;
   isFetching: boolean;
   isFetchedAfterMount: boolean;
@@ -70,12 +71,19 @@ export interface ResultButtonsState {
   showPath: boolean;
 }
 
-export interface ResultPanelProps extends ResultProps {
+export interface ResultPanelProps {
+  index: number;
+  /** The device the result is from. `name` is the header's title. */
+  location: { id: string; name: string };
   /** The query target, used to format structured output for the copy button. */
   queryTarget: string[];
   query: ResultQueryState;
   errorLevel: ErrorLevels;
-  /** The buttons next to the result's header. */
+  /**
+   * Renders the buttons next to the result's header. It is called on every render, like a
+   * component body, so it must not call hooks; render components that need them instead,
+   * as `Result` does with `FormPath`.
+   */
   buttons(state: ResultButtonsState): React.ReactNode;
 }
 
@@ -90,16 +98,101 @@ const AccordionHeaderWrapper = chakra('div', {
   },
 });
 
+const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
+  props: ResultProps,
+  ref,
+) => {
+  const { index, queryLocation } = props;
+  const toast = useToast();
+  const { messages } = useConfig();
+  const getDevice = useDevice();
+  const device = getDevice(queryLocation);
+
+  const addResponse = useFormState(s => s.addResponse);
+  const form = useFormState(s => s.form);
+  const [errorLevel, _setErrorLevel] = useState<ErrorLevels>('error');
+
+  const setErrorLevel = (level: ResponseLevel): void => {
+    let e: ErrorLevels = 'error';
+    switch (level) {
+      case 'success':
+        e = level;
+        break;
+      case 'warning' || 'error':
+        e = 'warning';
+        break;
+    }
+    _setErrorLevel(e);
+  };
+
+  const query = useLGQuery(
+    {
+      queryLocation,
+      queryTarget: form.queryTarget,
+      queryType: form.queryType,
+      queryVariables: form.queryVariables,
+    },
+    {
+      onSuccess(data) {
+        if (device !== null) {
+          addResponse(device.id, data);
+        }
+        if (isLGOutputOrError(data)) {
+          console.error(data);
+          setErrorLevel(data.level);
+        }
+      },
+      onError(error) {
+        console.error({ error });
+        if (isLGOutputOrError(error)) {
+          setErrorLevel(error.level);
+        }
+      },
+    },
+  );
+
+  if (device === null) {
+    const id = `toast-queryLocation-${index}-${queryLocation}`;
+    if (!toast.isActive(id)) {
+      toast({
+        id,
+        title: messages.general,
+        description: `Configuration for device with ID '${queryLocation}' not found.`,
+        status: 'error',
+        isClosable: true,
+      });
+    }
+    return <></>;
+  }
+
+  return (
+    <ResultPanel
+      ref={ref}
+      index={index}
+      location={device}
+      queryTarget={form.queryTarget}
+      // `useLGQuery` declares its error as `unknown`, but its query is typed with this
+      // error union, and React Query sets `error` to `null` when there is none.
+      query={query as ResultQueryState}
+      errorLevel={errorLevel}
+      buttons={({ copyValue, isQuerying, showPath }) => (
+        <>
+          {showPath && <FormPath device={device.id} />}
+          <CopyButton copyValue={copyValue} isDisabled={isQuerying} />
+          <RequeryButton requery={query.refetch} isDisabled={isQuerying} />
+        </>
+      )}
+    />
+  );
+};
+
 const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelProps> = (
   props: ResultPanelProps,
   ref,
 ) => {
-  const { index, queryLocation, queryTarget, query, errorLevel, buttons } = props;
-  const toast = useToast();
+  const { index, location, queryTarget, query, errorLevel, buttons } = props;
   const { web, cache, messages } = useConfig();
   const { index: indices, setIndex } = useAccordionContext();
-  const getDevice = useDevice();
-  const device = getDevice(queryLocation);
 
   const isMobile = useMobile();
   const color = useColorValue('black', 'white');
@@ -184,24 +277,10 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
     }
   }, [data, index, indices, isQuerying, isError, setIndex]);
 
-  if (device === null) {
-    const id = `toast-queryLocation-${index}-${queryLocation}`;
-    if (!toast.isActive(id)) {
-      toast({
-        id,
-        title: messages.general,
-        description: `Configuration for device with ID '${queryLocation}' not found.`,
-        status: 'error',
-        isClosable: true,
-      });
-    }
-    return <></>;
-  }
-
   return (
     <AnimatedAccordionItem
       ref={ref}
-      id={device.id}
+      id={location.id}
       isDisabled={isQuerying}
       exit={{ opacity: 0, y: 300 }}
       animate={{ opacity: 1, y: 0 }}
@@ -220,7 +299,7 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
             errorMsg={errorMsg}
             errorLevel={errorLevel}
             runtime={data?.runtime ?? 0}
-            title={device.name}
+            title={location.name}
           />
         </AccordionButton>
         <HStack py={2} spacing={1}>
@@ -320,8 +399,9 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
 };
 
 /**
- * One location's result, rendered from props. It makes no request and does not use the
- * form state; the buttons it is given may.
+ * One result, rendered from props: it makes no request and doesn't use the form state or
+ * the device configuration. It must be inside an `Accordion`. The buttons it is given may
+ * do either.
  */
 export const ResultPanel = forwardRef<HTMLDivElement, ResultPanelProps>(_ResultPanel);
 
@@ -348,74 +428,4 @@ const FormPath = (props: { device: string }): JSX.Element => {
  * The live result for one location: runs the query for the form's values, stores the
  * response in the form state and can run it again.
  */
-const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
-  props: ResultProps,
-  ref,
-) => {
-  const { index, queryLocation } = props;
-  const getDevice = useDevice();
-  const device = getDevice(queryLocation);
-
-  const addResponse = useFormState(s => s.addResponse);
-  const form = useFormState(s => s.form);
-  const [errorLevel, _setErrorLevel] = useState<ErrorLevels>('error');
-
-  const setErrorLevel = (level: ResponseLevel): void => {
-    let e: ErrorLevels = 'error';
-    switch (level) {
-      case 'success':
-        e = level;
-        break;
-      case 'warning' || 'error':
-        e = 'warning';
-        break;
-    }
-    _setErrorLevel(e);
-  };
-
-  const query = useLGQuery(
-    {
-      queryLocation,
-      queryTarget: form.queryTarget,
-      queryType: form.queryType,
-      queryVariables: form.queryVariables,
-    },
-    {
-      onSuccess(data) {
-        if (device !== null) {
-          addResponse(device.id, data);
-        }
-        if (isLGOutputOrError(data)) {
-          console.error(data);
-          setErrorLevel(data.level);
-        }
-      },
-      onError(error) {
-        console.error({ error });
-        if (isLGOutputOrError(error)) {
-          setErrorLevel(error.level);
-        }
-      },
-    },
-  );
-
-  return (
-    <ResultPanel
-      ref={ref}
-      index={index}
-      queryLocation={queryLocation}
-      queryTarget={form.queryTarget}
-      query={query}
-      errorLevel={errorLevel}
-      buttons={({ copyValue, isQuerying, showPath }) => (
-        <>
-          {showPath && device !== null && <FormPath device={device.id} />}
-          <CopyButton copyValue={copyValue} isDisabled={isQuerying} />
-          <RequeryButton requery={query.refetch} isDisabled={isQuerying} />
-        </>
-      )}
-    />
-  );
-};
-
 export const Result = memo(forwardRef<HTMLDivElement, ResultProps>(_Result), isEqual);

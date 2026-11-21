@@ -78,12 +78,18 @@ function storedButtons(displayTarget: string) {
   );
 }
 
-function renderStored(data: QueryResponse, displayTarget = '2001:db8::/32') {
+const routerOne = { id: 'router_one', name: 'Router One' };
+
+function renderStored(
+  data: QueryResponse,
+  displayTarget = '2001:db8::/32',
+  location: { id: string; name: string } = routerOne,
+) {
   return renderWithProviders(
     <Accordion allowMultiple>
       <ResultPanel
         index={0}
-        queryLocation="router_one"
+        location={location}
         queryTarget={[displayTarget]}
         query={stored(data)}
         errorLevel={data.level === 'warning' ? 'warning' : 'error'}
@@ -94,8 +100,8 @@ function renderStored(data: QueryResponse, displayTarget = '2001:db8::/32') {
   );
 }
 
-function header(): HTMLElement {
-  return screen.getByRole('button', { name: /Router One/ });
+function header(name: RegExp = /Router One/): HTMLElement {
+  return screen.getByRole('button', { name });
 }
 
 /** Wait until the result has expanded and its status icon has loaded. */
@@ -165,13 +171,20 @@ describe('ResultPanel', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('does not poll for enrichment of a response stored while it was pending', async () => {
-    renderStored(response({ enrichment: 'pending' }));
-    await settled();
+  it('renders a stored response for a device that is no longer configured', async () => {
+    const { container } = renderStored(response(), '2001:db8::/32', {
+      id: 'router_retired',
+      name: 'Retired Router',
+    });
 
-    // The live result polls every second while enrichment is pending.
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
+    // The name comes from the stored location, not from the device configuration.
+    await waitFor(
+      () => expect(header(/Retired Router/)).toHaveAttribute('aria-expanded', 'true'),
+      IMPORT_WAIT,
+    );
+    expect(container.querySelector('pre')).toHaveTextContent('192.0.2.0/24');
+    // No "device not found" toast: that belongs to the live result.
+    expect(screen.queryByText(/not found/)).not.toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
 
