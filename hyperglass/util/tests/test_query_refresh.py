@@ -1,6 +1,7 @@
 """Forced refresh of cached query results through `force` on `/api/query`."""
 
 # Standard Library
+import json
 import asyncio
 import threading
 
@@ -382,4 +383,12 @@ def test_refresh_interval_must_be_positive():
 
 
 def test_refresh_config_is_not_sent_to_the_ui():
-    assert Params().frontend()["cache"] == {"show_text": True, "timeout": 120}
+    # Project
+    from hyperglass.configuration.validate import init_ui_params
+
+    params = Params(cache={"timeout": 60, "refresh": {"enable": True, "min_interval": 20}})
+    devices = use_state().redis.get("devices") or Devices()
+
+    exported = json.loads(init_ui_params(params=params, devices=devices).export_json(by_alias=True))
+
+    assert exported["cache"] == {"timeout": 60, "showText": True}
