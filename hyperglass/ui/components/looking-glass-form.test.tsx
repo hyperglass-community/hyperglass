@@ -184,6 +184,35 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().target.display).toBe('65000:1');
   });
 
+  it('removes a select target when the select is cleared', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router Three');
+    await chooseQueryType('Peer Communities');
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    await userEvent.click(targetSelect);
+    await userEvent.click(within(await openMenu()).getByText('Peer routes'));
+    // react-select's own form input holds the chosen option's value. The fixture's options
+    // have no name, so the select shows no label to look for.
+    const shown = (): string | undefined =>
+      document.querySelector<HTMLInputElement>('input[name="queryTarget"]:not([hidden])')?.value;
+    expect(shown()).toBe('65000:1');
+    const control = targetSelect.closest<HTMLElement>('[class*="-control"]') as HTMLElement;
+
+    const clear = control.querySelector('[class*="indicatorContainer"]');
+    if (clear === null) {
+      throw new Error('No clear indicator');
+    }
+    await userEvent.click(clear);
+
+    expect(shown()).toBe('');
+    expect(useFormState.getState().form.queryTarget).toEqual([]);
+    expect(useFormState.getState().target.display).toBe('');
+    // The target is required again.
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
   it('chooses the query type when the selected location has only one', async () => {
     const config = oneDeviceConfig(dev => ({ ...dev, directives: dev.directives.slice(3, 4) }));
     renderWithProviders(<LookingGlassForm />, { config });
@@ -263,6 +292,151 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_ping__');
     expect(useFormState.getState().form.queryTarget).toEqual([]);
     expect(useFormState.getState().target.display).toBe('');
+  });
+
+  it('clears a query type the newly selected locations do not offer', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router Three');
+    await chooseQueryType('Peer Communities');
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    await userEvent.click(targetSelect);
+    await userEvent.click(within(await openMenu()).getByText('Peer routes'));
+
+    // Router One has no Peer Communities directive.
+    await chooseLocation('Router One');
+
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_three', 'router_one'],
+      queryType: '',
+      queryTarget: [],
+      queryVariables: {},
+    });
+    const select = await screen.findByRole('combobox', { name: web.text.queryType });
+    const control = select.closest<HTMLElement>('[class*="-control"]');
+    expect(within(control as HTMLElement).queryByText('Peer Communities')).not.toBeInTheDocument();
+
+    submit(container);
+
+    expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('keeps the query type and target when the remaining location offers it by name', async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await chooseLocation('Router Three');
+    await chooseQueryType('BGP Route');
+    await user.type(await targetInput(), '2001:db8::/32');
+
+    // Without Router One, BGP Route is offered under Router Three's FRR ID.
+    await chooseLocation('Router One');
+    submit(container);
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_three'],
+      queryType: '__hyperglass_frr_bgp_route__',
+      queryTarget: ['2001:db8::/32'],
+      queryVariables: {},
+    });
+  });
+
+  it('drops a variable the same-named query type of the remaining location does not define', async () => {
+    // Two custom directives share a name, but not their ID or their variables.
+    const lookup = (id: string, variable: string): Directive =>
+      ({
+        ...device('router_one').directives[0],
+        id,
+        name: 'Lookup',
+        variables: [
+          {
+            id: variable,
+            name: variable.toUpperCase(),
+            required: false,
+            options: [{ name: `${variable} one`, value: 'one', description: null }],
+          },
+        ],
+      }) as unknown as Directive;
+    const config = makeConfig({
+      devices: [
+        {
+          group: 'North America',
+          locations: [{ ...device('router_one'), directives: [lookup('lookup_a', 'vrf')] }],
+        },
+        {
+          group: 'Europe',
+          locations: [{ ...device('router_three'), directives: [lookup('lookup_b', 'table')] }],
+        },
+      ],
+    } as never);
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<LookingGlassForm />, { config });
+    await chooseLocation('Router One');
+    await chooseLocation('Router Three');
+    await chooseQueryType('Lookup');
+    await user.type(await targetInput(), '2001:db8::/32');
+    await userEvent.click(screen.getAllByRole('combobox').at(-1) as HTMLElement);
+    await userEvent.click(within(await openMenu()).getByText('vrf one'));
+    expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'one' });
+
+    // Without Router One, Lookup is offered under Router Three's ID, without `vrf`.
+    await chooseLocation('Router One');
+    expect(await screen.findByText('TABLE')).toBeInTheDocument();
+    expect(screen.queryByText('VRF')).not.toBeInTheDocument();
+    submit(container);
+
+    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: ['router_three'],
+      queryType: 'lookup_b',
+      queryTarget: ['2001:db8::/32'],
+      queryVariables: {},
+    });
+  });
+
+  it('clears a select target the same-named query type of the remaining location does not offer', async () => {
+    const option = (value: string) => ({ name: `Community ${value}`, value, description: null });
+    const lookup = (id: string, values: string[]): Directive =>
+      ({
+        ...device('router_three').directives[0],
+        id,
+        name: 'Lookup',
+        options: values.map(option),
+      }) as unknown as Directive;
+    const config = makeConfig({
+      devices: [
+        {
+          group: 'North America',
+          locations: [
+            { ...device('router_one'), directives: [lookup('lookup_a', ['65000:1', '65000:2'])] },
+          ],
+        },
+        {
+          group: 'Europe',
+          locations: [{ ...device('router_three'), directives: [lookup('lookup_b', ['65000:1'])] }],
+        },
+      ],
+    } as never);
+    const { container } = renderWithProviders(<LookingGlassForm />, { config });
+    await chooseLocation('Router One');
+    await chooseLocation('Router Three');
+    await chooseQueryType('Lookup');
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    await userEvent.click(targetSelect);
+    await userEvent.click(within(await openMenu()).getByText('Community 65000:2'));
+    expect(useFormState.getState().form.queryTarget).toEqual(['65000:2']);
+    expect(screen.getByText('Community 65000:2')).toBeInTheDocument();
+
+    // Router Three's Lookup doesn't offer 65000:2.
+    await chooseLocation('Router One');
+
+    expect(useFormState.getState().form.queryType).toBe('lookup_b');
+    expect(useFormState.getState().form.queryTarget).toEqual([]);
+    expect(screen.queryByText('Community 65000:2')).not.toBeInTheDocument();
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
   });
 
   it('marks a location without query types in common as an error', async () => {
@@ -432,6 +606,62 @@ describe('LookingGlassForm validation', () => {
 
     expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('clears the errors of an empty submit when the form is reset', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryLocation))).toBeInTheDocument();
+
+    // The header title resets the store while the form stays mounted.
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText(noInput(web.text.queryLocation))).not.toBeInTheDocument(),
+    );
+  });
+
+  it('clears the errors of the previous query when every location is removed', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await screen.findByRole('combobox', { name: web.text.queryType });
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
+
+    // Removing the only location empties the store, as a reset does.
+    await chooseLocation('Router One');
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: [],
+      queryType: '',
+      queryTarget: [],
+      queryVariables: {},
+    });
+    await chooseLocation('Router One');
+
+    // The query type field is back, without the error of the previous submit.
+    expect(await screen.findByRole('combobox', { name: web.text.queryType })).toBeInTheDocument();
+    expect(screen.queryByText(noInput(web.text.queryType))).not.toBeInTheDocument();
+  });
+
+  it('does not show the errors from before a reset on the next query', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router One');
+    await chooseQueryType('BGP Route');
+    await targetInput();
+    submit(container);
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+
+    await act(async () => {
+      await useFormState.getState().reset();
+    });
+    // Another location: a card keeps its own checked state across a reset.
+    await chooseLocation('Router Three');
+    await chooseQueryType('BGP Route');
+    await targetInput();
+
+    expect(screen.queryByText(noInput(web.text.queryTarget))).not.toBeInTheDocument();
   });
 });
 

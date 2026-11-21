@@ -21,6 +21,14 @@ import { isFQDN } from '~/util';
 
 import type { FormData, OnChangeArgs } from '~/types';
 
+/** The store's form values before a query is entered, and after a reset. */
+const EMPTY_VALUES: FormData = {
+  queryLocation: [],
+  queryType: '',
+  queryTarget: [],
+  queryVariables: {},
+};
+
 export const LookingGlassForm = (): JSX.Element => {
   const { web, messages } = useConfig();
 
@@ -37,6 +45,9 @@ export const LookingGlassForm = (): JSX.Element => {
     useCallback(({ form, filtered, selections }) => ({ form, filtered, selections }), []),
     isEqual,
   );
+  // The store's own values object, compared by reference, so the mirror below also runs
+  // when a reset replaces values that were already empty.
+  const values = useFormState(s => s.form);
 
   const getDirective = useFormState(useCallback(s => s.getDirective, []));
   const resolvedOpen = useFormState(useCallback(s => s.resolvedOpen, []));
@@ -77,7 +88,7 @@ export const LookingGlassForm = (): JSX.Element => {
     },
   });
 
-  const { handleSubmit, register, setValue, setError, clearErrors } = formInstance;
+  const { handleSubmit, register, reset, setValue, setError, clearErrors } = formInstance;
 
   const isFqdnQuery = useCallback(
     (target: string | string[], fieldType: Directive['fieldType'] | null): boolean =>
@@ -199,11 +210,17 @@ export const LookingGlassForm = (): JSX.Element => {
   // restored after returning from results, the query type chosen when the selected
   // locations have only one, and a reset from the header.
   useEffect(() => {
-    setValue('queryLocation', form.queryLocation);
-    setValue('queryType', form.queryType);
-    setValue('queryTarget', form.queryTarget);
-    setValue('queryVariables', form.queryVariables);
-  }, [form, setValue]);
+    if (isEqual(values, EMPTY_VALUES)) {
+      // The store was reset (or every value was removed): reset react-hook-form as well,
+      // so the errors and submitted state of the previous query go with its values.
+      reset(values);
+      return;
+    }
+    setValue('queryLocation', values.queryLocation);
+    setValue('queryType', values.queryType);
+    setValue('queryTarget', values.queryTarget);
+    setValue('queryVariables', values.queryVariables);
+  }, [values, reset, setValue]);
 
   return (
     <FormProvider {...formInstance}>
