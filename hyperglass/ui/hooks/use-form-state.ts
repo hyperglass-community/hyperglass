@@ -317,7 +317,7 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
         // them). A text target stays, as it is shown and checked against the new rules.
         // While several locations stay selected, the same values go to each location's
         // directive of that name, so custom directives that share a name must also share
-        // their variables and options, or the other locations reject the query.
+        // their variables and variable options, or the other locations reject the query.
         set(state => {
           const keepTarget = offersTarget(previous, kept, state.form.queryTarget);
           return {
