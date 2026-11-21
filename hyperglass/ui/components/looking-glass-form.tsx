@@ -53,7 +53,8 @@ export const LookingGlassForm = (): JSX.Element => {
       enforce(data.queryLocation).isArrayOf(enforce.isString()).isNotEmpty();
     });
     test('queryTarget', noQueryTarget, () => {
-      enforce(data.queryTarget).isArrayOf(enforce.isString()).isNotEmpty();
+      // Every target needs a value: a cleared text input leaves `['']`.
+      enforce(data.queryTarget).isArrayOf(enforce.isString().matches(/\S/)).isNotEmpty();
     });
     test('queryType', noQueryType, () => {
       enforce(data.queryType).inside(queryTypes);

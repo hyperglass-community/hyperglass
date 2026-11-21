@@ -394,22 +394,44 @@ describe('LookingGlassForm validation', () => {
     await waitFor(() => expect(useFormState.getState().status).toBe('results'));
   });
 
-  it('accepts a target that was typed and then cleared', async () => {
-    // Current behaviour: clearing the input leaves `['']` as the target, which passes the
-    // "not empty" check, so the form switches to results with an empty target.
+  it.each([
+    ['typed and then cleared', ''],
+    ['only whitespace', '   '],
+  ])('reports a target that is %s with the configured message', async (_, typed) => {
     const user = userEvent.setup();
     const { container } = renderWithProviders(<LookingGlassForm />);
     await chooseLocation('Router One');
     await chooseQueryType('BGP Route');
     const input = await targetInput();
-    await user.type(input, '1');
-    await user.clear(input);
-    expect(useFormState.getState().form.queryTarget).toEqual(['']);
+    await user.type(input, typed === '' ? '1' : typed);
+    if (typed === '') {
+      await user.clear(input);
+    }
+    expect(useFormState.getState().form.queryTarget).toEqual([typed]);
 
     submit(container);
 
-    await waitFor(() => expect(useFormState.getState().status).toBe('results'));
-    expect(screen.queryByText(noInput(web.text.queryTarget))).not.toBeInTheDocument();
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
+  });
+
+  it('reports an empty value among several targets', async () => {
+    useFormState.setState({
+      form: {
+        queryLocation: ['router_one'],
+        queryType: '__hyperglass_juniper_bgp_route__',
+        queryTarget: ['192.0.2.1', ''],
+        queryVariables: {},
+      },
+      filtered: { types: device('router_one').directives, groups: [] },
+    });
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    await targetInput();
+
+    submit(container);
+
+    expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+    expect(useFormState.getState().status).toBe('form');
   });
 });
 
