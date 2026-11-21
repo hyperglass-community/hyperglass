@@ -10,6 +10,8 @@ Hyperglass generates documentation for the REST API from its OpenAPI schema and 
 | `docs.description` | String  |                                  | API docs description. Appears below the title.                                                                                                                               |
 | `docs.base_url`    | URL     | https://lg.example.net           | Server URL for request samples and the try-it console. When you leave it unset, the documentation uses the host that serves it. Set it to the public URL of your looking glass. |
 
+When `cache.refresh.enable` is `true`, a `POST /api/query` request can set `"force": true` to run the query on the device again instead of answering from the cache. Each successful response's `refresh_in` field gives the seconds until a forced query would run, or `null` when forced refresh is disabled. See [Forced refresh](/configuration/config/caching#forced-refresh).
+
 ### Endpoint Parameters
 
 The `devices`, `info`, `queries` and `query` sections each take a `title`, `description` and `summary` string. `title` is the section heading the endpoint is grouped under, `summary` is shown beside the endpoint path, and `description` is shown in the endpoint's detail. If you set one of these sections, set all three keys.

@@ -44,6 +44,7 @@ from .metrics import (
 )
 from .middleware import skip_state_recovery
 from .fake_output import fake_output
+from .refresh import ForcedRefresh
 from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
 
 # Not user-configurable: an internal bound so an unreachable Redis reports
@@ -332,12 +333,19 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         cache.delete(cache_key)
         cache_response = None
 
+    # A forced query runs again only when no other request's forced run of it holds the
+    # lease and no cooldown is running; otherwise it is answered from the cache.
+    refresh = ForcedRefresh(cache, cache_key, _state.params)
+    cache_response = refresh.check(cache_response, force=data.force)
+
     json_output = False
     cached = False
     runtime = 65535
     enrichment_status = "complete"
     enrichment_output = None
     enrichment_generation = None
+    # Device execution time of a cache miss or bypass, recorded once the query succeeds.
+    elapsedtime = None
 
     if cache_response:
         _log.bind(cache_key=cache_key).debug("Cache hit")
@@ -353,21 +361,23 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     elif not cache_response:
         _log.bind(cache_key=cache_key).debug("Cache miss")
-        record_query_cache("miss")
+        # A forced run skips a cached result; it is not a miss.
+        record_query_cache("bypass" if refresh.forced else "miss")
 
         timestamp = data.timestamp
 
         starttime = time.time()
 
-        if _state.params.fake_output:
-            # Return fake, static data for development purposes, if enabled.
-            output = await fake_output(
-                query_type=data.query_type,
-                structured=data.device.structured_output or False,
-            )
-        else:
-            # Both attempts share the configured request deadline.
-            output = await _execute_query(data)
+        with refresh.run():
+            if _state.params.fake_output:
+                # Return fake, static data for development purposes, if enabled.
+                output = await fake_output(
+                    query_type=data.query_type,
+                    structured=data.device.structured_output or False,
+                )
+            else:
+                # Both attempts share the configured request deadline.
+                output = await _execute_query(data)
 
         endtime = time.time()
         elapsedtime = round(endtime - starttime, 4)
@@ -375,8 +385,6 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
         if output is None:
             raise HyperglassError(message=_state.params.messages.general, alert="danger")
-
-        record_query_duration(request, elapsedtime)
 
         json_output = is_type(output, OutputDataModel)
 
@@ -394,6 +402,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             enrichment_generation = uuid4().hex
 
         with cache.pipeline() as pipeline:
+            refresh.record(pipeline)
             pipeline.set_map_item(cache_key, "output", raw_output)
             pipeline.set_map_item(cache_key, "timestamp", timestamp)
             pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
@@ -414,7 +423,6 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     if json_output:
         response_format = "application/json"
     _log.info("Execution completed")
-    record_query_success(request)
 
     response = {
         "output": cache_response,
@@ -424,10 +432,16 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         "timestamp": timestamp,
         "format": response_format,
         "enrichment": enrichment_status,
+        "refresh_in": refresh.refresh_in(),
         "random": data.random(),
         "level": "success",
         "keywords": [],
     }
+
+    # Last, after everything that can fail: writing the cache and `refresh_in` both
+    # use Redis, and a query that fails there is counted as an error instead.
+    record_query_duration(request, elapsedtime)
+    record_query_success(request)
 
     return Response(
         response,

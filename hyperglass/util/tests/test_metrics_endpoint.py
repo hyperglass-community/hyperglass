@@ -192,6 +192,226 @@ class TestDeviceFailures:
         )
 
 
+class TestForcedRefresh:
+    """Forced refreshes in the cache metric.
+
+    A forced run on the device is a bypass; a forced query answered from the cache is
+    a hit, like any other query answered from it.
+    """
+
+    INTERVAL = 30
+    TARGET = "198.51.100.128/25"
+
+    @pytest.fixture
+    def device(self, monkeypatch) -> t.List[str]:
+        """Count device executions instead of reaching a device."""
+        calls: t.List[str] = []
+
+        async def execute(_):
+            calls.append("run")
+            return f"output {len(calls)}"
+
+        monkeypatch.setattr("hyperglass.api.routes.execute", execute)
+        return calls
+
+    @pytest.fixture
+    def metrics_client(self, monkeypatch, device) -> t.Generator[TestClient, None, None]:
+        """Build a client with forced refresh enabled."""
+        refresh = {"enable": True, "min_interval": self.INTERVAL}
+        with build_client(
+            monkeypatch,
+            fake_output=False,
+            metrics={"enable": True},
+            cache={"timeout": 120, "refresh": refresh},
+        ) as client:
+            yield client
+
+    def payload(self, **extra: t.Any) -> t.Dict[str, t.Any]:
+        """Build this class's query body."""
+        return {**QUERY, "queryTarget": self.TARGET, **extra}
+
+    def lease_key(self) -> str:
+        """Get the Redis key holding the query's cooldown or forced-run lease."""
+        # Project
+        from hyperglass.state import use_state
+        from hyperglass.models.api import Query
+
+        query = Query(**self.payload())
+        return use_state("redis").key(f"hyperglass.query.{query.digest()}.refresh")
+
+    def end_cooldown(self) -> None:
+        """Let the next forced query run, as if the cooldown had expired."""
+        # Project
+        from hyperglass.state import use_state
+
+        use_state("redis").instance.delete(self.lease_key())
+
+    def cache_counts(self) -> t.Dict[str, float]:
+        """Read the cache metric for every result."""
+        return {
+            result: sample("hyperglass_query_cache_total", result=result)
+            for result in ("hit", "miss", "bypass")
+        }
+
+    def assert_counted(self, before: t.Dict[str, float], **expected: int) -> None:
+        """Assert the cache metric moved by exactly `expected` since `before`."""
+        after = self.cache_counts()
+        assert {key: after[key] - before[key] for key in after} == {
+            "hit": 0,
+            "miss": 0,
+            "bypass": 0,
+            **expected,
+        }
+
+    def test_forced_run_counted_as_bypass(self, metrics_client, device):
+        """A forced run skips the cached result: a bypass, not a miss."""
+        assert metrics_client.post("/api/query", json=self.payload()).status_code == 201
+        self.end_cooldown()
+        before = self.cache_counts()
+        durations = sample("hyperglass_query_duration_seconds_count", **LABELS)
+        successes = sample("hyperglass_queries_total", **LABELS, status="success")
+
+        response = metrics_client.post("/api/query", json=self.payload(force=True))
+
+        assert response.json()["cached"] is False
+        assert len(device) == 2
+        self.assert_counted(before, bypass=1)
+        # A forced run is timed and counted like any other run on the device.
+        assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations + 1
+        assert sample("hyperglass_queries_total", **LABELS, status="success") == successes + 1
+
+    def test_forced_query_in_cooldown_counted_as_hit(self, metrics_client, device):
+        """A forced query in a cooldown is answered from the cache."""
+        metrics_client.post("/api/query", json=self.payload())
+        before = self.cache_counts()
+
+        response = metrics_client.post("/api/query", json=self.payload(force=True))
+
+        assert response.json()["cached"] is True
+        assert len(device) == 1
+        self.assert_counted(before, hit=1)
+
+    def test_forced_query_during_another_forced_run_counted_as_hit(self, metrics_client, device):
+        """A forced query while another request's forced run holds the lease is a hit."""
+        # Project
+        from hyperglass.state import use_state
+
+        metrics_client.post("/api/query", json=self.payload())
+        # Another worker's forced run of the same query holds the lease.
+        use_state("redis").instance.set(self.lease_key(), "token", ex=60)
+        before = self.cache_counts()
+
+        response = metrics_client.post("/api/query", json=self.payload(force=True))
+
+        assert response.json()["cached"] is True
+        assert len(device) == 1
+        self.assert_counted(before, hit=1)
+
+    def test_forced_query_without_cached_result_counted_as_miss(self, metrics_client, device):
+        """With no cached result there is nothing to bypass."""
+        before = self.cache_counts()
+
+        response = metrics_client.post("/api/query", json=self.payload(force=True))
+
+        assert response.json()["cached"] is False
+        assert len(device) == 1
+        self.assert_counted(before, miss=1)
+
+    def test_unforced_queries_unchanged(self, metrics_client, device):
+        """Unforced queries still count as a miss, then a hit, with refresh enabled."""
+        before = self.cache_counts()
+
+        metrics_client.post("/api/query", json=self.payload())
+        self.end_cooldown()
+        metrics_client.post("/api/query", json=self.payload())
+
+        assert len(device) == 1
+        self.assert_counted(before, miss=1, hit=1)
+
+    def test_force_ignored_when_refresh_disabled_counted_as_hit(self, monkeypatch, device):
+        """`force` is ignored when refresh is disabled, so the query is a hit as before."""
+        with build_client(monkeypatch, fake_output=False, metrics={"enable": True}) as client:
+            client.post("/api/query", json=self.payload())
+            before = self.cache_counts()
+
+            response = client.post("/api/query", json=self.payload(force=True))
+
+        assert response.json()["cached"] is True
+        assert len(device) == 1
+        self.assert_counted(before, hit=1)
+
+    def test_failed_forced_run_counted_as_bypass_and_error(
+        self, metrics_client, device, monkeypatch
+    ):
+        """A forced run that fails is a bypass, and an error with its reason."""
+        metrics_client.post("/api/query", json=self.payload())
+        self.end_cooldown()
+
+        async def fail(query):
+            raise DeviceTimeout(error=TimeoutError("timed out"), device=query.device)
+
+        monkeypatch.setattr("hyperglass.api.routes.execute", fail)
+        before = self.cache_counts()
+        reason = sample("hyperglass_query_errors_total", **LABELS, reason="device_timeout")
+        errors = sample("hyperglass_queries_total", **LABELS, status="error")
+        durations = sample("hyperglass_query_duration_seconds_count", **LABELS)
+
+        response = metrics_client.post("/api/query", json=self.payload(force=True))
+
+        assert response.status_code == 500
+        self.assert_counted(before, bypass=1)
+        assert sample("hyperglass_query_errors_total", **LABELS, reason="device_timeout") == (
+            reason + 1
+        )
+        assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
+        assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations
+
+    @pytest.mark.parametrize("failing", ["cache_write", "refresh_in"])
+    def test_failure_after_device_run_counted_as_error_only(self, monkeypatch, device, failing):
+        """A query that fails after its device run is an error, without a success or duration.
+
+        Writing the result to the cache and building the response both read Redis
+        after the device has answered.
+        """
+        # Third Party
+        from redis.exceptions import ConnectionError as RedisConnectionError
+
+        # Project
+        from hyperglass.api.refresh import ForcedRefresh
+        from hyperglass.state.redis import RedisManager
+
+        def unreachable(*_, **__):
+            raise RedisConnectionError("Redis is unreachable")
+
+        refresh = {"enable": True, "min_interval": self.INTERVAL}
+        with build_client(
+            monkeypatch,
+            raise_server_exceptions=False,
+            fake_output=False,
+            metrics={"enable": True},
+            cache={"timeout": 120, "refresh": refresh},
+        ) as client:
+            if failing == "cache_write":
+                monkeypatch.setattr(RedisManager, "pipeline", unreachable)
+            else:
+                monkeypatch.setattr(ForcedRefresh, "refresh_in", unreachable)
+            successes = sample("hyperglass_queries_total", **LABELS, status="success")
+            errors = sample("hyperglass_queries_total", **LABELS, status="error")
+            reason = sample("hyperglass_query_errors_total", **LABELS, reason="internal_error")
+            durations = sample("hyperglass_query_duration_seconds_count", **LABELS)
+
+            response = client.post("/api/query", json=self.payload())
+
+        assert response.status_code == 500
+        assert len(device) == 1
+        assert sample("hyperglass_queries_total", **LABELS, status="success") == successes
+        assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
+        assert sample("hyperglass_query_errors_total", **LABELS, reason="internal_error") == (
+            reason + 1
+        )
+        assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations
+
+
 def test_failure_counted_once_when_error_handler_fails(monkeypatch):
     """A handler that fails (e.g. reading params during a Redis outage) is called again."""
     with build_client(

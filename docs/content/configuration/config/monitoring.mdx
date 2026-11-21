@@ -56,11 +56,25 @@ The metrics endpoint answers while Redis is down, so it can report an outage.
 | :---------------------------------- | :-------- | :------------------------------- | :--------------------------------------------------------------------------- |
 | `hyperglass_queries_total`          | Counter   | `device`, `query_type`, `status` | Queries handled. `status` is `success` or `error`.                           |
 | `hyperglass_query_errors_total`     | Counter   | `device`, `query_type`, `reason` | Failed queries, by failure reason.                                           |
-| `hyperglass_query_duration_seconds` | Histogram | `device`, `query_type`           | Time spent executing successful queries against devices (cache misses only). |
-| `hyperglass_query_cache_total`      | Counter   | `result`                         | Query cache lookups. `result` is `hit` or `miss`.                            |
+| `hyperglass_query_duration_seconds` | Histogram | `device`, `query_type`           | Time spent executing successful queries against devices (cache misses and bypasses). |
+| `hyperglass_query_cache_total`      | Counter   | `result`                         | Query cache lookups. `result` is `hit`, `miss` or `bypass`; see [Cache Results](#cache-results). |
 | `hyperglass_build_info`             | Gauge     | `version`                        | Always `1`; carries the running Hyperglass version.                          |
 
 `device` is the device ID and `query_type` is the directive ID. When a query is rejected before it is validated (for example, an unknown location or a malformed request), both are `unknown`. Labels are never taken from raw request input, so clients cannot create new label values.
+
+#### Cache Results
+
+Each query that reaches the cache lookup counts once in `hyperglass_query_cache_total`, by whether it ran on the device. Requests rejected before the lookup, such as invalid requests, unknown locations or Redis failing during the lookup, are not counted there; they appear in `hyperglass_query_errors_total`.
+
+| Result   | Meaning                                                                                                                       |
+| :------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| `hit`    | The query was answered from the cache, without running on the device.                                                         |
+| `miss`   | The query had no cached result and ran on the device.                                                                         |
+| `bypass` | A [forced refresh](/configuration/config/caching#forced-refresh) skipped a cached result and ran on the device.               |
+
+A forced query that the server answers from the cache, during the cooldown after a run or while another request's forced run is in progress, is a `hit`: the client gets the cached result and the device is not queried. A forced query with no cached result is a `miss`, and with `cache.refresh.enable: false`, where `force` is ignored, a forced query counts exactly as an unforced one. So `miss` plus `bypass` is the number of runs on devices, and the hit ratio below is the fraction of queries the cache kept off the devices.
+
+A forced run is otherwise counted like any other run: its outcome in `hyperglass_queries_total`, its failure reason in `hyperglass_query_errors_total` and, when it succeeds, its time in `hyperglass_query_duration_seconds`.
 
 `reason` is the failure's error type in snake case. Common reasons:
 

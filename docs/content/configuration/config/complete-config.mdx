@@ -61,12 +61,17 @@ Controls how Hyperglass caches query responses to improve performance.
 | :-------- | :--- | :------ | :---------- |
 | `cache.timeout` | Integer | `120` | Cache timeout in seconds. How long responses are cached. |
 | `cache.show_text` | Boolean | `true` | Whether to show cache timeout countdown to users. |
+| `cache.refresh.enable` | Boolean | `false` | Let a query sent with `force` run a cached query on the device again. See [Forced refresh](/configuration/config/caching#forced-refresh). |
+| `cache.refresh.min_interval` | Integer | `30` | Minimum seconds between runs of one query through `force`. Must be greater than 0 and less than `cache.timeout` when refresh is enabled. |
 
 #### Example: Cache Configuration
 ```yaml filename="config.yaml"
 cache:
   timeout: 300      # Cache for 5 minutes
   show_text: true   # Show "Results cached for X seconds" to users
+  refresh:
+    enable: true      # Let requests sent with `force` bypass the cache
+    min_interval: 30  # At most one forced run of a query starts every 30 seconds
 ```
 
 ---
@@ -794,6 +799,13 @@ cache:
   timeout: 120
   # Show the cache icon and countdown on cached results in the UI. Default: true
   show_text: true
+  refresh:
+    # Let a query sent with `force` skip the cache and run on the device again.
+    # Default: false
+    enable: false
+    # Minimum seconds between runs of one query through `force`. Must be less
+    # than timeout when enable is true. Default: 30
+    min_interval: 30
 
 # ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)
