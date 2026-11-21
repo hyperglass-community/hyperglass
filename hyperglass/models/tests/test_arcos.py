@@ -213,7 +213,9 @@ def test_malformed_output_never_returns_device_text(structured, text):
         SimpleNamespace(method="POST", url=SimpleNamespace(path="/api/query")), error.value
     )
     assert "secret device output" not in json.dumps(response.content)
-    assert response.content["output"] == "Error parsing ArcOS response data"
+    # A parsing error is internal: it is logged, and the client gets the general message.
+    assert response.status_code == 500
+    assert response.content["output"] == use_state("params").messages.general
 
 
 @pytest.mark.parametrize("structured", [False, True])
