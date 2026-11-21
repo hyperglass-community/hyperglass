@@ -359,7 +359,8 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     elif not cache_response:
         _log.bind(cache_key=cache_key).debug("Cache miss")
-        record_query_cache("miss")
+        # A forced run skips a cached result; it is not a miss.
+        record_query_cache("bypass" if refresh.forced else "miss")
 
         timestamp = data.timestamp
 

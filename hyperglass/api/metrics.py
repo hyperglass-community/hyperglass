@@ -70,12 +70,12 @@ QUERY_ERRORS = Counter(
 )
 QUERY_CACHE = Counter(
     "hyperglass_query_cache",
-    "Query cache lookups, by result (hit or miss).",
+    "Query cache lookups, by result (hit, miss or bypass).",
     ("result",),
 )
 QUERY_DURATION = Histogram(
     "hyperglass_query_duration_seconds",
-    "Time spent executing successful queries against devices (cache misses only).",
+    "Time spent executing successful queries against devices (cache misses and bypasses).",
     ("device", "query_type"),
     buckets=_QUERY_DURATION_BUCKETS,
 )
@@ -136,8 +136,8 @@ def _query_labels(request: Request) -> t.Tuple[str, str]:
 
 
 @_never_raise
-def record_query_cache(result: t.Literal["hit", "miss"]) -> None:
-    """Record a query cache lookup."""
+def record_query_cache(result: t.Literal["hit", "miss", "bypass"]) -> None:
+    """Record a query cache lookup; `bypass` is a forced run that skipped a cached result."""
     QUERY_CACHE.labels(result).inc()
 
 

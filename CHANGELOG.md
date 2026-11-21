@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
-- Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the query ran less than `cache.refresh.min_interval` (default 30 seconds) ago, or while another forced request for the same query is in progress, so at most one forced run of each query starts per interval. Successful responses include `refresh_in`, the seconds until a forced query would run. `force` must be a boolean: a value that cannot be read as one is rejected with HTTP 400, even when forced refresh is disabled ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
+- Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the query ran less than `cache.refresh.min_interval` (default 30 seconds) ago, or while another forced request for the same query is in progress, so at most one forced run of each query starts per interval. Successful responses include `refresh_in`, the seconds until a forced query would run. `force` must be a boolean: a value that cannot be read as one is rejected with HTTP 400, even when forced refresh is disabled. With metrics enabled, a forced run counts as `result="bypass"` in `hyperglass_query_cache_total`, and a forced query answered from the cache counts as `hit` ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
 
 ### Changed
 

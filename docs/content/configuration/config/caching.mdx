@@ -40,3 +40,5 @@ Enabling forced refresh raises how often anyone can make a device run a given qu
 Every successful `/api/query` response includes `refresh_in`: the number of seconds until a forced query for the same result would run. `0` means now, and `null` means forced refresh is disabled. While another request's forced run is in progress, it is `min_interval`; a forced query sent sooner is answered from the cache with an updated value. Error responses do not include it, so a client learns the cooldown that follows a failed run from its next response. A response answered from the cache has `cached: true`.
 
 With the default `cache.timeout` of 120 and `min_interval` of 30, a result can be refreshed from 30 seconds after it ran until it expires. After it expires, any request runs the query again.
+
+With [metrics](/configuration/config/monitoring#cache-results) enabled, a forced run counts as `bypass` in `hyperglass_query_cache_total`, and a forced query answered from the cache counts as `hit`.
