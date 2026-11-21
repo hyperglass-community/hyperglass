@@ -1,23 +1,27 @@
-import { useMemo } from 'react';
 import { Box, Stack, useToken } from '@chakra-ui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConfig } from '~/context';
 import { Label } from '~/elements';
-import { useFormState, useBreakpointValue } from '~/hooks';
+import { useBreakpointValue } from '~/hooks';
 
 import type { Transition } from 'framer-motion';
 
 const transition = { duration: 0.3, delay: 0.5 } as Transition;
 
-export const Tags = (): JSX.Element => {
-  const { web } = useConfig();
-  const form = useFormState(s => s.form);
-  const getDirective = useFormState(s => s.getDirective);
+export interface TagsProps {
+  /** The tags show only when there is at least one location. */
+  queryLocation: string[];
+  /** The query type's display name. */
+  queryType: string | undefined;
+  queryTarget: string[];
+}
 
-  const selectedDirective = useMemo(() => {
-    return getDirective();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.queryType, getDirective]);
+/**
+ * The query type and target labels above a query's results.
+ */
+export const Tags = (props: TagsProps): JSX.Element => {
+  const { queryLocation, queryType, queryTarget } = props;
+  const { web } = useConfig();
 
   const targetBg = useToken('colors', 'teal.600');
   const queryBg = useToken('colors', 'cyan.500');
@@ -61,7 +65,7 @@ export const Tags = (): JSX.Element => {
     >
       <Stack isInline align="center" justify="center" mt={4} flexWrap="wrap">
         <AnimatePresence>
-          {form.queryLocation.length > 0 && (
+          {queryLocation.length > 0 && (
             <>
               <motion.div
                 initial={initialLeft}
@@ -73,7 +77,7 @@ export const Tags = (): JSX.Element => {
                   bg={queryBg}
                   label={web.text.queryType}
                   fontSize={{ base: 'xs', md: 'sm' }}
-                  value={selectedDirective?.name ?? 'None'}
+                  value={queryType ?? 'None'}
                 />
               </motion.div>
               <motion.div
@@ -84,7 +88,7 @@ export const Tags = (): JSX.Element => {
               >
                 <Label
                   bg={targetBg}
-                  value={form.queryTarget.join(', ')}
+                  value={queryTarget.join(', ')}
                   label={web.text.queryTarget}
                   fontSize={{ base: 'xs', md: 'sm' }}
                 />

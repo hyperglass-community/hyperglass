@@ -1,14 +1,11 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
-import { useFormState } from '~/hooks';
 import { Path } from './path';
 
 // The chart needs a layout engine that jsdom lacks, and the heading does not depend on it.
 vi.mock('./chart', () => ({ Chart: () => null }));
-
-const initialFormState = useFormState.getState();
 
 const response = {
   output: {
@@ -20,15 +17,9 @@ const response = {
   },
 } as unknown as QueryResponse;
 
-afterEach(() => {
-  useFormState.setState(initialFormState, true);
-});
-
 /** Render the AS path for `target`, open the modal and return it. */
 async function openPath(target: string, options: Parameters<typeof renderWithProviders>[1] = {}) {
-  useFormState.setState({ target: { display: target } });
-  useFormState.getState().addResponse('device', response);
-  const result = renderWithProviders(<Path device="device" />, options);
+  const result = renderWithProviders(<Path response={response} displayTarget={target} />, options);
   await waitFor(
     () => expect(result.container.querySelector('button svg')).toBeInTheDocument(),
     IMPORT_WAIT,
