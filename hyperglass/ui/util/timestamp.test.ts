@@ -17,42 +17,51 @@ describe('formatTimestamp', () => {
   });
 
   it("parses the backend's space-separated naive value as UTC", () => {
-    expect(formatTimestamp('2026-11-20 08:00:00', toronto)).toBe('Nov 20, 2026, 03:00:00 EST');
+    expect(formatTimestamp('2026-11-20 08:00:00', toronto)).toBe('Nov 20, 2026, 3:00:00 AM EST');
   });
 
   it('parses an ISO value without a zone designator as UTC', () => {
-    expect(formatTimestamp('2026-07-01T14:45:37', toronto)).toBe('Jul 1, 2026, 10:45:37 EDT');
+    expect(formatTimestamp('2026-07-01T14:45:37', toronto)).toBe('Jul 1, 2026, 10:45:37 AM EDT');
   });
 
   it('keeps an explicit zone designator', () => {
-    expect(formatTimestamp('2026-11-20T08:00:00Z', toronto)).toBe('Nov 20, 2026, 03:00:00 EST');
+    expect(formatTimestamp('2026-11-20T08:00:00Z', toronto)).toBe('Nov 20, 2026, 3:00:00 AM EST');
     expect(formatTimestamp('2026-11-20T10:00:00+02:00', toronto)).toBe(
-      'Nov 20, 2026, 03:00:00 EST',
+      'Nov 20, 2026, 3:00:00 AM EST',
+    );
+    expect(formatTimestamp('2026-11-20T08:00:00.123456-05:30', toronto)).toBe(
+      'Nov 20, 2026, 8:30:00 AM EST',
     );
   });
 
-  it('converts across the date line', () => {
+  it('converts across the date line and shows an offset where there is no zone name', () => {
     expect(
       formatTimestamp('2026-11-20 20:30:00', { locale: 'en-US', timeZone: 'Asia/Tokyo' }),
-    ).toBe('Nov 21, 2026, 05:30:00 GMT+9');
+    ).toBe('Nov 21, 2026, 5:30:00 AM GMT+9');
   });
 
-  it('uses a 24-hour clock even where the locale prefers 12 hours', () => {
-    expect(formatTimestamp('2026-11-20 23:30:00', { locale: 'en-US', timeZone: 'UTC' })).toBe(
-      'Nov 20, 2026, 23:30:00 UTC',
-    );
-    // Midnight is 00, not 24 (the `h24` cycle) or 12 (`h12`).
-    expect(formatTimestamp('2026-11-20 05:00:00', toronto)).toBe('Nov 20, 2026, 00:00:00 EST');
-  });
-
-  it("follows the viewer's locale for the date layout", () => {
+  it('lets the locale choose the 12- or 24-hour clock', () => {
+    // Midnight in Toronto: `en-US` uses a 12-hour clock, `en-GB` a 24-hour one.
+    expect(formatTimestamp('2026-11-20 05:00:00', toronto)).toBe('Nov 20, 2026, 12:00:00 AM EST');
+    expect(
+      formatTimestamp('2026-11-20 05:00:00', { locale: 'en-GB', timeZone: 'America/Toronto' }),
+    ).toBe('20 Nov 2026, 00:00:00 GMT-5');
     expect(
       formatTimestamp('2026-11-20 08:00:00', { locale: 'de-DE', timeZone: 'Europe/Berlin' }),
-    ).toBe('20. Nov. 2026, 09:00:00 MEZ');
+    ).toBe('20.11.2026, 09:00:00 MEZ');
   });
 
-  it('returns the original value when it cannot be parsed', () => {
-    expect(formatTimestamp('not-a-date', toronto)).toBe('not-a-date');
-    expect(formatTimestamp('', toronto)).toBe('');
+  it.each([
+    'not-a-date',
+    '',
+    '12',
+    'abc 2026',
+    '2026-13-45 99:99:99',
+    '2026-02-30 00:00:00',
+    '2026-11-20 24:00:00',
+    '2026-11-20 08:00:00+25:00',
+    '2026-11-20',
+  ])('returns %j unchanged because it is not a timestamp', value => {
+    expect(formatTimestamp(value, toronto)).toBe(value);
   });
 });

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
+import { formatTimestamp } from '~/util';
 import { Result } from './individual';
 
 import type { Config } from '~/types';
@@ -430,8 +431,13 @@ describe('Result', () => {
 
     it("shows the cache time in a tooltip on wide screens, in the viewer's time zone", async () => {
       // The backend's timestamp is naive UTC. Run in a zone that isn't UTC (UTC-5 in
-      // November) so that showing the raw value, or reading it as local time, would differ.
+      // November), so the formatted time differs from the raw value. `util/timestamp.test.ts`
+      // covers the conversion itself; this checks the tooltip uses it.
+      const timestamp = '2026-11-20 08:00:00';
       vi.stubEnv('TZ', 'America/Toronto');
+      // Same locale as the component (the runner's), with the zone given explicitly.
+      const expected = formatTimestamp(timestamp, { timeZone: 'America/Toronto' });
+      expect(expected).not.toBe(timestamp);
       // Match only the open-ended widest breakpoint query, so Chakra picks a desktop layout.
       vi.spyOn(window, 'matchMedia').mockImplementation(
         query =>
@@ -446,7 +452,7 @@ describe('Result', () => {
             dispatchEvent: () => false,
           }) as MediaQueryList,
       );
-      stubFetch(answer(response({ cached: true, timestamp: '2026-11-20 08:00:00' })));
+      stubFetch(answer(response({ cached: true, timestamp })));
       const { container } = renderResult();
       await settled();
 
@@ -462,10 +468,8 @@ describe('Result', () => {
 
       await userEvent.hover(lightning);
 
-      // The date layout and zone name follow the runner's locale; the hour doesn't.
       const tooltip = await screen.findByRole('tooltip', {}, IMPORT_WAIT);
-      expect(tooltip).toHaveAccessibleName(/^Cached from .*\b03:00:00\b/);
-      expect(tooltip).not.toHaveAccessibleName(/08:00:00|UTC/);
+      expect(tooltip.textContent).toBe(`Cached from ${expected}`);
     });
 
     it('hides the cache countdown for a fresh response', async () => {
