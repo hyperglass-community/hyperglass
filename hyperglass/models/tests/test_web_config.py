@@ -108,3 +108,8 @@ def test_as_path_and_pagination_text_exported_camel_case():
         "lastPage",
     ):
         assert key in exported
+
+
+def test_cache_icon_default_has_no_time_zone():
+    """The UI shows `{time}` in the viewer's time zone, so the default doesn't say UTC (#551)."""
+    assert Text().cache_icon == "Cached from {time}"

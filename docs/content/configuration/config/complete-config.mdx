@@ -465,7 +465,7 @@ The "My IP" button automatically detects the user's public IP address and popula
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `web.text.cache_prefix` | String | `Results cached for ` | Prefix for cache countdown timer. Hyperglass adds one trailing space. |
-| `web.text.cache_icon` | String | `Cached from {time} UTC` | Tooltip for cached result indicator. |
+| `web.text.cache_icon` | String | `Cached from {time}` | Tooltip for cached result indicator. |
 | `web.text.complete_time` | String | `Completed in {seconds}` | Tooltip showing query completion time. |
 | `web.text.copy_output` | String | `Copy Output` | Tooltip and accessible name of the button that copies a result. |
 | `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
@@ -1183,7 +1183,7 @@ web:
     fqdn_error_button: "Try Again"
     # Cache and timing.
     cache_prefix: "Results cached for "
-    cache_icon: "Cached from {time} UTC"
+    cache_icon: "Cached from {time}"
     complete_time: "Completed in {seconds}"
     # RPKI states and the empty-communities label.
     rpki_invalid: "Invalid"
