@@ -764,6 +764,103 @@ describe('useFormState', () => {
       expect(target.display).toBe('');
     });
 
+    describe('with the same query type already in the form', () => {
+      // Router One with BGP Route and Ping, BGP Route taking both variables, and a BGP
+      // Route query with a target and a variable in the form.
+      const route = device('router_one').directives[0];
+      const ping = device('router_one').directives[3];
+      const byId = routerOneWith([{ ...route, variables: [vrf, location] } as Directive, ping]);
+
+      beforeEach(() => {
+        useFormState.setState({
+          form: {
+            queryLocation: ['router_one'],
+            queryType: route.id,
+            queryTarget: ['192.0.2.1'],
+            queryVariables: { vrf: 'default' },
+          },
+          filtered: { types: byId('router_one')?.directives ?? [], groups: [] },
+          selections: {
+            queryLocation: [{ value: 'router_one', label: 'Router One' }],
+            queryType: { value: route.id, label: route.name },
+          },
+          target: { display: '192.0.2.1' },
+        });
+      });
+
+      it('clears the target and variables for a target that is left out', () => {
+        prefill(
+          { queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: '192.0.2.9\n' },
+          byId,
+        );
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryType).toBe(route.id);
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it('clears the target and variables for a link without a target', () => {
+        prefill({ queryLocation: ['router_one'], queryType: route.id }, byId);
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryType).toBe(route.id);
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it("sets only the link's variables", () => {
+        prefill(
+          {
+            queryLocation: ['router_one'],
+            queryType: 'BGP Route',
+            queryTarget: '2001:db8::/32',
+            queryVariables: { location: 'customer' },
+          },
+          byId,
+        );
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryTarget).toEqual(['2001:db8::/32']);
+        expect(target.display).toBe('2001:db8::/32');
+        expect(form.queryVariables).toEqual({ location: 'customer' });
+      });
+
+      it('clears the query for a query type the location does not offer', () => {
+        prefill(
+          { queryLocation: ['router_one'], queryType: 'Traceroute', queryTarget: '192.0.2.9' },
+          byId,
+        );
+
+        const { form, selections, target } = useFormState.getState();
+        expect(form.queryType).toBe('');
+        expect(selections.queryType).toBeNull();
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it('clears the query for a link without a query type', () => {
+        prefill({ queryLocation: ['router_one'], queryTarget: '192.0.2.9' }, byId);
+
+        const { form, selections, target } = useFormState.getState();
+        expect(form.queryType).toBe('');
+        expect(selections.queryType).toBeNull();
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it('keeps the query for a link without a known location', () => {
+        const before = useFormState.getState().form;
+        prefill({ queryLocation: ['no_such_device'], queryType: 'Ping' }, byId);
+
+        expect(useFormState.getState().form).toEqual(before);
+      });
+    });
+
     it('leaves out the target and variables of an unknown query type, also when one is chosen', () => {
       // With only Ping offered, `locationChange` chooses it; the link's target was meant
       // for another query type.

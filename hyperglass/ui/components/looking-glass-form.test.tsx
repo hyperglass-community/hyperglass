@@ -1124,6 +1124,86 @@ describe('LookingGlassForm prefill', () => {
     ).toBeInTheDocument();
   });
 
+  describe('with a query of the same type already in the form', () => {
+    // A query is in the store, as when the page is reached again by a client-side
+    // navigation. BGP Route takes a required VRF.
+    const config = oneDeviceConfig(dev => ({
+      ...dev,
+      directives: [
+        dev.directives[3],
+        {
+          ...dev.directives[0],
+          variables: [
+            {
+              id: 'vrf',
+              name: 'VRF',
+              required: true,
+              options: [
+                { name: 'Default', value: 'default', description: null },
+                { name: 'Customer', value: 'customer', description: null },
+              ],
+            },
+          ],
+        } as unknown as Directive,
+      ],
+    }));
+
+    beforeEach(() => {
+      const [types] = config.devices.map(g => g.locations[0].directives);
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one'],
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['192.0.2.1'],
+          queryVariables: { vrf: 'customer' },
+        },
+        filtered: { types, groups: [] },
+        selections: {
+          queryLocation: [{ value: 'router_one', label: 'Router One' }],
+          queryType: { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' },
+        },
+        target: { display: '192.0.2.1' },
+      });
+    });
+
+    it('shows no target when the link has none that applies, and does not submit the old one', async () => {
+      const { container } = renderPrefilled(
+        {
+          location: 'router_one',
+          type: 'BGP Route',
+          target: '192.0.2.9\nshow running-config',
+          'var.vrf': 'default',
+        },
+        config,
+      );
+
+      await waitFor(() => expect(useFormState.getState().form.queryTarget).toEqual([]));
+      expect(await targetInput()).toHaveValue('');
+      expect(container.querySelector('input[name="queryTarget"]')).toHaveValue('');
+      expect(selectValue('queryVariables.vrf')).toBe('default');
+
+      submit(container);
+
+      expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
+      expect(useFormState.getState().status).toBe('form');
+    });
+
+    it('shows no variable when the link has none, and does not submit the old one', async () => {
+      const { container } = renderPrefilled(
+        { location: 'router_one', type: 'BGP Route', target: '2001:db8::/32' },
+        config,
+      );
+
+      expect(await targetInput()).toHaveValue('2001:db8::/32');
+      await waitFor(() => expect(selectValue('queryVariables.vrf')).toBe(''));
+
+      submit(container);
+
+      expect(await screen.findByText(noInput('VRF'))).toBeInTheDocument();
+      expect(useFormState.getState().status).toBe('form');
+    });
+  });
+
   it('leaves an address without its parameters as it is', async () => {
     openAddress('/?q=a%20b');
     await screen.findByText('Router One');

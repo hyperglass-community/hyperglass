@@ -365,12 +365,16 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       return;
     }
 
-    // Locations: as `QueryLocation` does, select the options, then change the locations.
+    // The link replaces the query in the form: clear its query type, target and
+    // variables first, so none of them is kept when the link's is left out or missing.
+    // Then, as `QueryLocation` does, select the options and change the locations.
     set(state => ({
+      form: { ...state.form, queryType: '', queryTarget: [], queryVariables: {} },
       selections: {
-        ...state.selections,
         queryLocation: devices.map(d => ({ value: d.id, label: d.name })),
+        queryType: null,
       },
+      target: { display: '' },
     }));
     get().locationChange(
       devices.map(d => d.id),
@@ -394,15 +398,15 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       // also not to a query type `locationChange` chose on its own.
       return;
     }
-    if (queryType !== undefined && queryType.id !== get().form.queryType) {
-      // As choosing a query type does, clear the target and variables.
+    if (queryType !== undefined) {
+      // Its target and variables are empty: the query was cleared above, and
+      // `locationChange` clears them when it chooses the only query type.
       set(state => ({
-        form: { ...state.form, queryType: queryType.id, queryTarget: [], queryVariables: {} },
+        form: { ...state.form, queryType: queryType.id },
         selections: {
           ...state.selections,
           queryType: { value: queryType.id, label: queryType.name },
         },
-        target: { display: '' },
       }));
     }
 
@@ -440,9 +444,7 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
         variables[variable.id] = value;
       }
     }
-    set(state => ({
-      form: { ...state.form, queryVariables: { ...state.form.queryVariables, ...variables } },
-    }));
+    set(state => ({ form: { ...state.form, queryVariables: variables } }));
   },
 
   response(deviceId: string): QueryResponse | null {
