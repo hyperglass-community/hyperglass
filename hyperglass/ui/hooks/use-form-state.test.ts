@@ -204,6 +204,54 @@ describe('useFormState', () => {
       });
     });
 
+    it('clears the target when it chooses a different query type', () => {
+      const one = { ...device('router_one'), directives: device('router_one').directives.slice(4) };
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one'],
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: {},
+        },
+        filtered: { types: device('router_one').directives, groups: [] },
+        target: { display: '2001:db8::/32' },
+      });
+
+      changeLocations(['router_one'], id => (id === 'router_one' ? one : null));
+
+      const { form, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_traceroute__');
+      expect(form.queryTarget).toEqual([]);
+      expect(target.display).toBe('');
+    });
+
+    it('keeps the target when the only query type in common is the current one', () => {
+      const ping = (id: string): Device | null => {
+        const dev = getDevice(id);
+        return dev && { ...dev, directives: dev.directives.filter(d => d.name === 'Ping') };
+      };
+      const selection = { value: '__hyperglass_juniper_ping__', label: 'Ping' };
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one'],
+          queryType: '__hyperglass_juniper_ping__',
+          queryTarget: ['2001:db8::1'],
+          queryVariables: {},
+        },
+        filtered: { types: ping('router_one')?.directives ?? [], groups: [] },
+        selections: { queryLocation: [], queryType: selection },
+        target: { display: '2001:db8::1' },
+      });
+
+      changeLocations(['router_one', 'router_two'], ping);
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(form.queryTarget).toEqual(['2001:db8::1']);
+      expect(target.display).toBe('2001:db8::1');
+      expect(selections.queryType).toEqual(selection);
+    });
+
     it('clears a query type the new locations do not offer, with its target and variables', () => {
       useFormState.setState({
         form: {

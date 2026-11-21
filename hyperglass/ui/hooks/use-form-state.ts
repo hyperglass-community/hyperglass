@@ -216,11 +216,14 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       }
     } else if (intersectingDirectives.length === 1) {
       // If there is only one intersecting directive, choose it so the user doesn't have to.
+      // It isn't the current query type (that one would be kept above), so clear the
+      // target as choosing another query type does: it may expect another kind of target.
       const [only] = intersectingDirectives;
       set(state => ({
-        form: { ...state.form, queryType: only.id, queryVariables: {} },
+        form: { ...state.form, queryType: only.id, queryTarget: [], queryVariables: {} },
         // Select the option too, so the query type select shows it.
         selections: { ...state.selections, queryType: { value: only.id, label: only.name } },
+        target: { display: '' },
       }));
     } else if (form.queryType !== '') {
       // The new locations don't offer the current query type: clear it and what depends
