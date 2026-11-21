@@ -56,7 +56,7 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
   const options = useMemo(() => buildOptions(directive), [directive]);
   const isSelect = useMemo(() => directive !== null && isSelectDirective(directive), [directive]);
   // Show the store's target, so a target the store clears (another location's options
-  // don't offer it) isn't still shown as selected.
+  // don't offer it) isn't still shown as selected, and one set from a link is.
   const selected = useMemo(
     () => options.find(o => queryTarget.includes(o.value)) ?? null,
     [options, queryTarget],

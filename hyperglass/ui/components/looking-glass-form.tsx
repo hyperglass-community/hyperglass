@@ -1,6 +1,7 @@
 import { Flex, ScaleFade, SlideFade, chakra } from '@chakra-ui/react';
 import { vestResolver } from '@hookform/resolvers/vest';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/router';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import isEqual from 'react-fast-compare';
 import { FormProvider, useForm } from 'react-hook-form';
 import vest, { test, enforce } from 'vest';
@@ -15,7 +16,14 @@ import {
 } from '~/components';
 import { useConfig } from '~/context';
 import { FormRow } from '~/elements';
-import { useDevice, useFormState, useGreeting, useStrf } from '~/hooks';
+import {
+  parsePrefill,
+  useDevice,
+  useFormState,
+  useGreeting,
+  useStrf,
+  withoutPrefill,
+} from '~/hooks';
 import { Directive, isQueryField, isString } from '~/types';
 import { isFQDN } from '~/util';
 
@@ -31,6 +39,7 @@ const EMPTY_VALUES: FormData = {
 
 export const LookingGlassForm = (): JSX.Element => {
   const { web, messages } = useConfig();
+  const router = useRouter();
 
   const greetingReady = useGreeting(s => s.greetingReady);
 
@@ -39,6 +48,7 @@ export const LookingGlassForm = (): JSX.Element => {
   const setLoading = useFormState(s => s.setLoading);
   const setStatus = useFormState(s => s.setStatus);
   const locationChange = useFormState(s => s.locationChange);
+  const prefillForm = useFormState(s => s.prefillForm);
   const setTarget = useFormState(s => s.setTarget);
   const setFormValue = useFormState(s => s.setFormValue);
   const { form, filtered, selections } = useFormState(
@@ -221,6 +231,39 @@ export const LookingGlassForm = (): JSX.Element => {
     setValue('queryTarget', values.queryTarget);
     setValue('queryVariables', values.queryVariables);
   }, [values, reset, setValue]);
+
+  // Fill the form from the parameters of the address, once the router is ready: the
+  // page is exported statically, and Next.js replaces the address once it has read the
+  // query string after hydration. This only fills the form: submitting still goes
+  // through `submitHandler`, with its greeting check and hostname resolution. The store
+  // change reaches react-hook-form through the mirror above. This effect comes after
+  // the mirror: on a mount with the router already ready, the mirror's reset of the
+  // empty form would otherwise clear an error that `locationChange` sets here.
+  const prefillRead = useRef(false);
+  useEffect(() => {
+    if (!router.isReady || prefillRead.current) {
+      return;
+    }
+    prefillRead.current = true;
+    const { pathname, search, hash } = window.location;
+    const prefill = parsePrefill(search);
+    if (prefill !== null) {
+      prefillForm(prefill, { setError, clearErrors, getDevice, text: web.text });
+    }
+    // Remove the parameters once read. The form unmounts while the results show, so
+    // they would otherwise be applied again over the user's changes on its return, and
+    // the address would no longer describe the form. Through the router, so the history
+    // entries Next.js keeps (and Back restores) have the new address too.
+    const rest = withoutPrefill(search);
+    if (rest !== search) {
+      // The route is the page's, not the address's path: the page can also be served as
+      // `/index.html`, which is not a route and would load the page again.
+      router.replace(`${router.pathname}${rest}`, `${pathname}${rest}${hash}`, {
+        shallow: true,
+        scroll: false,
+      });
+    }
+  }, [router.isReady]);
 
   return (
     <FormProvider {...formInstance}>
