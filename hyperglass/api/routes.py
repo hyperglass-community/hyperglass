@@ -44,6 +44,7 @@ from .metrics import (
 )
 from .middleware import skip_state_recovery
 from .fake_output import fake_output
+from .refresh import ForcedRefresh
 from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
 
 # Not user-configurable: an internal bound so an unreachable Redis reports
@@ -332,6 +333,12 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         cache.delete(cache_key)
         cache_response = None
 
+    # A forced query runs again only when its cached result is old enough and no other
+    # forced run of it is in progress or cooling down; otherwise it is answered from
+    # the cache.
+    refresh = ForcedRefresh(cache, cache_key, _state.params.cache, _state.params.request_timeout)
+    cache_response = refresh.check(cache_response, force=data.force)
+
     json_output = False
     cached = False
     runtime = 65535
@@ -359,15 +366,16 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
         starttime = time.time()
 
-        if _state.params.fake_output:
-            # Return fake, static data for development purposes, if enabled.
-            output = await fake_output(
-                query_type=data.query_type,
-                structured=data.device.structured_output or False,
-            )
-        else:
-            # Both attempts share the configured request deadline.
-            output = await _execute_query(data)
+        with refresh.run():
+            if _state.params.fake_output:
+                # Return fake, static data for development purposes, if enabled.
+                output = await fake_output(
+                    query_type=data.query_type,
+                    structured=data.device.structured_output or False,
+                )
+            else:
+                # Both attempts share the configured request deadline.
+                output = await _execute_query(data)
 
         endtime = time.time()
         elapsedtime = round(endtime - starttime, 4)
@@ -394,7 +402,9 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             enrichment_generation = uuid4().hex
 
         with cache.pipeline() as pipeline:
+            refresh.clear(pipeline)
             pipeline.set_map_item(cache_key, "output", raw_output)
+            pipeline.set_map_item(cache_key, "executed_at", time.time())
             pipeline.set_map_item(cache_key, "timestamp", timestamp)
             pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
             if enrichment_generation is not None:
@@ -424,6 +434,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         "timestamp": timestamp,
         "format": response_format,
         "enrichment": enrichment_status,
+        "refresh_in": refresh.refresh_in(),
         "random": data.random(),
         "level": "success",
         "keywords": [],

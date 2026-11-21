@@ -8,7 +8,7 @@ import unicodedata
 from datetime import UTC, datetime
 
 # Third Party
-from pydantic import BaseModel, ConfigDict, field_validator, StringConstraints
+from pydantic import Field, BaseModel, ConfigDict, field_validator, StringConstraints
 from typing_extensions import Annotated
 
 # Project
@@ -99,6 +99,14 @@ class Query(BaseModel):
 
     # Selected values of the directive's optional variables
     query_variables: t.Dict[str, str] = {}
+    # Run the query again instead of answering from the cache. Not part of the
+    # digest, so a forced query replaces the same cache entry.
+    force: bool = Field(
+        False,
+        description="Run the query on the device again instead of answering from the cache, "
+        "if `cache.refresh.enable` is set and the cached result is at least "
+        "`cache.refresh.min_interval` seconds old.",
+    )
     _kwargs: t.Dict[str, t.Any]
     # The target as validated, before input plugins transform it.
     _validated_target: t.Union[t.List[str], str, None] = None

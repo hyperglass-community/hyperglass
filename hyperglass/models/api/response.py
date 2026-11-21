@@ -61,6 +61,12 @@ schema_query_timestamp = {
     "example": "2020-04-18 14:45:37",
 }
 
+schema_query_refresh_in = {
+    "title": "Refresh In",
+    "description": "Seconds until a query sent with `force` may run this query on the device again. `0` means now; `null` when forced refresh is disabled.",
+    "example": 30,
+}
+
 schema_query_format = {
     "title": "Format",
     "description": "Response [MIME Type](http://www.iana.org/assignments/media-types/media-types.xhtml). Supported values: `text/plain` and `application/json`.",
@@ -152,6 +158,7 @@ class QueryResponse(BaseModel):
     keywords: t.List[str] = Field([], json_schema_extra=schema_query_keywords)
     timestamp: str = Field(json_schema_extra=schema_query_timestamp)
     format: ResponseFormat = Field("text/plain", json_schema_extra=schema_query_format)
+    refresh_in: t.Optional[int] = Field(None, json_schema_extra=schema_query_refresh_in)
 
 
 class RoutersResponse(BaseModel):

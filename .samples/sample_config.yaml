@@ -64,6 +64,13 @@ cache:
   timeout: 120
   # Show the cache icon and countdown on cached results in the UI. Default: true
   show_text: true
+  refresh:
+    # Let a query sent with `force` skip the cache and run on the device again.
+    # Default: false
+    enable: false
+    # Minimum seconds between runs of one query through `force`. Must be less
+    # than timeout when enable is true. Default: 30
+    min_interval: 30
 
 # ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)

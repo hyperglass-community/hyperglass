@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the cached result is younger than `cache.refresh.min_interval` (default 30 seconds), or while another forced run of the same query is in progress or cooling down, so forced queries reach a device at most once per interval for each query. Responses include `refresh_in`, the seconds until a forced query would run ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
+
 ### Changed
 
 - Show the cached-result time in the viewer's locale and time zone, with the zone name or offset, for example `Nov 20, 2026, 3:00:00 AM EST`. The locale decides the 12- or 24-hour clock. The backend's timestamp is UTC without a zone designator, and the tooltip showed it as received ([#564](https://github.com/hyperglass-community/hyperglass/pull/564), [#551](https://github.com/hyperglass-community/hyperglass/issues/551)). **Default change:** `web.text.cache_icon` is now `Cached from {time}`; it was `Cached from {time} UTC`. A configuration that sets `cache_icon` to the old text now labels a local time as UTC; remove the setting or the word `UTC`.

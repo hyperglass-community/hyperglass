@@ -6,6 +6,8 @@ Hyperglass caches query responses in Redis, so a repeated query does not reach t
 | :---------------- | :------ | :------------ | :------------------------------------------------------------------------------ |
 | `cache.timeout`   | Number  | 120           | Number of seconds for which to cache device responses. Each cache hit restarts the timeout, so a query repeated within the timeout keeps its cached response. The UI countdown for cached results uses the same value. |
 | `cache.show_text` | Boolean | `true`        | If `true`, the UI shows a cache icon and countdown on cached results. |
+| `cache.refresh.enable` | Boolean | `false` | If `true`, a query sent with `force` can run a cached query on the device again. See [Forced refresh](#forced-refresh). |
+| `cache.refresh.min_interval` | Number | 30 | Minimum seconds between runs of one query through `force`. Must be greater than 0 and less than `cache.timeout` when `cache.refresh.enable` is `true`. |
 
 ### Example with Defaults
 
@@ -13,4 +15,23 @@ Hyperglass caches query responses in Redis, so a repeated query does not reach t
 cache:
     timeout: 120
     show_text: true
+    refresh:
+        enable: false
+        min_interval: 30
 ```
+
+### Forced refresh
+
+With `cache.refresh.enable: true`, a query sent to `POST /api/query` with `"force": true` skips its cached result, runs on the device again and replaces the cache entry. `force` is not part of the cache key, so the forced query and the same query without it share one entry. With `cache.refresh.enable: false`, the default, `force` is ignored.
+
+`force` needs no authentication, so the server bounds forced runs for each query (location, query type, target and variables), whoever sends them:
+
+- If the cached result ran less than `cache.refresh.min_interval` seconds ago, the server answers from the cache.
+- Only one forced run of a query happens at a time, across all workers. A forced query that arrives while another runs is answered from the cache.
+- After a forced run ends, whether it succeeded or failed, the next forced run of that query waits `cache.refresh.min_interval` seconds. Errors are not cached, so this also keeps a failing device from being queried again at once. A failed forced run keeps the previous cached result.
+
+A query reaches the device through `force` at most once per `cache.refresh.min_interval`, plus the time the run takes. A query with no cached result runs as usual, with or without `force`.
+
+Every response includes `refresh_in`: the number of seconds until a forced query for the same result would run. `0` means now, and `null` means forced refresh is disabled. A response answered from the cache has `cached: true`.
+
+With the default `cache.timeout` of 120 and `min_interval` of 30, a result can be refreshed from 30 seconds after it ran until it expires. After it expires, any request runs the query again.
