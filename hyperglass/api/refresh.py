@@ -5,7 +5,7 @@ flag is unauthenticated, so when `cache.refresh.enable` is set the server bounds
 cache key with one Redis key next to the cached result, `<cache key>.refresh`:
 
 - Every run of the query, forced or not, sets it to a cooldown that expires after
-  `cache.refresh.min_interval` seconds.
+  `cache.refresh.min_interval` seconds, unless another request's forced run holds it.
 - A forced query takes it with `SET NX` before running, so only one forced run of a
   query happens at a time, across all workers, and none during a cooldown.
 - When a forced run ends, successful or not, it becomes a cooldown again.
@@ -28,7 +28,7 @@ from hyperglass.log import log
 if t.TYPE_CHECKING:
     # Project
     from hyperglass.state.redis import RedisManager
-    from hyperglass.models.config.cache import Cache
+    from hyperglass.models.config.params import Params
 
 # Value of the key during a cooldown. During a forced run it holds the run's token.
 COOLDOWN = "cooldown"
@@ -49,24 +49,36 @@ end
 return 0
 """
 
+# Start or restart the cooldown after a run that wrote its result: over no key, a
+# cooldown or this request's own lease, never over another request's forced run.
+_RECORD = """
+local value = redis.call('GET', KEYS[1])
+if value == false or value == ARGV[1] or value == ARGV[2] then
+    return redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3])
+end
+return 0
+"""
+
 
 class ForcedRefresh:
     """Track one request's forced refresh of a cached query result."""
 
-    def __init__(self, cache: "RedisManager", cache_key: str, config: "Cache", ttl: int) -> None:
+    def __init__(self, cache: "RedisManager", cache_key: str, params: "Params") -> None:
         """Start with no lease.
 
-        `ttl` is the request timeout. A forced run holds the lease for that long plus
-        `LEASE_MARGIN`, so a worker that dies mid-query does not block refreshes of
-        that query for longer.
+        A forced run holds the lease for `request_timeout` plus `LEASE_MARGIN`, so a
+        worker that dies mid-query does not block refreshes of that query for longer.
         """
         self.cache = cache
         self.cache_key = cache_key
         self.lease_key = cache.key(f"{cache_key}.refresh")
-        self.enabled = config.refresh.enable
-        self.interval = config.refresh.min_interval
-        self.ttl = max(ttl, 1) + LEASE_MARGIN
+        self.enabled = params.cache.refresh.enable
+        self.interval = params.cache.refresh.min_interval
+        self.ttl = max(params.request_timeout, 1) + LEASE_MARGIN
+        # This request's lease while its forced run is in progress.
         self.token: t.Optional[str] = None
+        # This request's lease token, kept after the run; empty if it took none.
+        self.own_token = ""
         # Whether this request replaces the cached result.
         self.forced = False
 
@@ -82,7 +94,7 @@ class ForcedRefresh:
         token = uuid4().hex
         if not self.cache.instance.set(self.lease_key, token, nx=True, ex=self.ttl):
             return cached_output
-        self.token = token
+        self.token = self.own_token = token
         self.forced = True
         log.bind(cache_key=self.cache_key).debug("Forced refresh")
         return None
@@ -114,12 +126,15 @@ class ForcedRefresh:
         """Add this run to the pipeline that writes its result.
 
         A forced run deletes the result it replaces first, so none of its fields
-        outlive it. Every run starts the cooldown, in the same transaction.
+        outlive it. Every run starts the cooldown in the same transaction, unless
+        another request's forced run holds the key: its own cooldown follows that run.
         """
         if self.forced:
             pipeline.delete(self.cache_key)
         if self.enabled:
-            pipeline.instance.set(self.lease_key, COOLDOWN, ex=self.interval)
+            pipeline.instance.eval(
+                _RECORD, 1, self.lease_key, COOLDOWN, self.own_token, self.interval
+            )
 
     def refresh_in(self) -> t.Optional[int]:
         """Return the whole seconds until a forced query can run, `None` if disabled.

@@ -27,11 +27,13 @@ With `cache.refresh.enable: true`, a query sent to `POST /api/query` with `"forc
 `force` needs no authentication, so the server bounds forced runs for each query (location, query type, target and variables), whoever sends them:
 
 - If the query ran less than `cache.refresh.min_interval` seconds ago, forced or not, the server answers from the cache.
-- Only one forced run of a query happens at a time, across all workers. A forced query that arrives while another runs is answered from the cache.
+- Only one forced run of a query happens at a time, across all workers. A forced query that arrives while another runs is answered from the cache. This relies on Redis keeping the run's lease key: if Redis evicts it under `maxmemory` pressure, a second forced run can start. The lease has an expiry, so `volatile-*` policies can evict it too; give Redis enough memory, or use `noeviction`, if that matters.
 - After a forced run ends, whether it succeeded or failed, the next forced run of that query waits `cache.refresh.min_interval` seconds. Errors are not cached, so this also keeps a failing device from being queried again at once.
 - A failed forced run returns the device's error, like any failed query, and keeps the previous cached result for the next request.
 
 A query reaches the device through `force` at most once per `cache.refresh.min_interval`, plus the time the run takes. A query with no cached result runs as usual, with or without `force`.
+
+If a worker stops in the middle of a forced run, its lease blocks forced runs of that query until the lease expires, `request_timeout` plus 5 seconds after the run started. Meanwhile `refresh_in` reports `min_interval`, and forced queries are answered from the cache.
 
 Enabling forced refresh raises how often anyone can make a device run a given query: without it, a cached query runs at most once per `cache.timeout`; with it, once per `cache.refresh.min_interval` (four times as often with the defaults). For a query type whose target is free text, a visitor can already reach the device at any rate by changing the target. For query types with a fixed list of targets, or no target, forced refresh is what raises the rate. Choose `min_interval` with that in mind.
 

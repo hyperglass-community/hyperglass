@@ -301,6 +301,45 @@ def test_cooldown_failure_keeps_the_result(client, device, monkeypatch):
 
     assert forced.status_code == 201
     assert forced.json()["output"] == "output 2"
+    # The result's own write still turns this request's lease into a cooldown.
+    assert instance.get(lease_key(cache_key())) == b"cooldown"
+
+
+def test_forced_query_right_after_a_run_serves_cached(client, device):
+    first = client.post("/api/query", json=body()).json()
+    forced = client.post("/api/query", json=body(force=True)).json()
+
+    assert device.calls == 1
+    assert (first["cached"], forced["cached"]) == (False, True)
+    assert 0 < forced["refresh_in"] <= INTERVAL
+
+
+def test_unforced_run_keeps_another_requests_lease(client, device):
+    key = cache_key()
+    instance = use_state().redis.instance
+    # Another request's forced run holds the key while this query has no entry.
+    instance.set(lease_key(key), "foreign", ex=60)
+
+    response = client.post("/api/query", json=body()).json()
+
+    assert device.calls == 1
+    assert response["cached"] is False
+    assert instance.get(lease_key(key)) == b"foreign"
+    assert response["refresh_in"] == INTERVAL
+
+
+def test_forced_run_keeps_a_lease_taken_after_its_own(client, device):
+    client.post("/api/query", json=body())
+    key = cache_key()
+    age_entry(key, INTERVAL + 1)
+    instance = use_state().redis.instance
+    # This run's lease is replaced by another request's, as if it had expired.
+    device.during = lambda: instance.set(lease_key(key), "foreign", ex=60)
+
+    client.post("/api/query", json=body(force=True))
+
+    assert device.calls == 2
+    assert instance.get(lease_key(key)) == b"foreign"
 
 
 def test_force_must_be_a_boolean(client, device):
