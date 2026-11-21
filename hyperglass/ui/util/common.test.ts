@@ -1,5 +1,13 @@
-import { describe, expect, it, test } from 'vitest';
-import { all, andJoin, chunkArray, dedupObjectArray, entries, isFQDN } from './common';
+import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
+import {
+  all,
+  andJoin,
+  chunkArray,
+  dedupObjectArray,
+  entries,
+  fetchWithTimeout,
+  isFQDN,
+} from './common';
 
 test('all - all items are truthy', () => {
   // biome-ignore lint/suspicious/noSelfCompare: because this is a test, duh
@@ -96,5 +104,131 @@ describe('isFQDN - determine if a string is an FQDN pattern', () => {
   });
   it('is an array of FQDNs and should be true', () => {
     expect(isFQDN(['www.example.com'])).toBe(true);
+  });
+});
+
+describe('fetchWithTimeout', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  /** Answer with a promise that rejects when the request's signal aborts, as `fetch` does. */
+  function hangUntilAborted(): void {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_, reject) => {
+          const abort = () => reject(new DOMException('This operation was aborted', 'AbortError'));
+          if (init.signal?.aborted) {
+            abort();
+          }
+          init.signal?.addEventListener('abort', abort);
+        }),
+    );
+  }
+
+  /** The `RequestInit` of the `n`th `fetch` call. */
+  function request(n = 0): RequestInit {
+    return fetchMock.mock.calls[n][1] as RequestInit;
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('passes the URL and options to fetch', async () => {
+    const response = new Response('ok');
+    fetchMock.mockResolvedValue(response);
+
+    const res = await fetchWithTimeout('/api/x', { method: 'POST', mode: 'cors' }, 1000);
+
+    expect(res).toBe(response);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/x',
+      expect.objectContaining({ method: 'POST', mode: 'cors', signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it('aborts the request when the timeout passes', async () => {
+    hangUntilAborted();
+    const pending = fetchWithTimeout('/api/x', {}, 1000);
+    const settled = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+
+    vi.advanceTimersByTime(999);
+    expect(request().signal?.aborted).toBe(false);
+    vi.advanceTimersByTime(1);
+
+    await settled;
+    expect(request().signal?.aborted).toBe(true);
+  });
+
+  it('clears the timer when the request succeeds', async () => {
+    fetchMock.mockResolvedValue(new Response('ok'));
+
+    await fetchWithTimeout('/api/x', {}, 1000);
+
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(1000);
+    expect(request().signal?.aborted).toBe(false);
+  });
+
+  it('clears the timer when the request fails', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(fetchWithTimeout('/api/x', {}, 1000)).rejects.toThrow('Failed to fetch');
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('gives each request its own signal', async () => {
+    fetchMock.mockImplementation(async () => new Response('ok'));
+
+    await fetchWithTimeout('/api/x', {}, 1000);
+    vi.advanceTimersByTime(1000);
+    await fetchWithTimeout('/api/x', {}, 1000);
+
+    expect(request(1).signal).not.toBe(request(0).signal);
+    expect(request(1).signal?.aborted).toBe(false);
+  });
+
+  it('aborts the request when the passed signal aborts', async () => {
+    hangUntilAborted();
+    const caller = new AbortController();
+    const pending = fetchWithTimeout('/api/x', { signal: caller.signal }, 1000);
+    const settled = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+
+    caller.abort();
+
+    await settled;
+    expect(request().signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('fails at once when the passed signal has already aborted', async () => {
+    hangUntilAborted();
+    const caller = new AbortController();
+    caller.abort();
+
+    await expect(fetchWithTimeout('/api/x', { signal: caller.signal }, 1000)).rejects.toMatchObject(
+      { name: 'AbortError' },
+    );
+    expect(request().signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('still times out a request that has a passed signal', async () => {
+    hangUntilAborted();
+    const caller = new AbortController();
+    const pending = fetchWithTimeout('/api/x', { signal: caller.signal }, 1000);
+    const settled = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+
+    vi.advanceTimersByTime(1000);
+
+    await settled;
+    expect(caller.signal.aborted).toBe(false);
   });
 });

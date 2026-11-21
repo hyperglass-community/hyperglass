@@ -29,31 +29,33 @@ export function entries<O, K extends keyof O = keyof O>(obj: O): [K, O[K]][] {
 }
 
 /**
- * Fetch Wrapper that incorporates a timeout via a passed AbortController instance.
+ * `fetch` that aborts the request if it has not answered within `timeout` milliseconds.
  *
- * Adapted from: https://lowmess.com/blog/fetch-with-timeout
+ * Each call uses its own `AbortController`, and the timer is cleared once `fetch` settles, so
+ * a timeout never reaches a later request. If `options.signal` is given, aborting it also
+ * aborts the request; the timeout does not abort the caller's signal.
  */
 export async function fetchWithTimeout(
   uri: string,
   // biome-ignore lint/style/useDefaultParameterLast: goal is to match the fetch API as closely as possible.
   options: RequestInit = {},
   timeout: number,
-  controller: AbortController,
 ): Promise<Response> {
-  /**
-   * Lets set up our `AbortController`, and create a request options object that includes the
-   * controller's `signal` to pass to `fetch`.
-   */
-  const { signal = controller.signal, ...allOptions } = options;
-  const config = { ...allOptions, signal };
-  /**
-   * Set a timeout limit for the request using `setTimeout`. If the body of this timeout is
-   * reached before the request is completed, it will be cancelled.
-   */
-  setTimeout(() => {
-    controller.abort();
-  }, timeout);
-  return await fetch(uri, config);
+  const { signal: callerSignal, ...init } = options;
+  const controller = new AbortController();
+  const abort = (): void => controller.abort();
+  if (callerSignal?.aborted) {
+    abort();
+  } else {
+    callerSignal?.addEventListener('abort', abort, { once: true });
+  }
+  const timer = setTimeout(abort, timeout);
+  try {
+    return await fetch(uri, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', abort);
+  }
 }
 
 export function dedupObjectArray<E extends Record<string, unknown>, P extends keyof E = keyof E>(
