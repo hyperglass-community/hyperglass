@@ -47,7 +47,7 @@ A link can fill in the form, for example from a ticket, a monitoring tool or doc
 
 | Parameter        | Value                                                                                                                 |
 | :--------------- | :-------------------------------------------------------------------------------------------------------------------- |
-| `location`       | A location's device ID, as in `devices.yaml`. Repeat it to select several locations.                                  |
+| `location`       | A location's device ID. Repeat it to select several locations.                                                        |
 | `type`           | A query type's directive ID, or its name as the form shows it, such as `BGP Route`.                                   |
 | `target`         | The query target. For a query type with a list of targets, one of the listed values.                                  |
 | `var.<variable>` | The value of a directive variable, by the variable's ID, such as `var.vrf=default`. Use one of the variable's values. |
@@ -56,9 +56,11 @@ A link can fill in the form, for example from a ticket, a monitoring tool or doc
 https://lg.example.net/?location=router_one&location=router_two&type=BGP+Route&target=2001:db8::/32
 ```
 
+A device ID is made from the device's `name` in `devices.yaml`: characters other than letters, digits, `_`, `-` and spaces are removed, each run of spaces becomes `_`, and the result is lowercased, so `Router One` becomes `router_one`. The `id` of each location is also listed by `/api/devices`.
+
 The link only fills in the form; the query runs when you select **Submit**. A required greeting must still be acknowledged, and a hostname target is still resolved first.
 
-Values that the deployment doesn't offer are left out without a message: an unknown location, a query type that the selected locations don't share, a target that isn't one of the listed values, or an unknown variable or value. The query type is only filled in when at least one location is valid, and the target and variables only when the query type is. When the selected locations have only one query type in common, the form chooses it, and the target applies to it.
+Values that the deployment doesn't offer are left out without a message: an unknown location, a query type that the selected locations don't share, a target that isn't one of the listed values or that contains control characters or line breaks, or an unknown variable or value. The query type is only filled in when at least one location is valid, and the target and variables only when the query type is. When the selected locations have only one query type in common, the form chooses it; a link without `type` then fills in the target and variables for it, and a link with a different `type` doesn't.
 
 With locations from different vendors, the query type can be given by its name or by any selected location's directive ID for it.
 
