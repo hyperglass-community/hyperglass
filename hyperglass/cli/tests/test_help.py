@@ -43,6 +43,7 @@ COMMANDS = (
     ("system-info",),
     ("support-bundle",),
     ("clear-cache",),
+    ("healthcheck",),
     ("devices",),
     ("directives",),
     ("plugins",),
