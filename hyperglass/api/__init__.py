@@ -29,10 +29,11 @@ from .routes import (
     aspath_enrich,
     query_enrichment,
 )
+from .metrics import create_metrics
 from .middleware import COMPRESSION_CONFIG, recover_state, create_cors_config
 from .error_handlers import app_handler, http_handler, default_handler, validation_handler
 
-__all__ = ("app",)
+__all__ = ("app", "create_app")
 
 STATE = use_state()
 
@@ -89,18 +90,41 @@ if not STATE.settings.disable_ui:
     ]
 
 
-app = Litestar(
-    route_handlers=HANDLERS,
-    exception_handlers={
-        HTTPException: http_handler,
-        HyperglassError: app_handler,
-        ValidationException: validation_handler,
-        Exception: default_handler,
-    },
-    on_startup=[check_redis],
-    before_request=recover_state,
-    debug=STATE.settings.debug,
-    cors_config=create_cors_config(state=STATE),
-    compression_config=COMPRESSION_CONFIG,
-    openapi_config=OPEN_API if STATE.params.docs.enable else None,
-)
+def create_app() -> Litestar:
+    """Create the Litestar application from the current hyperglass state.
+
+    `app` is built once, when this module is first imported. Tests use this to
+    build an application from other parameters, such as with metrics enabled.
+    """
+    state = use_state()
+    params = state.params
+
+    route_handlers = [*HANDLERS]
+    middleware = []
+
+    if params.metrics.enable:
+        prometheus_config, metrics_controller = create_metrics(
+            params.metrics, exclude=("/api/health",)
+        )
+        route_handlers.append(metrics_controller)
+        middleware.append(prometheus_config.middleware)
+
+    return Litestar(
+        route_handlers=route_handlers,
+        middleware=middleware,
+        exception_handlers={
+            HTTPException: http_handler,
+            HyperglassError: app_handler,
+            ValidationException: validation_handler,
+            Exception: default_handler,
+        },
+        on_startup=[check_redis],
+        before_request=recover_state,
+        debug=state.settings.debug,
+        cors_config=create_cors_config(state=state),
+        compression_config=COMPRESSION_CONFIG,
+        openapi_config=OPEN_API if params.docs.enable else None,
+    )
+
+
+app = create_app()

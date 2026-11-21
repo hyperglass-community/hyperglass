@@ -35,6 +35,13 @@ from hyperglass.models.config.devices import Devices, APIDevice
 from .state import get_state, get_params, get_devices
 from .tasks import enrich_query_output, send_webhook
 from .client_address import client_address
+from .metrics import (
+    QUERY_METRICS_OPT,
+    set_query_labels,
+    record_query_cache,
+    record_query_success,
+    record_query_duration,
+)
 from .middleware import skip_state_recovery
 from .fake_output import fake_output
 from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
@@ -290,7 +297,11 @@ async def health() -> Response:
     )
 
 
-@post("/api/query", dependencies={"_state": Provide(get_state)})
+@post(
+    "/api/query",
+    dependencies={"_state": Provide(get_state)},
+    opt={QUERY_METRICS_OPT: True},
+)
 async def query(_state: HyperglassState, request: Request, data: Query) -> QueryResponse:
     """Ingest request data pass it to the backend application to perform the query."""
 
@@ -304,6 +315,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     cache_key = f"hyperglass.query.{data.digest()}"
 
     _log = log.bind(query=data.summary())
+    set_query_labels(request, data)
 
     _log.info("Starting query execution")
 
@@ -329,6 +341,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     if cache_response:
         _log.bind(cache_key=cache_key).debug("Cache hit")
+        record_query_cache("hit")
 
         # If a cached response exists, reset the expiration time.
         cache.expire(cache_key, expire_in=_state.params.cache.timeout)
@@ -340,6 +353,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     elif not cache_response:
         _log.bind(cache_key=cache_key).debug("Cache miss")
+        record_query_cache("miss")
 
         timestamp = data.timestamp
 
@@ -361,6 +375,8 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
         if output is None:
             raise HyperglassError(message=_state.params.messages.general, alert="danger")
+
+        record_query_duration(request, elapsedtime)
 
         json_output = is_type(output, OutputDataModel)
 
@@ -398,6 +414,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     if json_output:
         response_format = "application/json"
     _log.info("Execution completed")
+    record_query_success(request)
 
     response = {
         "output": cache_response,

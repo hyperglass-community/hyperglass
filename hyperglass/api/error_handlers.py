@@ -11,6 +11,9 @@ from litestar.exceptions import ValidationException
 from hyperglass.log import log
 from hyperglass.state import use_state
 
+# Local
+from .metrics import record_query_error
+
 __all__ = (
     "default_handler",
     "http_handler",
@@ -50,6 +53,7 @@ def default_handler(request: Request, exc: BaseException) -> Response:
     """Handle uncaught errors."""
     state = use_state()
     log.bind(method=request.method, path=request.url.path, detail=str(exc)).critical("Error")
+    record_query_error(request, exc)
     return Response(
         {"output": state.params.messages.general, "level": "danger", "keywords": []},
         status_code=500,
@@ -59,6 +63,7 @@ def default_handler(request: Request, exc: BaseException) -> Response:
 def http_handler(request: Request, exc: BaseException) -> Response:
     """Handle web server errors."""
     log.bind(method=request.method, path=request.url.path, detail=exc.detail).critical("HTTP Error")
+    record_query_error(request, exc)
     return Response(
         {"output": exc.detail, "level": "danger", "keywords": []},
         status_code=exc.status_code,
@@ -70,6 +75,7 @@ def app_handler(request: Request, exc: BaseException) -> Response:
     log.bind(method=request.method, path=request.url.path, detail=exc.message).critical(
         "hyperglass Error"
     )
+    record_query_error(request, exc)
     return Response(
         {"output": exc.message, "level": exc.level, "keywords": exc.keywords},
         status_code=exc.status_code,
@@ -83,4 +89,5 @@ def validation_handler(request: Request, exc: ValidationException) -> Response:
     warnings rather than as critical server errors.
     """
     log.bind(method=request.method, path=request.url.path, detail=exc).warning("Validation Error")
+    record_query_error(request, exc)
     return get_validation_exception_detail(exc)
