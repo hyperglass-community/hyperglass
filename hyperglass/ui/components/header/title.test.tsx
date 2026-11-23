@@ -1,10 +1,15 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeConfig, renderWithProviders } from '~/__tests__/render';
+import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
 import { Title } from './title';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  useQueryHistory.setState({ entries: [] });
+  useHistoryView.setState({ openId: null, returnFocusId: null });
+  localStorage.clear();
 });
 
 /** An `Image` whose every load succeeds, as a browser's would once the logo arrives. */
@@ -40,5 +45,29 @@ describe('Title', () => {
     renderWithProviders(<Title />, { config });
 
     expect(screen.getByRole('button', { name: 'Example AS65000' })).toBeInTheDocument();
+  });
+
+  it('goes back through the browser history entry of an opened history entry', async () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    window.history.replaceState({ ultraglass: 'history' }, '');
+    useHistoryView.setState({ openId: 'saved' });
+    renderWithProviders(<Title />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hyperglass' }));
+
+    expect(back).toHaveBeenCalledTimes(1);
+    // The popstate event that follows closes it (see `Layout`).
+    expect(useHistoryView.getState().openId).toBe('saved');
+    window.history.replaceState(null, '');
+  });
+
+  it('returns to an empty form from an opened history entry', async () => {
+    useHistoryView.setState({ openId: 'saved' });
+    renderWithProviders(<Title />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hyperglass' }));
+
+    expect(useHistoryView.getState().openId).toBeNull();
+    expect(useFormState.getState().status).toBe('form');
   });
 });

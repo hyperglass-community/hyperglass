@@ -149,3 +149,13 @@ export function isFQDN(value: string | string[]): value is string {
   }
   return typeof value === 'string' && pattern.test(value);
 }
+
+/**
+ * A random 128-bit ID as 32 hexadecimal characters. `crypto.randomUUID` is only
+ * available on HTTPS pages, and a looking glass may be served over plain HTTP;
+ * `crypto.getRandomValues` is available on both.
+ */
+export function randomId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}

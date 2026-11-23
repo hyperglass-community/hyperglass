@@ -7,6 +7,7 @@ import {
   entries,
   fetchWithTimeout,
   isFQDN,
+  randomId,
 } from './common';
 
 test('all - all items are truthy', () => {
@@ -230,5 +231,15 @@ describe('fetchWithTimeout', () => {
 
     await settled;
     expect(caller.signal.aborted).toBe(false);
+  });
+});
+
+describe('randomId', () => {
+  it('returns 32 hexadecimal characters', () => {
+    expect(randomId()).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('returns a new ID each time', () => {
+    expect(randomId()).not.toBe(randomId());
   });
 });

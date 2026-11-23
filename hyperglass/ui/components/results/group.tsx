@@ -14,13 +14,17 @@ interface ResultsViewProps {
   actions?: React.ReactNode;
   /** One result per location, each with a `key`. */
   children: React.ReactNode;
+  /**
+   * The results expanded at first. Without it, the first result to settle expands.
+   */
+  defaultIndex?: number[];
 }
 
 /**
  * The layout around a query's results.
  */
 export const ResultsView = (props: ResultsViewProps): JSX.Element => {
-  const { tags, actions, children } = props;
+  const { tags, actions, children, defaultIndex } = props;
 
   // Scroll to the top of the page when results load - primarily for mobile.
   useEffect(() => {
@@ -52,7 +56,7 @@ export const ResultsView = (props: ResultsViewProps): JSX.Element => {
         animate={{ opacity: 1, y: 0 }}
         maxW={{ base: '100%', md: '75%' }}
       >
-        <Accordion allowMultiple>
+        <Accordion allowMultiple defaultIndex={defaultIndex}>
           <AnimatePresence>{children}</AnimatePresence>
         </Accordion>
       </AnimatedDiv>
