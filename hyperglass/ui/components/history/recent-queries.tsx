@@ -1,8 +1,16 @@
 import { Box, Button, Flex, HStack, Heading, List, Text } from '@chakra-ui/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useConfig } from '~/context';
-import { directiveRetains, useDevice, useHistoryView, useQueryHistory } from '~/hooks';
+import {
+  directiveRetains,
+  useDevice,
+  useHistoryView,
+  useQueryHistory,
+  useSavedShares,
+  useSavedSharesExpiry,
+} from '~/hooks';
 import { HistoryEntryRow } from './history-entry-row';
+import { hasSavedLink } from './history-share-button';
 
 /** Where focus goes when the list goes away: the page's main landmark (see `Layout`). */
 function focusTarget(): HTMLElement | null {
@@ -30,6 +38,11 @@ export const RecentQueries = (): JSX.Element | null => {
   const [confirming, setConfirming] = useState(false);
   const headingId = useId();
   const confirmId = useId();
+  const keptId = useId();
+  // Whether a saved query's result has a live share link: clearing doesn't delete it.
+  const anyShared = useSavedShares(s => entries.some(e => hasSavedLink(e, s.links)));
+  // Drop expired links, and with them the marks, also as each expires.
+  useSavedSharesExpiry();
   const sectionRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const clearRef = useRef<HTMLButtonElement>(null);
@@ -145,6 +158,7 @@ export const RecentQueries = (): JSX.Element | null => {
         <Flex
           role="group"
           aria-labelledby={confirmId}
+          aria-describedby={anyShared ? keptId : undefined}
           align="center"
           justify="space-between"
           flexWrap="wrap"
@@ -159,9 +173,17 @@ export const RecentQueries = (): JSX.Element | null => {
             }
           }}
         >
-          <Text id={confirmId} fontSize="sm">
-            {web.text.historyClearConfirm}
-          </Text>
+          <Box>
+            <Text id={confirmId} fontSize="sm">
+              {web.text.historyClearConfirm}
+            </Text>
+            {/* Clearing the history doesn't delete share links (#562). */}
+            {anyShared && (
+              <Text id={keptId} fontSize="sm" mt={1}>
+                {web.text.historyShareKept}
+              </Text>
+            )}
+          </Box>
           <HStack>
             <Button size="sm" colorScheme="red" onClick={handleClear}>
               {web.text.historyClearAll}
