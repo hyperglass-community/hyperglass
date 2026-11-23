@@ -1,0 +1,310 @@
+import { useEffect, useState } from 'react';
+import { create } from 'zustand';
+import { isShareId } from './use-share';
+
+/** The `localStorage` key of the share links created in this browser. */
+export const SHARES_KEY = 'hyperglass.shares';
+
+/**
+ * The version of the stored value. A value of any other version, older or newer, is
+ * deleted on load and replaced on the next save: after a downgrade nothing else would
+ * show or delete it, and this browser must not keep tokens the visitor can't see (#550).
+ */
+const SHARES_VERSION = 1;
+
+/** The longest delete token the server accepts; real ones are 43 characters. */
+const MAX_TOKEN = 128;
+
+/** The longest label kept: the labels are shown, never sent. */
+const MAX_LABEL = 1024;
+
+/** How a saved link's result is named in the list, as the form showed its query. */
+export interface SavedShareLabels {
+  /** The location's (device's) name. */
+  location: string;
+  /** The query type's name. */
+  type: string;
+  /** The query target, as shown. */
+  target: string;
+}
+
+/**
+ * A share link created in this browser (#562), from a live result or a saved query, with
+ * what the visitor needs to see, copy and delete it. The delete token is sent only in the
+ * `X-Delete-Token` header of `DELETE /api/share/{id}`, and is `null` once it no longer
+ * deletes the link (the result was shared again elsewhere, which replaced it).
+ */
+export interface SavedShare {
+  /** The share's id. */
+  id: string;
+  /** The `id` of the query response that was shared. */
+  queryId: string;
+  /** The `timestamp` of the result that was shared. */
+  timestamp: string;
+  /** When the link stops working, as ISO 8601, by the server's clock. */
+  expiresAt: string;
+  /** When the link stops working, in milliseconds since the epoch by this browser's clock. */
+  deadline: number;
+  deleteToken: string | null;
+  /** When the link was saved here, in milliseconds since the epoch. */
+  savedAt: number;
+  labels: SavedShareLabels;
+}
+
+/** The value stored under `SHARES_KEY`. */
+interface StoredShares {
+  version: number;
+  links: SavedShare[];
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isLabel(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= MAX_LABEL;
+}
+
+/** A time a `Date` can hold, in milliseconds since the epoch. */
+function isTime(value: unknown): value is number {
+  return typeof value === 'number' && !Number.isNaN(new Date(value).getTime());
+}
+
+/**
+ * Whether a value has the shape of a saved link. Storage is under the visitor's control
+ * (and other versions'), so this is checked on every read.
+ */
+export function isSavedShare(value: unknown): value is SavedShare {
+  if (!isObject(value) || !isObject(value.labels)) {
+    return false;
+  }
+  const { id, queryId, timestamp, expiresAt, deadline, deleteToken, savedAt, labels } = value;
+  return (
+    typeof id === 'string' &&
+    isShareId(id) &&
+    isLabel(queryId) &&
+    queryId.length > 0 &&
+    isLabel(timestamp) &&
+    typeof expiresAt === 'string' &&
+    !Number.isNaN(Date.parse(expiresAt)) &&
+    isTime(deadline) &&
+    (deleteToken === null ||
+      (typeof deleteToken === 'string' &&
+        deleteToken.length > 0 &&
+        deleteToken.length <= MAX_TOKEN)) &&
+    isTime(savedAt) &&
+    isLabel(labels.location) &&
+    isLabel(labels.type) &&
+    isLabel(labels.target)
+  );
+}
+
+/** Whether `share` still works at `now`, by this browser's clock. */
+export function isLiveSavedShare(share: Pick<SavedShare, 'deadline'>, now = Date.now()): boolean {
+  return share.deadline > now;
+}
+
+/** Only the fields of a saved link: what is stored is what is checked on reading. */
+function fields(share: SavedShare): SavedShare {
+  const { id, queryId, timestamp, expiresAt, deadline, deleteToken, savedAt, labels } = share;
+  const { location, type, target } = labels;
+  return {
+    id,
+    queryId,
+    timestamp,
+    expiresAt,
+    deadline,
+    deleteToken,
+    savedAt,
+    labels: { location, type, target },
+  };
+}
+
+// Storage. A value that can't be written (storage full, or not allowed, as in some private
+// modes) is kept in memory for the session instead; nothing stored is dropped to make room.
+const memory = new Map<string, string>();
+
+function browserStorage(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readRaw(): string | null {
+  if (memory.has(SHARES_KEY)) {
+    return memory.get(SHARES_KEY) ?? null;
+  }
+  try {
+    return browserStorage()?.getItem(SHARES_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeRaw(value: string | null): void {
+  const storage = browserStorage();
+  try {
+    if (storage === null) {
+      throw new Error('No storage');
+    }
+    if (value === null) {
+      storage.removeItem(SHARES_KEY);
+    } else {
+      storage.setItem(SHARES_KEY, value);
+    }
+    memory.delete(SHARES_KEY);
+  } catch {
+    if (value === null) {
+      memory.delete(SHARES_KEY);
+      try {
+        storage?.removeItem(SHARES_KEY);
+      } catch {
+        // Nothing to remove from a storage that can't be used.
+      }
+    } else {
+      memory.set(SHARES_KEY, value);
+    }
+  }
+}
+
+/**
+ * The stored links this version reads, or `null` for a value it doesn't: not JSON,
+ * another version, or no list.
+ */
+function parse(value: string): unknown[] | null {
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredShares> | null;
+    if (parsed?.version !== SHARES_VERSION || !Array.isArray(parsed.links)) {
+      return null;
+    }
+    return parsed.links;
+  } catch {
+    return null;
+  }
+}
+
+/** The links in storage now, which another tab may have changed: valid and live only. */
+function storedShares(now = Date.now()): SavedShare[] {
+  const value = readRaw();
+  if (value === null) {
+    return [];
+  }
+  return (parse(value) ?? []).filter(
+    (l): l is SavedShare => isSavedShare(l) && isLiveSavedShare(l, now),
+  );
+}
+
+/** Whether the stored value holds anything this version wouldn't keep. */
+function holdsDeadData(now = Date.now()): boolean {
+  const value = readRaw();
+  if (value === null) {
+    return false;
+  }
+  const links = parse(value);
+  return links === null || links.some(l => !(isSavedShare(l) && isLiveSavedShare(l, now)));
+}
+
+interface SavedSharesState {
+  /** Newest first. */
+  links: SavedShare[];
+  /** Keep `share`, replacing a link with its id. A malformed or expired one is not kept. */
+  add(share: SavedShare): void;
+  /** Forget link `id`: deleted, gone, or no longer wanted. */
+  remove(id: string): void;
+  /** Forget every link. The links themselves keep working until they expire. */
+  clear(): void;
+  /** Drop the links that have expired. Writes only when one has. */
+  dropExpired(): void;
+}
+
+/**
+ * The share links created in this browser, with their delete tokens, so the visitor can
+ * see, copy and delete them later: from the list "Your shared links", from the result's
+ * Share button, and from a saved query's. Kept apart from the query history, so they don't
+ * depend on history being on or on its entries being kept. Every change starts from what
+ * is stored, so a link another tab forgot doesn't come back. Not in the devtools
+ * (`withDev`), so a token is never written anywhere else.
+ */
+export const useSavedShares = create<SavedSharesState>()((set, get) => {
+  function save(links: SavedShare[]): void {
+    set({ links });
+    writeRaw(links.length > 0 ? JSON.stringify({ version: SHARES_VERSION, links }) : null);
+  }
+
+  return {
+    links: [],
+
+    add(share: SavedShare): void {
+      if (!isSavedShare(share) || !isLiveSavedShare(share)) {
+        return;
+      }
+      save([fields(share), ...storedShares().filter(l => l.id !== share.id)]);
+    },
+
+    remove(id: string): void {
+      save(storedShares().filter(l => l.id !== id));
+    },
+
+    clear(): void {
+      save([]);
+    },
+
+    dropExpired(): void {
+      const now = Date.now();
+      if (holdsDeadData(now) || get().links.some(l => !isLiveSavedShare(l, now))) {
+        save(storedShares(now));
+      }
+    },
+  };
+});
+
+/** The saved links of query response `queryId`, newest first. */
+export function savedSharesFor(links: SavedShare[], queryId: string): SavedShare[] {
+  return links.filter(l => l.queryId === queryId);
+}
+
+/** The longest delay `setTimeout` takes; a longer one fires at once. */
+const MAX_DELAY = 2 ** 31 - 1;
+
+/**
+ * While a view of the links shows, drop those that have expired, with their tokens: those
+ * already expired (it writes only then), and each one when it expires. An expiry beyond
+ * `setTimeout`'s range is left to a later change.
+ */
+export function useSavedSharesExpiry(): void {
+  const links = useSavedShares(s => s.links);
+  const dropExpired = useSavedShares(s => s.dropExpired);
+  // Counts the timer's runs, to check again: a timer can fire a little before the clock
+  // reaches the deadline, and then nothing has expired yet.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    dropExpired();
+    const now = Date.now();
+    const next = Math.min(...links.map(l => l.deadline).filter(d => d > now));
+    if (!Number.isFinite(next) || next - now > MAX_DELAY) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setTick(t => t + 1), next - now);
+    return () => clearTimeout(timer);
+  }, [links, dropExpired, tick]);
+}
+
+if (typeof window !== 'undefined') {
+  // On load: show what is stored, and don't keep what this version wouldn't show (another
+  // version, malformed or expired links): it is stored again without it, or removed.
+  useSavedShares.setState({ links: storedShares() });
+  if (holdsDeadData()) {
+    const { links } = useSavedShares.getState();
+    writeRaw(links.length > 0 ? JSON.stringify({ version: SHARES_VERSION, links }) : null);
+  }
+
+  // Another tab saved or forgot links: show its changes. (`key` is `null` when another
+  // tab cleared the whole storage.)
+  window.addEventListener('storage', event => {
+    if (event.key === SHARES_KEY || event.key === null) {
+      useSavedShares.setState({ links: storedShares() });
+    }
+  });
+}
