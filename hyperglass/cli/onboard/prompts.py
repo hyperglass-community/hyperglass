@@ -2,17 +2,21 @@
 
 # Standard Library
 import sys
+import typing as t
 import difflib
 from copy import deepcopy
 from contextlib import redirect_stdout
 
 # Third Party
 import typer
-from click import IntRange
+from pydantic import Field
 
 # Project
 from hyperglass.constants import SCRAPE_HELPERS, SUPPORTED_STRUCTURED_OUTPUT
 from hyperglass.models.config.devices import ALL_DEVICE_TYPES, Device, directive_attr_keys
+
+# Typer validates prompt input with Pydantic since 0.29 and no longer accepts Click types.
+Port = t.Annotated[int, Field(ge=1, le=65535)]
 
 
 def prompt(*args, **kwargs):
@@ -71,7 +75,7 @@ def device_prompt(entry: dict) -> dict:
     """Collect device fields and all attributes required by the selected built-ins."""
     entry = deepcopy(entry)
     entry["address"] = prompt("Address", default=entry.get("address", ""), err=True)
-    entry["port"] = prompt("Port", default=entry.get("port", 22), type=IntRange(1, 65535), err=True)
+    entry["port"] = prompt("Port", default=entry.get("port", 22), type=Port, err=True)
     entry["platform"] = platform_prompt(entry.get("platform", ""))
     entry["credential"] = credential_prompt(entry.get("credential", {}))
     for field, label in (("os_version", "OS version"), ("vrf", "VRF")):

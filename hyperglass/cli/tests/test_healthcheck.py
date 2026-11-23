@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 from hyperglass.cli import cli
 from hyperglass.settings import Settings
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 class HTTPServerV6(HTTPServer):

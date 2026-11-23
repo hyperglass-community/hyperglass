@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { IMPORT_WAIT, renderWithProviders } from '~/__tests__/render';
+import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
 import { RequeryButton } from './requery-button';
 
 import type { UseQueryResult } from '@tanstack/react-query';
@@ -17,10 +17,14 @@ afterEach(() => {
  * Render the button and wait for its icon. The icon loads through `next/dynamic`, so
  * waiting for it makes every run cover the same code.
  */
-async function renderButton(props: Partial<React.ComponentProps<typeof RequeryButton>> = {}) {
+async function renderButton(
+  props: Partial<React.ComponentProps<typeof RequeryButton>> = {},
+  options: Parameters<typeof renderWithProviders>[1] = {},
+) {
   const requery = vi.fn() as unknown as Requery;
   const result = renderWithProviders(
     <RequeryButton requery={requery} data-testid="requery" {...props} />,
+    options,
   );
   await waitFor(
     () => expect(result.container.querySelector('svg')).toBeInTheDocument(),
@@ -77,5 +81,28 @@ describe('RequeryButton', () => {
     const { button } = await renderButton({ ref });
 
     expect(ref.current).toBe(button);
+  });
+
+  // #533: the button's only content is an icon, and the tooltip text reaches assistive
+  // technology only while the tooltip is open.
+  it('is named by web.text.reloadQuery', async () => {
+    const { button } = await renderButton();
+
+    expect(screen.getByRole('button', { name: 'Reload Query' })).toBe(button);
+  });
+
+  it('keeps its name while disabled', async () => {
+    const { button } = await renderButton({ isDisabled: true });
+
+    expect(screen.getByRole('button', { name: 'Reload Query' })).toBe(button);
+  });
+
+  it('uses the configured text for its name and tooltip', async () => {
+    const config = makeConfig({ web: { text: { reloadQuery: 'Relancer' } } });
+    const { button } = await renderButton({}, { config });
+
+    expect(screen.getByRole('button', { name: 'Relancer' })).toBe(button);
+    await userEvent.hover(button);
+    expect(await screen.findByRole('tooltip', { name: 'Relancer' })).toBeInTheDocument();
   });
 });

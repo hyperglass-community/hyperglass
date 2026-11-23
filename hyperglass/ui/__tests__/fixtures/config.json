@@ -364,9 +364,13 @@
       "image": "hyperglass/images/hyperglass-opengraph.jpg"
     },
     "text": {
-      "cacheIcon": "Cached from {time} UTC",
+      "asPathTitle": "Path to {target}",
+      "cacheIcon": "Cached from {time}",
       "cachePrefix": "Results cached for ",
       "completeTime": "Completed in {seconds}",
+      "copyOutput": "Copy Output",
+      "firstPage": "First Page",
+      "fitNodes": "Fit Nodes",
       "fqdnError": "Unable to resolve {fqdn}",
       "fqdnErrorButton": "Try Again",
       "fqdnMessage": "Your browser has resolved {fqdn} to",
@@ -376,18 +380,25 @@
       "ipLookupConfirm": "Look up my IP",
       "ipLookupNotice": "This sends your IP address to myip.wtf to look it up.",
       "ipSelect": "Select an IP Address",
+      "lastPage": "Last Page",
+      "nextPage": "Next Page",
       "noCommunities": "No Communities",
       "noIp": "No {protocol} Address",
+      "previousPage": "Previous Page",
       "queryLocation": "Location",
       "queryTarget": "Target",
       "queryType": "Query Type",
+      "reloadQuery": "Reload Query",
       "rpkiInvalid": "Invalid",
       "rpkiUnknown": "No ROAs Exist",
       "rpkiUnverified": "Not Verified",
       "rpkiValid": "Valid",
       "subtitle": "Network Looking Glass",
       "title": "Hyperglass",
-      "titleMode": "logo_only"
+      "titleMode": "logo_only",
+      "viewAsPath": "View AS Path",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out"
     },
     "theme": {
       "colors": {

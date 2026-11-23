@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Flex, Avatar, chakra } from '@chakra-ui/react';
 import { motionChakra } from '~/elements';
 import { useColorValue, useOpposingColor } from '~/hooks';
@@ -8,7 +8,8 @@ import type { LocationOption } from './query-location';
 
 interface LocationCardProps {
   option: SingleOption;
-  defaultChecked: boolean;
+  /** Whether the location is selected in the form state; the card has no state of its own. */
+  isChecked: boolean;
   onChange(a: 'add' | 'remove', v: SingleOption): void;
   hasError: boolean;
 }
@@ -29,18 +30,11 @@ const LocationCardWrapper = motionChakra('div', {
 });
 
 export const LocationCard = (props: LocationCardProps): JSX.Element => {
-  const { option, onChange, defaultChecked, hasError } = props;
+  const { option, onChange, isChecked, hasError } = props;
   const { label } = option;
-  const [isChecked, setChecked] = useState(defaultChecked);
 
   function handleChange(value: LocationOption) {
-    if (isChecked) {
-      setChecked(false);
-      onChange('remove', value);
-    } else {
-      setChecked(true);
-      onChange('add', value);
-    }
+    onChange(isChecked ? 'remove' : 'add', value);
   }
 
   const bg = useColorValue('white', 'blackSolid.600');
@@ -68,6 +62,7 @@ export const LocationCard = (props: LocationCardProps): JSX.Element => {
       key={label}
       whileHover={{ scale: 1.05 }}
       borderColor={borderColor}
+      data-checked={isChecked}
       onClick={(e: React.MouseEvent) => {
         e.preventDefault();
         handleChange(option);

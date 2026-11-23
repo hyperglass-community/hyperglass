@@ -82,18 +82,21 @@ export const QueryLocation = (props: QueryLocationProps): JSX.Element => {
    * @param option Full option object.
    */
   function handleCardChange(action: 'add' | 'remove', option: SingleOption) {
-    const exists = selections.queryLocation.map(q => q.value).includes(option.value);
+    // The cards show `form.queryLocation`, so decide from it too.
+    const exists = form.queryLocation.includes(option.value);
     if (action === 'add' && !exists) {
       const toAdd = [...form.queryLocation, option.value];
-      const newSelections = [...selections.queryLocation, option];
+      const newSelections = [
+        ...selections.queryLocation.filter(v => v.value !== option.value),
+        option,
+      ];
       setSelection('queryLocation', newSelections);
       onChange({ field: 'queryLocation', value: toAdd });
     } else if (action === 'remove' && exists) {
-      const index = selections.queryLocation.findIndex(v => v.value === option.value);
-      const toRemove = [...form.queryLocation.filter(v => v !== option.value)];
+      const toRemove = form.queryLocation.filter(v => v !== option.value);
       setSelection(
         'queryLocation',
-        selections.queryLocation.filter((_, i) => i !== index),
+        selections.queryLocation.filter(v => v.value !== option.value),
       );
       onChange({ field: 'queryLocation', value: toRemove });
     }
@@ -133,7 +136,7 @@ export const QueryLocation = (props: QueryLocationProps): JSX.Element => {
                   option={opt}
                   onChange={handleCardChange}
                   hasError={noOverlap}
-                  defaultChecked={form.queryLocation.includes(opt.value)}
+                  isChecked={form.queryLocation.includes(opt.value)}
                 />
               );
             })}
@@ -152,7 +155,7 @@ export const QueryLocation = (props: QueryLocationProps): JSX.Element => {
                       option={opt}
                       onChange={handleCardChange}
                       hasError={noOverlap}
-                      defaultChecked={form.queryLocation.includes(opt.value)}
+                      isChecked={form.queryLocation.includes(opt.value)}
                     />
                   );
                 })}

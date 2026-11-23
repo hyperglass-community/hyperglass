@@ -6,7 +6,6 @@ import typing as t
 # Local
 from .main import HyperglassModel
 from .config.web import WebPublic
-from .config.cache import Cache
 from .config.params import ParamsPublic
 from .config.messages import Messages
 
@@ -52,10 +51,21 @@ class UIContent(HyperglassModel):
     greeting: str
 
 
+class UICache(HyperglassModel):
+    """UI: Cache.
+
+    Only what the UI reads. The full `Cache` model would fill in server-only fields,
+    such as `refresh`, with their defaults rather than the configured values.
+    """
+
+    timeout: int
+    show_text: bool
+
+
 class UIParameters(ParamsPublic, HyperglassModel):
     """UI Configuration Parameters."""
 
-    cache: Cache
+    cache: UICache
     web: WebPublic
     messages: Messages
     version: str

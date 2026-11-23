@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the query ran less than `cache.refresh.min_interval` (default 30 seconds) ago, or while another forced request for the same query is in progress, so at most one forced run of each query starts per interval. Successful responses include `refresh_in`, the seconds until a forced query would run. `force` must be a boolean: a value that cannot be read as one is rejected with HTTP 400, even when forced refresh is disabled. With metrics enabled, a forced run counts as `result="bypass"` in `hyperglass_query_cache_total`, and a forced query answered from the cache counts as `hit` ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
+- Fill in the query form from URL parameters: `?location=<id>&type=<id or name>&target=<value>&var.<variable>=<value>`, with `location` repeated for several locations. Values the configuration doesn't offer are left out. The link only fills in the form: the query runs when the user submits it, so a required greeting still applies. See the [user guide](https://github.com/hyperglass-community/hyperglass/blob/main/docs/content/user-guide.mdx#link-to-a-filled-in-form) ([#554](https://github.com/hyperglass-community/hyperglass/issues/554)).
+
+### Changed
+
+- Show the cached-result time in the viewer's locale and time zone, with the zone name or offset, for example `Nov 20, 2026, 3:00:00 AM EST`. The locale decides the 12- or 24-hour clock. The backend's timestamp is UTC without a zone designator, and the tooltip showed it as received ([#564](https://github.com/hyperglass-community/hyperglass/pull/564), [#551](https://github.com/hyperglass-community/hyperglass/issues/551)). **Default change:** `web.text.cache_icon` is now `Cached from {time}`; it was `Cached from {time} UTC`. A configuration that sets `cache_icon` to the old text now labels a local time as UTC; remove the setting or the word `UTC`.
+
 ### Fixed
 
 - Return HTTP 400 with the failed fields for malformed query requests. Request validation errors previously returned HTTP 200 and were logged as critical ([#412](https://github.com/hyperglass-community/hyperglass/pull/412), [#490](https://github.com/hyperglass-community/hyperglass/issues/490)). **API change:** this applies to every route, and external clients that received HTTP 200 with `"status_code": 422` in the body now receive HTTP 400 with the same body keys.
