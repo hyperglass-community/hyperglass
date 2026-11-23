@@ -412,6 +412,15 @@ web:
     button: "Continue"
     required: false
 
+  # Recent queries: each browser keeps its own successful queries and their
+  # output in local storage, never sent to the server, and lists them on the
+  # landing page, where visitors can open, delete or clear them. limit is the
+  # number of queries kept, from 1 to 50. Turn it off for kiosks and shared
+  # terminals. Default: enabled, 10 queries
+  history:
+    enable: true
+    limit: 10
+
   # Logo and favicon. Files must exist. width is a percentage from 1 to 100.
   # Default: the Hyperglass logo, width 50%. logo.height is accepted but ignored;
   # the height follows the width.
@@ -494,6 +503,16 @@ web:
     previous_page: "Previous Page"
     next_page: "Next Page"
     last_page: "Last Page"
+    # Recent queries. {time} is when the query was saved, in the viewer's time
+    # zone.
+    history_title: "Recent queries"
+    history_open: "Open"
+    history_delete: "Delete"
+    history_clear_all: "Clear all"
+    history_clear_confirm: "Delete all saved queries from this browser?"
+    history_clear_cancel: "Cancel"
+    history_back: "Back"
+    history_saved_at: "Saved {time}"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).
