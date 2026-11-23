@@ -110,7 +110,7 @@ beforeEach(() => {
 
 afterEach(() => {
   useQueryHistory.setState({ entries: [] });
-  useHistoryView.setState({ openId: null, returnFocusId: null });
+  useHistoryView.setState({ openId: null, returnFocusId: null, pending: null });
   useFormState.setState(initialFormState, true);
   localStorage.clear();
   window.history.replaceState(null, '');
@@ -231,15 +231,57 @@ describe('HistoryResults', () => {
     expect(useHistoryView.getState().openId).toBe('saved');
   });
 
+  it.each([
+    [text.historyRerun, 'rerun'],
+    [text.historyNewTarget, 'newTarget'],
+  ])('hands the query to the form with %s, and closes', async (name, mode) => {
+    const saved = entry();
+    renderOpened(saved);
+
+    await userEvent.click(screen.getByRole('button', { name }));
+
+    expect(useHistoryView.getState().openId).toBeNull();
+    // Focus goes to the form, not back to the closed entry's Open button.
+    expect(useHistoryView.getState().takeReturnFocus()).toBeNull();
+    expect(useHistoryView.getState().takeReuse()).toEqual({
+      query: saved.query,
+      locations: saved.labels.locations,
+      mode,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('leaves its browser history entry to hand the query to the form', async () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    window.history.replaceState({ ultraglass: 'history' }, '');
+    renderOpened();
+
+    await userEvent.click(screen.getByRole('button', { name: text.historyRerun }));
+
+    expect(back).toHaveBeenCalledTimes(1);
+    // The popstate event that follows closes it (see `Layout`).
+    expect(useHistoryView.getState().openId).toBe('saved');
+    expect(useHistoryView.getState().takeReuse()?.mode).toBe('rerun');
+  });
+
   it('uses the configured text', () => {
     renderOpened(
       entry(),
       makeConfig({
-        web: { text: { historyBack: 'Retour', historySavedAt: 'Enregistrée {time}' } },
+        web: {
+          text: {
+            historyBack: 'Retour',
+            historySavedAt: 'Enregistrée {time}',
+            historyRerun: 'Relancer',
+            historyNewTarget: 'Nouvelle cible',
+          },
+        },
       }),
     );
 
     expect(screen.getByRole('button', { name: 'Retour' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Relancer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nouvelle cible' })).toBeInTheDocument();
     const saved = screen.getByText(/^Enregistrée /);
     expect(within(saved).queryByText('Saved', { exact: false })).not.toBeInTheDocument();
   });

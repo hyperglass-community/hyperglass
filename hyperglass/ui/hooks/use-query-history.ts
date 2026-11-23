@@ -4,6 +4,9 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { withDev } from '~/util';
 import { historyStorage } from '~/util/history-storage';
 
+import type { Device } from '~/types';
+import type { FormPrefill } from './use-form-state';
+
 /** The `localStorage` key of the query history. */
 export const HISTORY_KEY = 'hyperglass.history';
 
@@ -96,15 +99,60 @@ interface QueryHistoryState {
   dropUnretained(retains: (query: HistoryQuery, deviceId: string) => boolean): void;
 }
 
+/**
+ * What a saved query is reused for: `rerun` fills the form and submits it, `newTarget`
+ * fills everything but the target and leaves submitting to the visitor.
+ */
+export type HistoryReuseMode = 'rerun' | 'newTarget';
+
+/** A saved query handed to the form, which takes it once (see `LookingGlassForm`). */
+export interface HistoryReuse {
+  query: HistoryQuery;
+  /** The locations' names when the query ran, by position in `query.queryLocation`. */
+  locations: string[];
+  mode: HistoryReuseMode;
+}
+
 interface HistoryViewState {
   /** The entry shown read-only in place of the form, if any. */
   openId: string | null;
   /** The entry last closed, whose Open button gets focus back. */
   returnFocusId: string | null;
+  /**
+   * A saved query the form has yet to take. In memory only, so nothing outside the page
+   * (a link, another tab) can make the form submit a query.
+   */
+  pending: HistoryReuse | null;
   open(id: string): void;
   close(): void;
   /** The entry to return focus to, once: it is forgotten when read. */
   takeReturnFocus(): string | null;
+  /** Hand `entry`'s query to the form. */
+  reuse(entry: HistoryEntry, mode: HistoryReuseMode): void;
+  /** The query to reuse, once: it is forgotten when read. */
+  takeReuse(): HistoryReuse | null;
+}
+
+/**
+ * The form values of a saved query, for `prefillForm`. Its query type by ID while one of
+ * its locations still has that ID, else by name: the ID can change with the configuration
+ * (or the first location can be gone, whose ID it was), and `prefillForm` matches a name
+ * to each location's own directive. A query with several targets has none here, as the
+ * form takes one.
+ */
+export function historyPrefill(
+  query: HistoryQuery,
+  getDevice: (id: string) => Device | null,
+): FormPrefill {
+  const hasId = query.queryLocation.some(
+    id => getDevice(id)?.directives.some(d => d.id === query.queryType) ?? false,
+  );
+  return {
+    queryLocation: query.queryLocation,
+    queryType: hasId ? query.queryType : query.queryTypeName,
+    queryTarget: query.queryTarget.length === 1 ? query.queryTarget[0] : null,
+    queryVariables: query.queryVariables,
+  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -349,13 +397,15 @@ export const useHistoryView = create<HistoryViewState>()(
     (set, get) => ({
       openId: null,
       returnFocusId: null,
+      pending: null,
       open(id: string): void {
         set({ openId: id });
       },
       close(): void {
-        const { openId } = get();
+        const { openId, pending } = get();
         if (openId !== null) {
-          set({ openId: null, returnFocusId: openId });
+          // Closed to reuse its query: focus goes to the form, not to its Open button.
+          set({ openId: null, returnFocusId: pending === null ? openId : null });
         }
       },
       takeReturnFocus(): string | null {
@@ -365,15 +415,34 @@ export const useHistoryView = create<HistoryViewState>()(
         }
         return returnFocusId;
       },
+      reuse(entry: HistoryEntry, mode: HistoryReuseMode): void {
+        set({ pending: { query: entry.query, locations: entry.labels.locations, mode } });
+      },
+      takeReuse(): HistoryReuse | null {
+        const { pending } = get();
+        if (pending !== null) {
+          set({ pending: null });
+        }
+        return pending;
+      },
     }),
     'useHistoryView',
   ),
 );
 
+/**
+ * The key hyperglass-ng stored its query history under, in another format. It isn't
+ * migrated: it is deleted on load.
+ */
+const FORK_HISTORY_KEY = 'hyperglass.queryHistory';
+
 // On load, don't keep stored history the visitor can't see or delete: what this version
 // can't read is stored again without it, or removed when nothing is left. (Only on load:
-// a value another tab, of another version, stores later is that tab's to show.)
+// a value another tab, of another version, stores later is that tab's to show.) This
+// module loads with every page, whether history is on or off.
 if (typeof window !== 'undefined') {
+  // `historyStorage` doesn't throw when storage can't be used.
+  historyStorage.removeItem(FORK_HISTORY_KEY);
   const value = historyStorage.getItem(HISTORY_KEY);
   if (typeof value === 'string' && !isFullyReadable(value)) {
     const { entries } = useQueryHistory.getState();

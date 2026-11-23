@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HISTORY_KEY, isHistoryEntry, useHistoryView, useQueryHistory } from './use-query-history';
+import {
+  HISTORY_KEY,
+  historyPrefill,
+  isHistoryEntry,
+  useHistoryView,
+  useQueryHistory,
+} from './use-query-history';
 
+import type { Device, Directive } from '~/types';
 import type { HistoryEntry, RecordInput } from './use-query-history';
 
 function response(overrides: Partial<QueryResponse> = {}): QueryResponse {
@@ -58,7 +65,7 @@ beforeEach(() => {
 
 afterEach(() => {
   useQueryHistory.setState({ entries: [] });
-  useHistoryView.setState({ openId: null, returnFocusId: null });
+  useHistoryView.setState({ openId: null, returnFocusId: null, pending: null });
   localStorage.clear();
   vi.useRealTimers();
 });
@@ -429,6 +436,72 @@ describe('useQueryHistory rehydration', () => {
   });
 });
 
+// hyperglass-ng kept its history, targets and output, under another key, which this
+// version doesn't read: visitors couldn't see or delete it. It is deleted, not migrated.
+describe("useQueryHistory and hyperglass-ng's history", () => {
+  const FORK_KEY = 'hyperglass.queryHistory';
+  const forkHistory = JSON.stringify({ state: { entries: [entry('old')] }, version: 0 });
+
+  async function load() {
+    vi.resetModules();
+    return (await import('./use-query-history')).useQueryHistory;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('deletes it when the page loads', async () => {
+    localStorage.setItem(FORK_KEY, forkHistory);
+
+    await load();
+
+    expect(localStorage.getItem(FORK_KEY)).toBeNull();
+  });
+
+  it('leaves the other keys alone', async () => {
+    const current = JSON.stringify({ state: { entries: [entry('b')] }, version: 1 });
+    const greeting = JSON.stringify({ state: { ack: true }, version: 0 });
+    localStorage.setItem(FORK_KEY, forkHistory);
+    localStorage.setItem(HISTORY_KEY, current);
+    localStorage.setItem('hyperglass-greeting', greeting);
+    localStorage.setItem('chakra-ui-color-mode', 'dark');
+
+    const store = await load();
+
+    expect(Object.fromEntries(Object.entries(localStorage))).toEqual({
+      [HISTORY_KEY]: current,
+      'hyperglass-greeting': greeting,
+      'chakra-ui-color-mode': 'dark',
+    });
+    expect(store.getState().entries).toEqual([entry('b')]);
+  });
+
+  it.each([
+    [
+      'deleting from storage throws',
+      () =>
+        vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+          throw new DOMException('The operation is insecure.', 'SecurityError');
+        }),
+    ],
+    [
+      'the browser does not allow storage',
+      () =>
+        vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+          throw new DOMException('The operation is insecure.', 'SecurityError');
+        }),
+    ],
+  ])('loads when %s', async (_, block) => {
+    localStorage.setItem(FORK_KEY, forkHistory);
+    block();
+
+    const store = await load();
+
+    expect(store.getState().entries).toEqual([]);
+  });
+});
+
 describe('useQueryHistory across tabs', () => {
   // Each tab has its own store over the same storage: two copies of the module.
   async function tab() {
@@ -631,5 +704,74 @@ describe('useQueryHistory retain', () => {
       expect(setItem).not.toHaveBeenCalled();
       expect(useQueryHistory.getState().entries).toHaveLength(3);
     });
+  });
+});
+
+describe('useHistoryView reuse', () => {
+  it('keeps the query to reuse until the form takes it, once', () => {
+    const saved = entry('a');
+    useHistoryView.getState().reuse(saved, 'rerun');
+
+    expect(useHistoryView.getState().takeReuse()).toEqual({
+      query: saved.query,
+      locations: saved.labels.locations,
+      mode: 'rerun',
+    });
+    expect(useHistoryView.getState().takeReuse()).toBeNull();
+  });
+
+  it('does not return focus to the Open button of an entry closed to be reused', () => {
+    const { open, close, reuse } = useHistoryView.getState();
+    open('a');
+    reuse(entry('a'), 'newTarget');
+    close();
+
+    expect(useHistoryView.getState().openId).toBeNull();
+    expect(useHistoryView.getState().takeReturnFocus()).toBeNull();
+  });
+});
+
+describe('historyPrefill', () => {
+  const directive = (id: string, name: string) => ({ id, name }) as Directive;
+  const devices: Record<string, Device> = {
+    juniper: {
+      id: 'juniper',
+      directives: [directive('__juniper_bgp_route__', 'BGP Route')],
+    } as Device,
+    arista: {
+      id: 'arista',
+      directives: [directive('__arista_bgp_route__', 'BGP Route')],
+    } as Device,
+  };
+  const getDevice = (id: string): Device | null => devices[id] ?? null;
+  const query = {
+    queryLocation: ['juniper', 'arista'],
+    queryType: '__juniper_bgp_route__',
+    queryTypeName: 'BGP Route',
+    queryTarget: ['2001:db8::/32'],
+    queryVariables: { vrf: 'customer' },
+  };
+
+  it('keeps the query type ID while a location still has it', () => {
+    expect(historyPrefill(query, getDevice)).toEqual({
+      queryLocation: ['juniper', 'arista'],
+      queryType: '__juniper_bgp_route__',
+      queryTarget: '2001:db8::/32',
+      queryVariables: { vrf: 'customer' },
+    });
+  });
+
+  it('uses the query type name once no location has its ID', () => {
+    expect(historyPrefill({ ...query, queryLocation: ['arista'] }, getDevice).queryType).toBe(
+      'BGP Route',
+    );
+    expect(historyPrefill({ ...query, queryType: 'old_id' }, getDevice).queryType).toBe(
+      'BGP Route',
+    );
+  });
+
+  it('has no target unless the query had exactly one', () => {
+    expect(historyPrefill({ ...query, queryTarget: [] }, getDevice).queryTarget).toBeNull();
+    expect(historyPrefill({ ...query, queryTarget: ['a', 'b'] }, getDevice).queryTarget).toBeNull();
   });
 });

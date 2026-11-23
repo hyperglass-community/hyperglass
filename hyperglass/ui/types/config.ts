@@ -80,6 +80,10 @@ interface _Text {
   history_clear_cancel: string;
   history_back: string;
   history_saved_at: string;
+  history_rerun: string;
+  history_new_target: string;
+  history_location_unavailable: string;
+  history_variable_unavailable: string;
 }
 
 interface _History {

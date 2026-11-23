@@ -97,7 +97,7 @@ afterEach(() => {
   act(() => {
     useFormState.setState(initialFormState, true);
     useQueryHistory.setState({ entries: [] });
-    useHistoryView.setState({ openId: null, returnFocusId: null });
+    useHistoryView.setState({ openId: null, returnFocusId: null, pending: null });
   });
   localStorage.clear();
   window.history.replaceState(null, '');
@@ -235,5 +235,30 @@ describe('Index page query history', () => {
       expect(screen.getByRole('main')).toHaveFocus();
       expect(focus).toHaveBeenCalledWith({ preventScroll: true });
     });
+  });
+});
+
+// hyperglass-ng's history, under a key this version doesn't read, is deleted when the
+// page loads, whether history is on or off (#590).
+describe("Index page and hyperglass-ng's history", () => {
+  it.each([
+    ['on', true],
+    ['off', false],
+  ])('deletes it with history %s', async (_, enable) => {
+    localStorage.setItem(
+      'hyperglass.queryHistory',
+      JSON.stringify({ state: { entries: [entry('old', '2001:db8::/32', 'old')] }, version: 0 }),
+    );
+    // The page loads with fresh modules, as in a browser.
+    vi.resetModules();
+    const render = await import('~/__tests__/render');
+    const { default: Page } = await import('../../pages/index');
+
+    render.renderWithProviders(<Page />, {
+      config: render.makeConfig({ web: { history: { enable } } }),
+    });
+
+    expect(await screen.findByRole('form', { name: 'looking glass form' })).toBeInTheDocument();
+    expect(localStorage.getItem('hyperglass.queryHistory')).toBeNull();
   });
 });

@@ -597,6 +597,10 @@ web:
     history_clear_cancel: "Cancel"
     history_back: "Back"
     history_saved_at: "Saved {time}"
+    history_rerun: "Run again"
+    history_new_target: "New target"
+    history_location_unavailable: "No longer available: {locations}"
+    history_variable_unavailable: "No longer available: {value}"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).
