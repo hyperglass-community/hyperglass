@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from hyperglass.constants import DNS_OVER_HTTPS
 
 # Local
-from ..config.web import Logo, Text, DnsOverHttps
+from ..config.web import Web, Logo, Text, History, DnsOverHttps
 
 
 @pytest.mark.parametrize("value", (50, "50", "50%"))
@@ -127,3 +127,36 @@ def test_as_path_and_pagination_text_exported_camel_case():
 def test_cache_icon_default_has_no_time_zone():
     """The UI shows `{time}` in the viewer's time zone, so the default doesn't say UTC (#551)."""
     assert Text().cache_icon == "Cached from {time}"
+
+
+def test_history_defaults():
+    """Query history is on, keeping 10 entries per browser, by default (#556)."""
+    history = Web().history
+    assert (history.enable, history.limit) == (True, 10)
+
+
+@pytest.mark.parametrize("limit", (1, 50))
+def test_history_limit_valid(limit):
+    assert History(limit=limit).limit == limit
+
+
+@pytest.mark.parametrize("limit", (0, -1, 51))
+def test_history_limit_invalid(limit):
+    with pytest.raises(ValidationError):
+        History(limit=limit)
+
+
+def test_history_exported():
+    """The UI reads `web.history` and the history text as camelCase keys."""
+    exported = Web(history={"enable": False, "limit": 3}).model_dump(by_alias=True)
+    assert exported["history"] == {"enable": False, "limit": 3}
+    assert {
+        "historyTitle": "Recent queries",
+        "historyOpen": "Open",
+        "historyDelete": "Delete",
+        "historyClearAll": "Clear all",
+        "historyClearConfirm": "Delete all saved queries from this browser?",
+        "historyClearCancel": "Cancel",
+        "historyBack": "Back",
+        "historySavedAt": "Saved {time}",
+    }.items() <= exported["text"].items()

@@ -15,6 +15,7 @@ interface _Messages {
   connection_error: string;
   authentication_error: string;
   no_output: string;
+  rate_limited: string;
 }
 
 interface _ThemeConfig {
@@ -63,6 +64,19 @@ interface _Text {
   previous_page: string;
   next_page: string;
   last_page: string;
+  history_title: string;
+  history_open: string;
+  history_delete: string;
+  history_clear_all: string;
+  history_clear_confirm: string;
+  history_clear_cancel: string;
+  history_back: string;
+  history_saved_at: string;
+}
+
+interface _History {
+  enable: boolean;
+  limit: number;
 }
 
 interface _Greeting {
@@ -113,6 +127,7 @@ interface _Web {
   logo: _Logo;
   text: _Text;
   theme: _ThemeConfig;
+  history: _History;
   location_display_mode: 'auto' | 'gallery' | 'dropdown' | string;
   my_ip: 'external' | 'server' | 'off';
   aspath_enrichment: boolean;

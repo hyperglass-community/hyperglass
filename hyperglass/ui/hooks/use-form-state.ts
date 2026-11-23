@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { queryClient } from '~/context';
 import { isSelectDirective } from '~/types';
-import { all, andJoin, dedupObjectArray, withDev } from '~/util';
+import { all, andJoin, dedupObjectArray, randomId, withDev } from '~/util';
 
 import type { UseFormClearErrors, UseFormSetError } from 'react-hook-form';
 import type { MultiValue, SingleValue } from 'react-select';
@@ -198,6 +198,12 @@ interface FormStateType<Opt extends SingleOption = SingleOption> {
   status: FormStatus;
   target: Target;
   resolvedIsOpen: boolean;
+  /**
+   * The ID of the query on the results view, new each time the form switches to the
+   * results. Query history saves each location's response under it, so the locations
+   * of one query land in one entry. `null` on the form.
+   */
+  submissionId: string | null;
 
   // Methods
   resolvedOpen(): void;
@@ -255,6 +261,7 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
   status: 'form',
   target: { display: '' },
   resolvedIsOpen: false,
+  submissionId: null,
 
   setFormValue<K extends keyof FormValues>(field: K, value: FormValues[K]): void {
     set(state => ({ form: { ...state.form, [field]: value } }));
@@ -265,7 +272,13 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
   },
 
   setStatus(status: FormStatus): void {
-    set({ status });
+    if (status === 'results' && get().status !== 'results') {
+      set({ status, submissionId: randomId() });
+    } else if (status === 'form') {
+      set({ status, submissionId: null });
+    } else {
+      set({ status });
+    }
   },
 
   setSelection<
@@ -515,7 +528,13 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
   back(): void {
     // Return to the form and keep the last query, so it can be changed and resubmitted.
     const { form } = get();
-    set({ loading: false, responses: {}, status: 'form', resolvedIsOpen: false });
+    set({
+      loading: false,
+      responses: {},
+      status: 'form',
+      resolvedIsOpen: false,
+      submissionId: null,
+    });
     for (const queryLocation of form.queryLocation) {
       const query = {
         queryLocation,
@@ -538,6 +557,7 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       status: 'form',
       target: { display: '' },
       resolvedIsOpen: false,
+      submissionId: null,
     });
     for (const queryLocation of form.queryLocation) {
       const query = {

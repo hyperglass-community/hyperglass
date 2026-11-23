@@ -91,6 +91,12 @@ class Messages(HyperglassModel):
         title="No Output",
         description="Displayed when hyperglass can connect to a device and execute a query, but the response is empty.",
     )
+    rate_limited: str = Field(
+        "Too many requests. Please try again later.",
+        title="Rate Limited",
+        description="Displayed when a client, or all clients together, sent more queries than [query_limit](/configuration/config/query-limit) allows.",
+    )
+
     def warn_deprecated(self) -> "Messages":
         """Warn once per deprecated message the operator sets explicitly.
 

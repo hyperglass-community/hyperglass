@@ -172,11 +172,27 @@ class Text(HyperglassModel):
     previous_page: str = "Previous Page"
     next_page: str = "Next Page"
     last_page: str = "Last Page"
+    # Recent queries: the list on the landing page and an opened entry.
+    history_title: str = "Recent queries"
+    history_open: str = "Open"
+    history_delete: str = "Delete"
+    history_clear_all: str = "Clear all"
+    history_clear_confirm: str = "Delete all saved queries from this browser?"
+    history_clear_cancel: str = "Cancel"
+    history_back: str = "Back"
+    history_saved_at: str = "Saved {time}"  # Formatted by Javascript
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:
         """Ensure trailing whitespace."""
         return " ".join(value.split()) + " "
+
+
+class History(HyperglassModel):
+    """Validation model for the query history each browser keeps."""
+
+    enable: bool = True
+    limit: int = Field(default=10, ge=1, le=50)
 
 
 class ThemeColors(HyperglassModel):
@@ -367,6 +383,7 @@ class Web(HyperglassModel):
     opengraph: OpenGraph = OpenGraph()
     text: Text = Text()
     theme: Theme = Theme()
+    history: History = History()
     location_display_mode: LocationDisplayMode = "auto"
     # `external` looks up the visitor's address with myip.wtf, `server` reads it from the
     # request to Hyperglass, and `off` hides the My IP button.

@@ -140,6 +140,39 @@ describe('useFormState', () => {
     expect(useFormState.getState().resolvedIsOpen).toBe(false);
   });
 
+  describe('submission ID', () => {
+    it('is null on the form', () => {
+      expect(useFormState.getState().submissionId).toBeNull();
+    });
+
+    it('is new each time the form switches to the results', () => {
+      const { setStatus } = useFormState.getState();
+      setStatus('results');
+      const first = useFormState.getState().submissionId;
+      expect(first).toMatch(/^[0-9a-f]{32}$/);
+
+      // Still the same query, as when a hostname is resolved.
+      setStatus('results');
+      expect(useFormState.getState().submissionId).toBe(first);
+
+      setStatus('form');
+      expect(useFormState.getState().submissionId).toBeNull();
+      setStatus('results');
+      expect(useFormState.getState().submissionId).not.toBe(first);
+    });
+
+    it.each([
+      ['back', () => useFormState.getState().back()],
+      ['reset', () => useFormState.getState().reset()],
+    ])('is cleared by %s', async (_, leave) => {
+      useFormState.getState().setStatus('results');
+
+      await leave();
+
+      expect(useFormState.getState().submissionId).toBeNull();
+    });
+  });
+
   it('stores responses by device ID', () => {
     const response = { output: 'ok' } as unknown as QueryResponse;
     expect(useFormState.getState().response('router_one')).toBeNull();

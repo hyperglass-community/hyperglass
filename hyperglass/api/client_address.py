@@ -81,8 +81,9 @@ def resolve_client_address(
     return peer
 
 
-def client_address(request: "Request") -> str:
-    """Identify the client of a request, using the `web.client_ip` configuration."""
-    settings = use_state("params").web.client_ip
+def client_address(request: "Request", settings: t.Optional["ClientIP"] = None) -> str:
+    """Identify the client of a request, using `settings` or the `web.client_ip` config."""
+    if settings is None:
+        settings = use_state("params").web.client_ip
     peer = request.client.host if request.client else None
     return resolve_client_address(request.headers, peer, settings) or "anonymous"

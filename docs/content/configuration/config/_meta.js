@@ -8,6 +8,7 @@ export default {
     logging: "Logging & Webhooks",
     messages: "Messages",
     monitoring: "Health & Monitoring",
+    "query-limit": "Query Rate Limit",
     "structured-output": "Structured Output",
     "web-ui": "Web UI",
 };

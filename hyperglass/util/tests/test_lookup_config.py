@@ -69,7 +69,7 @@ def test_server_lookups_are_not_sent_to_the_ui():
     ],
 )
 def test_quota_identity(address, identity):
-    from hyperglass.api.auxiliary import quota_identity
+    from hyperglass.api.quota import quota_identity
 
     assert quota_identity(address) == identity
 

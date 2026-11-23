@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { Debugger, Footer, Greeting, Header, ResetButton } from '~/components';
 import { useConfig } from '~/context';
 import { motionChakra } from '~/elements';
-import { useFormState } from '~/hooks';
+import { useFormState, useHistoryView } from '~/hooks';
 
 import type { FlexProps } from '@chakra-ui/react';
 
@@ -27,6 +27,7 @@ const Main = motionChakra('main', {
 export const Layout = (props: FlexProps): JSX.Element => {
   const { developerMode } = useConfig();
   const { status, back } = useFormState(useShallow(({ status, back }) => ({ status, back })));
+  const historyOpen = useHistoryView(s => s.openId !== null);
 
   const containerRef = useRef<HTMLDivElement>({} as HTMLDivElement);
 
@@ -37,10 +38,19 @@ export const Layout = (props: FlexProps): JSX.Element => {
     }
   }, [status]);
 
+  // An opened history entry gets one too, so Back closes it.
+  useEffect(() => {
+    if (historyOpen && window.history.state?.ultraglass !== 'history') {
+      window.history.pushState({ ...window.history.state, ultraglass: 'history' }, '');
+    }
+  }, [historyOpen]);
+
   useEffect(() => {
     function handlePopState() {
       if (useFormState.getState().status === 'results') {
         back();
+      } else if (useHistoryView.getState().openId !== null) {
+        useHistoryView.getState().close();
       }
     }
     window.addEventListener('popstate', handlePopState);
@@ -74,6 +84,9 @@ export const Layout = (props: FlexProps): JSX.Element => {
       >
         <Header />
         <Main
+          // Focus moves here when what had it goes away, such as the last saved query.
+          tabIndex={-1}
+          _focus={{ outline: 'none' }}
           layout
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}

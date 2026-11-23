@@ -76,6 +76,28 @@ cache:
 
 ---
 
+## Query Rate Limit
+
+Limits how many queries each client, and all clients together, can send to `POST /api/query`. Off by default. See [Query Rate Limit](/configuration/config/query-limit).
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `query_limit.enable` | Boolean | `false` | Count queries and answer those over the limit with HTTP 429. |
+| `query_limit.client_limit` | Integer | `30` | Queries per window from one client: an IPv4 address or an IPv6 /64. Each selected location is one query. |
+| `query_limit.global_limit` | Integer | `300` | Queries per window from all clients together. |
+| `query_limit.window` | Integer | `60` | Length of the counting window, in seconds, up to 2592000 (30 days). Also sent as `Retry-After`. |
+
+#### Example: Query Rate Limit
+```yaml filename="config.yaml"
+query_limit:
+  enable: true
+  client_limit: 30   # 30 queries a minute per IPv4 address or IPv6 /64
+  global_limit: 300  # 300 queries a minute from everyone
+  window: 60
+```
+
+---
+
 ## API Documentation Configuration
 
 Controls the automatically generated API documentation. Hyperglass serves it at `docs.path`.
@@ -245,6 +267,7 @@ Customize error messages and user-facing text shown in the UI and API responses.
 | `messages.no_response` | String | `No response.` | Deprecated. Accepted but not displayed. Setting it logs a warning at startup. No removal release is scheduled. |
 | `messages.no_output` | String | `The query completed, but no matching results were found.` | Shown for successful queries with empty results. |
 | `messages.device_command_error` | String | `The query command failed on {device_name}.` | Shown when a device rejects a command or denies permission to run it. |
+| `messages.rate_limited` | String | `Too many requests. Please try again later.` | Shown when a query is over the [query rate limit](/configuration/config/query-limit). |
 
 #### Example: Custom Messages
 ```yaml filename="config.yaml"
@@ -416,6 +439,15 @@ web:
     required: true  # Users must agree to proceed
 ```
 
+### Query History
+
+Each browser keeps its own successful queries and lists them under "Recent queries" on the landing page. See [Query history](/configuration/config/web-ui#query-history) for what is stored.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.history.enable` | Boolean | `true` | Keep successful queries and their output in the visitor's browser and list them under "Recent queries". Turn it off for kiosks and shared terminals. |
+| `web.history.limit` | Integer | `10` | Number of queries each browser keeps, from 1 to 50. The oldest is removed when a new one is saved. |
+
 ### Text Customization
 
 Customize almost all text displayed in the user interface.
@@ -487,6 +519,19 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.previous_page` | String | `Previous Page` | Accessible name of the table button that shows the previous page. |
 | `web.text.next_page` | String | `Next Page` | Accessible name of the table button that shows the next page. |
 | `web.text.last_page` | String | `Last Page` | Accessible name of the table button that shows the last page. |
+
+#### Query History Text
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.text.history_title` | String | `Recent queries` | Heading of the list of saved queries on the landing page. |
+| `web.text.history_open` | String | `Open` | Tooltip and accessible name of the button that shows a saved query's results. |
+| `web.text.history_delete` | String | `Delete` | Tooltip and accessible name of the button that deletes a saved query. |
+| `web.text.history_clear_all` | String | `Clear all` | Button that deletes every saved query, and the button that confirms it. |
+| `web.text.history_clear_confirm` | String | `Delete all saved queries from this browser?` | Question shown before every saved query is deleted. |
+| `web.text.history_clear_cancel` | String | `Cancel` | Button that keeps the saved queries. |
+| `web.text.history_back` | String | `Back` | Button that closes an opened saved query. |
+| `web.text.history_saved_at` | String | `Saved {time}` | When a query was saved. `{time}` is shown in the viewer's locale and time zone. |
 
 #### BGP/RPKI Status Text
 
@@ -812,6 +857,26 @@ cache:
     min_interval: 30
 
 # ---------------------------------------------------------------------------
+# Query rate limit (POST /api/query only)
+# ---------------------------------------------------------------------------
+
+query_limit:
+  # Limit how many queries each client, and all clients together, can send.
+  # Over the limit, a query gets HTTP 429 with messages.rate_limited and
+  # Retry-After, and no device is contacted. Answers from the cache count.
+  # Behind a reverse proxy, set web.client_ip so clients are told apart.
+  # Default: false
+  enable: false
+  # Queries per window from one IPv4 address or IPv6 /64. Each location is a
+  # query: a submission with 10 locations sends 10, so the default allows about
+  # three such submissions a minute. Default: 30
+  client_limit: 30
+  # Queries per window from all clients together. Default: 300
+  global_limit: 300
+  # Length of the counting window, in seconds. Default: 60
+  window: 60
+
+# ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)
 # ---------------------------------------------------------------------------
 
@@ -961,6 +1026,8 @@ messages:
   no_output: "The query completed, but no matching results were found."
   # The device rejected the command or denied permission. {device_name} is filled in.
   device_command_error: "The query command failed on {device_name}."
+  # A client, or all clients together, sent more queries than query_limit allows.
+  rate_limited: "Too many requests. Please try again later."
   # Deprecated keys, accepted with a warning but never shown. No removal release is scheduled.
   # feature_not_enabled, invalid_query, invalid_field, no_response.
 
@@ -1151,6 +1218,15 @@ web:
     button: "Continue"
     required: false
 
+  # Recent queries: each browser keeps its own successful queries and their
+  # output in local storage, never sent to the server, and lists them on the
+  # landing page, where visitors can open, delete or clear them. limit is the
+  # number of queries kept, from 1 to 50. Turn it off for kiosks and shared
+  # terminals. Default: enabled, 10 queries
+  history:
+    enable: true
+    limit: 10
+
   # Logo and favicon. Files must exist. width is a percentage from 1 to 100.
   # Default: the Hyperglass logo, width 50%. logo.height is accepted but ignored;
   # the height follows the width.
@@ -1234,6 +1310,16 @@ web:
     previous_page: "Previous Page"
     next_page: "Next Page"
     last_page: "Last Page"
+    # Recent queries. {time} is when the query was saved, in the viewer's time
+    # zone.
+    history_title: "Recent queries"
+    history_open: "Open"
+    history_delete: "Delete"
+    history_clear_all: "Clear all"
+    history_clear_confirm: "Delete all saved queries from this browser?"
+    history_clear_cancel: "Cancel"
+    history_back: "Back"
+    history_saved_at: "Saved {time}"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

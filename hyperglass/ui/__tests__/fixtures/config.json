@@ -234,6 +234,7 @@
     "noOutput": "The query completed, but no matching results were found.",
     "noResponse": "No response.",
     "notFound": "{type} '{name}' not found.",
+    "rateLimited": "Too many requests. Please try again later.",
     "requestTimeout": "Request timed out.",
     "targetNotAllowed": "{target} is not allowed."
   },
@@ -329,6 +330,10 @@
       "title": "Welcome"
     },
     "highlight": [],
+    "history": {
+      "enable": true,
+      "limit": 10
+    },
     "links": [
       {
         "order": 0,
@@ -379,6 +384,14 @@
       "fqdnErrorButton": "Try Again",
       "fqdnMessage": "Your browser has resolved {fqdn} to",
       "fqdnTooltip": "Use {protocol}",
+      "historyBack": "Back",
+      "historyClearAll": "Clear all",
+      "historyClearCancel": "Cancel",
+      "historyClearConfirm": "Delete all saved queries from this browser?",
+      "historyDelete": "Delete",
+      "historyOpen": "Open",
+      "historySavedAt": "Saved {time}",
+      "historyTitle": "Recent queries",
       "ipButton": "My IP",
       "ipError": "Unable to determine IP Address",
       "ipLookupConfirm": "Look up my IP",

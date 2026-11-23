@@ -25,6 +25,7 @@ import {
   useFormState,
   useLGQuery,
   useMobile,
+  useRecordHistory,
   useStrf,
   useTableToString,
 } from '~/hooks';
@@ -37,7 +38,7 @@ import {
 import { formatTimestamp } from '~/util';
 import { CopyButton } from './copy-button';
 import { FormattedError } from './formatted-error';
-import { isFetchError, isLGError, isLGOutputOrError, isStackError } from './guards';
+import { isFetchError, isLGError, isLGOutputOrError, isQueryError, isStackError } from './guards';
 import { ResultHeader } from './header';
 import { RequeryButton, RequeryCountdown, useRequeryCooldown } from './requery-button';
 
@@ -156,6 +157,8 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
     },
   );
 
+  // Save a successful response to the query history.
+  useRecordHistory(queryLocation, query.data, isQueryError(query.data, query.error));
   const cooldown = useRequeryCooldown(query.requery, query.refreshAt);
 
   if (device === null) {
@@ -217,9 +220,7 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
   const { data, error, isLoading, isFetching, isFetchedAfterMount } = query;
 
   const isQuerying = isLoading || isFetching;
-  // A request can fail without an error body (a timeout, a network error, a response that is
-  // not JSON). Then there is no `data` to flag, only `error`.
-  const isError = useMemo(() => error !== null || isLGOutputOrError(data), [data, error]);
+  const isError = useMemo(() => isQueryError(data, error), [data, error]);
 
   const isCached = useMemo(() => data?.cached || !isFetchedAfterMount, [data, isFetchedAfterMount]);
 
