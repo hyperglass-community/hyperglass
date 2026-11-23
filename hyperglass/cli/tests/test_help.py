@@ -55,6 +55,10 @@ COMMANDS = (
     ("onboard", "check"),
     ("onboard", "test"),
     ("onboard", "directive"),
+    ("share",),
+    ("share", "list"),
+    ("share", "delete"),
+    ("share", "clear"),
 )
 
 

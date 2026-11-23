@@ -16,6 +16,7 @@ from hyperglass.constants import __version__
 from hyperglass.exceptions import HyperglassError
 
 # Local
+from .share import share_read, share_create, share_delete
 from .events import check_redis
 from .routes import (
     dns,
@@ -101,6 +102,9 @@ def create_app() -> Litestar:
 
     route_handlers = [*HANDLERS]
     middleware = []
+
+    if params.share.enable:
+        route_handlers.extend((share_create, share_read, share_delete))
 
     if params.metrics.enable:
         prometheus_config, metrics_controller = create_metrics(

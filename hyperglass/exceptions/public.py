@@ -191,3 +191,65 @@ class RateLimited(PublicHyperglassError, template="rate_limited", level="warning
     def headers(self) -> Dict[str, str]:
         """Tell the client when the quota is renewed."""
         return {"Retry-After": str(self._retry_after)}
+
+
+class ShareError(PublicHyperglassError):
+    """Base class of the errors the share routes return (#559).
+
+    Share responses must not be stored by a browser or a proxy, errors included: a
+    later request for the same share can have another answer.
+    """
+
+    _status_code = 400
+
+    @property
+    def status_code(self) -> int:
+        """Return the HTTP status of this error."""
+        return self._status_code
+
+    @property
+    def headers(self) -> Dict[str, str]:
+        """Keep the response out of caches."""
+        return {"Cache-Control": "no-store"}
+
+
+class ShareResultExpired(ShareError, template="share_result_expired", level="warning"):
+    """Raised when the query result to share is no longer cached."""
+
+    _status_code = 404
+
+
+class SharePending(ShareError, template="share_pending", level="warning"):
+    """Raised when the query result to share is still being enriched."""
+
+    _status_code = 409
+
+
+class ShareNotAllowed(ShareError, template="share_not_allowed", level="warning"):
+    """Raised when the query result to share comes from a directive with `retain: false`."""
+
+    _status_code = 403
+
+
+class ShareTooLarge(ShareError, template="share_too_large", level="warning"):
+    """Raised when a snapshot would be larger than `share.max_size`."""
+
+    _status_code = 413
+
+
+class ShareUnavailable(ShareError, template="share_unavailable", level="danger"):
+    """Raised when `share.max_entries` shares exist."""
+
+    _status_code = 503
+
+
+class ShareNotFound(ShareError, template="share_not_found", level="warning"):
+    """Raised for a missing, expired, deleted, invalid or hidden share, or a wrong token."""
+
+    _status_code = 404
+
+
+class ShareUnsupported(ShareError, template="share_unsupported", level="warning"):
+    """Raised for a share stored in a snapshot version this version can't read."""
+
+    _status_code = 422

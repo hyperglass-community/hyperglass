@@ -16,6 +16,13 @@ interface _Messages {
   authentication_error: string;
   no_output: string;
   rate_limited: string;
+  share_result_expired: string;
+  share_pending: string;
+  share_not_allowed: string;
+  share_too_large: string;
+  share_unavailable: string;
+  share_not_found: string;
+  share_unsupported: string;
 }
 
 interface _ThemeConfig {

@@ -93,6 +93,40 @@ query_limit:
   window: 60
 
 # ---------------------------------------------------------------------------
+# Share snapshots (POST/GET/DELETE /api/share)
+# ---------------------------------------------------------------------------
+
+share:
+  # Let visitors copy a cached query result into a snapshot that anyone with
+  # its link can read until it expires. Snapshots are kept in Redis outside
+  # the state that a restart clears. Default: false
+  enable: false
+  # Seconds a snapshot is kept, 60 to 2592000. Reading it doesn't extend it.
+  # Default: 604800 (7 days)
+  timeout: 604800
+  # Live snapshots from all clients together. When full, new shares get
+  # HTTP 503 with messages.share_unavailable; none is deleted to make room.
+  # Default: 1000
+  max_entries: 1000
+  # Bytes of one snapshot. Storage can reach max_entries x max_size (256 MiB
+  # with the defaults). Default: 262144
+  max_size: 262144
+  quota:
+    # Shares one IPv4 address or IPv6 /64 can create per window. Default: 10
+    client_limit: 10
+    # Shares all clients together can create per window. Default: 100
+    global_limit: 100
+    # Length of the counting window, in seconds. Default: 3600
+    window: 3600
+  read_quota:
+    # Snapshot reads per window from one IPv4 address or IPv6 /64. Default: 60
+    client_limit: 60
+    # Snapshot reads per window from all clients together. Default: 1200
+    global_limit: 1200
+    # Length of the counting window, in seconds. Default: 60
+    window: 60
+
+# ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)
 # ---------------------------------------------------------------------------
 
@@ -244,6 +278,20 @@ messages:
   device_command_error: "The query command failed on {device_name}."
   # A client, or all clients together, sent more queries than query_limit allows.
   rate_limited: "Too many requests. Please try again later."
+  # A share was requested for a result that is no longer cached (HTTP 404).
+  share_result_expired: "This result is no longer cached. Run the query again to share it."
+  # A share was requested while the result's enrichment is running (HTTP 409).
+  share_pending: "This result is still being completed. Try again in a moment."
+  # A share was requested for a directive with retain: false (HTTP 403).
+  share_not_allowed: "This result can't be shared."
+  # The snapshot would be larger than share.max_size (HTTP 413).
+  share_too_large: "This result is too large to share."
+  # share.max_entries snapshots exist (HTTP 503).
+  share_unavailable: "Sharing is unavailable right now. Please try again later."
+  # The share does not exist, expired or was deleted, or the delete token is wrong (HTTP 404).
+  share_not_found: "This shared result does not exist or has expired."
+  # The share was stored in a snapshot version this version doesn't read (HTTP 422).
+  share_unsupported: "This shared result was saved in a format this version can't show."
   # Deprecated keys, accepted with a warning but never shown. No removal release is scheduled.
   # feature_not_enabled, invalid_query, invalid_field, no_response.
 

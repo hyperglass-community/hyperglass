@@ -40,6 +40,7 @@ __all__ = (
     "record_query_duration",
     "record_query_error",
     "record_query_success",
+    "record_share",
     "set_query_labels",
 )
 
@@ -85,6 +86,11 @@ QUERY_DURATION = Histogram(
     "Time spent executing successful queries against devices (cache misses and bypasses).",
     ("device", "query_type"),
     buckets=_QUERY_DURATION_BUCKETS,
+)
+SHARES = Counter(
+    "hyperglass_share_requests",
+    "Share API requests, by operation (create, read or delete) and result.",
+    ("operation", "result"),
 )
 BUILD_INFO = Gauge(
     "hyperglass_build_info",
@@ -165,6 +171,12 @@ def record_query_duration(request: Request, seconds: t.Optional[float]) -> None:
 def record_query_success(request: Request) -> None:
     """Record a successful query."""
     QUERIES.labels(*_query_labels(request), "success").inc()
+
+
+@_never_raise
+def record_share(operation: t.Literal["create", "read", "delete"], result: str) -> None:
+    """Record the result of a share request; `result` is one of a fixed set per operation."""
+    SHARES.labels(operation, result).inc()
 
 
 @_never_raise

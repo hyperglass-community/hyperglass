@@ -72,6 +72,32 @@ __all__ = (
 )
 
 
+def _cache_share_fields(
+    pipeline: t.Any, cache_key: str, data: "Query", *, json_output: bool, runtime: int
+) -> None:
+    """Cache what a share copies with the result, so a share copies only server data (#559).
+
+    `result_id` tells this result from a later result of the same query. A share made
+    from this result is recorded on this entry, so it ends with it.
+    """
+    fields = {
+        "query": {
+            "location": data.device.id,
+            "query_type": data.directive.id,
+            "query_type_name": data.directive.name,
+            # As validated, before input plugins transform it.
+            "target": data._validated_target,
+            "variables": dict(data.query_variables),
+        },
+        "labels": {"location": data.device.name, "query_type": data.directive.name},
+        "format": "application/json" if json_output else "text/plain",
+        "runtime": runtime,
+        "result_id": uuid4().hex,
+    }
+    for item, value in fields.items():
+        pipeline.set_map_item(cache_key, item, value)
+
+
 async def _execute_query(data: "Query") -> t.Any:
     """Keep both device attempts inside one deadline, before the browser timeout."""
     deadline = asyncio.timeout(use_state("params").request_timeout - 1)
@@ -409,6 +435,8 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             enrichment_output = output
             enrichment_generation = uuid4().hex
 
+        runtime = int(round(elapsedtime, 0))
+
         with cache.pipeline() as pipeline:
             refresh.record(pipeline)
             pipeline.set_map_item(cache_key, "output", raw_output)
@@ -416,11 +444,10 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
             if enrichment_generation is not None:
                 pipeline.set_map_item(cache_key, "enrichment_generation", enrichment_generation)
+            _cache_share_fields(pipeline, cache_key, data, json_output=json_output, runtime=runtime)
             pipeline.expire(cache_key, expire_in=params.cache.timeout)
 
         _log.bind(cache_timeout=params.cache.timeout).debug("Response cached")
-
-        runtime = int(round(elapsedtime, 0))
 
     # If it does, return the cached entry
     cache_response = cache.get_map(cache_key, "output")
