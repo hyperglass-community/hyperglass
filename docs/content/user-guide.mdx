@@ -88,12 +88,6 @@ The popover shows the link, ready to copy with **Copy Link** (or to copy yoursel
 
 **Delete Link** removes the link at once. It works only from the page you created the link on, and only until you close or reload that page: the key that allows it is kept in the page and never stored. Sharing the same result again while it is still cached gives you the same link back, with a new key.
 
-### Share a saved query
-
-When the deployment also keeps your recent queries ("Recent queries", under the form) and sharing is on, a saved result has the share button too: on each result of an opened saved query, and on the row of a saved query of one location. The server can only share a result it still holds, which is only for a short time after the query ran (two minutes by default). When it no longer holds it, the popover says so and offers **Run again**, which runs the query again for a new result you can share.
-
-A link you create from a saved query is kept with it in this browser, so you can copy or delete it later, from any tab and after reloading the page. A saved query with a link that still works is marked **Link shared**. Deleting the saved query, or clearing all of them, doesn't delete the link: it keeps working until it expires, and the confirmation says so. To stop it sooner, use **Delete Link** first.
-
 ## Open a shared result
 
 When the deployment has [sharing](/configuration/config/share) on, a link such as `https://lg.example.net/?share=<id>` shows a copy of a result someone shared, kept on the server: the same output whenever it is opened, until the link expires. The page shows when the result was produced and when the link expires, in your time zone. You can copy the output, but not run it again from there. **Run this query** fills in the form with the shared query, for you to submit; **New query** shows an empty form. A share link that also has form parameters (`location`, `type`, `target`, `var.*`) ignores them.

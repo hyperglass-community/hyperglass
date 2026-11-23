@@ -140,17 +140,9 @@ def _expires_in(data: ShareRequest, config: "Share") -> int:
     return expires_in
 
 
-def _check_shareable(
-    result: t.Optional[storage.CachedResult],
-    devices: "Devices",
-    timestamp: t.Optional[str] = None,
-) -> None:
-    """Raise the error for a cached result that can't be shared.
-
-    With `timestamp`, the cached result must be the one the device produced then: once the
-    query has run again, the result asked for is no longer cached.
-    """
-    if result is None or (timestamp is not None and str(result.values["timestamp"]) != timestamp):
+def _check_shareable(result: t.Optional[storage.CachedResult], devices: "Devices") -> None:
+    """Raise the error for a cached result that can't be shared."""
+    if result is None:
         record_share("create", "not_found")
         raise ShareResultExpired()
     if result.values["enrichment_status"] == "pending":
@@ -190,7 +182,7 @@ async def share_create(_state: HyperglassState, request: Request, data: ShareReq
     client = client_identity(request, params.web.client_ip)
 
     result = await asyncio.to_thread(storage.read_cached_result, _state.redis, data.query_id)
-    _check_shareable(result, _state.devices, data.timestamp)
+    _check_shareable(result, _state.devices)
 
     snapshot = storage.build_snapshot(result, expires_in)
     snapshot_json = snapshot.model_dump_json(by_alias=True)

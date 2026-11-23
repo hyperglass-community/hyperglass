@@ -1,10 +1,9 @@
-import { Box, Button, Flex, HStack, ListItem, Text, Tooltip } from '@chakra-ui/react';
-import { forwardRef, useEffect, useId, useRef, useState } from 'react';
+import { Box, Button, HStack, ListItem, Text, Tooltip } from '@chakra-ui/react';
+import { useId } from 'react';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
-import { hasLiveShare, useColorValue, useStrf } from '~/hooks';
+import { useColorValue, useStrf } from '~/hooks';
 import { formatTimestamp } from '~/util';
-import { HistoryShareButton, useHistoryShareable } from './history-share-button';
 
 import type { HistoryEntry, HistoryReuseMode } from '~/hooks';
 
@@ -16,42 +15,35 @@ interface HistoryEntryRowProps {
   onDelete(id: string): void;
 }
 
-interface ActionButtonProps {
+/** An icon-only button, named by its tooltip text. */
+const ActionButton = (props: {
   label: string;
   icon: string;
   onClick(): void;
   /** The entry's ID, on the Open button only, so focus can return to it. */
   openId?: string;
-}
-
-/** An icon-only button, named by its tooltip text. */
-const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
-  (props: ActionButtonProps, ref): JSX.Element => {
-    const { label, icon, onClick, openId } = props;
-    return (
-      <Tooltip hasArrow label={label} placement="top">
-        <Button
-          ref={ref}
-          mx={1}
-          size="sm"
-          variant="ghost"
-          colorScheme="secondary"
-          aria-label={label}
-          data-history-open={openId}
-          onClick={onClick}
-        >
-          <DynamicIcon icon={{ fi: icon }} boxSize="16px" />
-        </Button>
-      </Tooltip>
-    );
-  },
-);
+}): JSX.Element => {
+  const { label, icon, onClick, openId } = props;
+  return (
+    <Tooltip hasArrow label={label} placement="top">
+      <Button
+        mx={1}
+        size="sm"
+        variant="ghost"
+        colorScheme="secondary"
+        aria-label={label}
+        data-history-open={openId}
+        onClick={onClick}
+      >
+        <DynamicIcon icon={{ fi: icon }} boxSize="16px" />
+      </Button>
+    </Tooltip>
+  );
+};
 
 /**
  * One saved query in the recent queries list: what it was and when, with buttons to open
- * it, run it again, run it with a new target, share it (a query of one location; one of
- * several is shared per location once opened), and delete it. A query with a share link
- * that still works is marked, and deleting it asks first: the link is not deleted with it.
+ * it, run it again, run it with a new target, and delete it.
  */
 export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
   const { entry, onOpen, onReuse, onDelete } = props;
@@ -59,41 +51,8 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
   const strF = useStrf();
   const targetId = useId();
   const locationsId = useId();
-  const confirmId = useId();
-  const keptId = useId();
   const muted = useColorValue('gray.600', 'gray.400');
-  const shareable = useHistoryShareable();
-  const [confirming, setConfirming] = useState(false);
-  const deleteRef = useRef<HTMLButtonElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  // Whether focus goes back to Delete once the confirmation closes.
-  const refocus = useRef(false);
   const { labels } = entry;
-  const shared = hasLiveShare(entry);
-  const deviceIds = Object.keys(entry.results);
-  const shareId = deviceIds.length === 1 && shareable(entry, deviceIds[0]) ? deviceIds[0] : null;
-
-  useEffect(() => {
-    if (confirming) {
-      cancelRef.current?.focus();
-    } else if (refocus.current) {
-      refocus.current = false;
-      deleteRef.current?.focus();
-    }
-  }, [confirming]);
-
-  function handleDelete(): void {
-    if (shared) {
-      setConfirming(true);
-    } else {
-      onDelete(entry.id);
-    }
-  }
-
-  function cancel(): void {
-    refocus.current = true;
-    setConfirming(false);
-  }
 
   return (
     <ListItem
@@ -128,12 +87,6 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
             time: formatTimestamp(new Date(entry.savedAt).toISOString()),
           })}
         </Text>
-        {shared && (
-          <Flex as="p" align="center" gap={1} fontSize="xs" fontWeight="semibold">
-            <DynamicIcon icon={{ fi: 'FiLink' }} boxSize="12px" aria-hidden="true" />
-            {web.text.historyShared}
-          </Flex>
-        )}
       </Box>
       {/* Each row has the same button names: name the buttons' group after its query's
           target and locations. */}
@@ -160,54 +113,12 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
           icon="FiEdit"
           onClick={() => onReuse(entry, 'newTarget')}
         />
-        {shareId !== null && (
-          <HistoryShareButton
-            entry={entry}
-            deviceId={shareId}
-            onRerun={() => onReuse(entry, 'rerun')}
-          />
-        )}
         <ActionButton
-          ref={deleteRef}
           label={web.text.historyDelete}
           icon="FiTrash2"
-          onClick={handleDelete}
+          onClick={() => onDelete(entry.id)}
         />
       </HStack>
-      {confirming && (
-        <Flex
-          role="group"
-          aria-labelledby={confirmId}
-          aria-describedby={keptId}
-          flex="1 1 100%"
-          direction="column"
-          gap={2}
-          mt={2}
-          p={3}
-          borderWidth="1px"
-          rounded="lg"
-          onKeyDown={e => {
-            if (e.key === 'Escape') {
-              cancel();
-            }
-          }}
-        >
-          <Text id={confirmId} fontSize="sm">
-            {web.text.historyDeleteConfirm}
-          </Text>
-          <Text id={keptId} fontSize="sm">
-            {web.text.historyShareKept}
-          </Text>
-          <HStack justify="flex-end" flexWrap="wrap">
-            <Button size="sm" colorScheme="red" onClick={() => onDelete(entry.id)}>
-              {web.text.historyDelete}
-            </Button>
-            <Button ref={cancelRef} size="sm" onClick={cancel}>
-              {web.text.historyClearCancel}
-            </Button>
-          </HStack>
-        </Flex>
-      )}
     </ListItem>
   );
 };

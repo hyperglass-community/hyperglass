@@ -59,12 +59,10 @@ All three routes need `share.enable: true`. Their error bodies have the same sha
 #### `POST /api/share`
 
 ```json
-{ "queryId": "hyperglass.query.<64 hex characters>", "expiresIn": 2592000, "timestamp": "2026-11-23 08:00:00" }
+{ "queryId": "hyperglass.query.<64 hex characters>", "expiresIn": 2592000 }
 ```
 
 `expiresIn` is optional: absent or `null`, the snapshot is kept for `timeout` seconds. Otherwise it must be one of `timeout_choices` (after the `max_timeout` cap), as an integer.
-
-`timestamp` is optional: the `timestamp` of the same `POST /api/query` response, as a string of 1 to 64 characters. `queryId` names the query's cache entry, not one result: once the query has run again (refreshed with `force`, or after its cache entry expired), the entry holds the newer result. With `timestamp`, the server shares only the result the device produced at that time, and answers 404 when the cache holds another. The UI always sends it, so a result opened from the query history is never shared as a newer result.
 
 `queryId` is the `id` of a `POST /api/query` response. The result must still be in the query cache: the server copies the result, its query (location, query type ID and name, validated target, variables), its labels, format, time and runtime from the cache entry, never from the request.
 
@@ -72,11 +70,11 @@ All three routes need `share.enable: true`. Their error bodies have the same sha
 | :----- | :------ |
 | 201    | Created. The body is `{"id": …, "expiresAt": …, "deleteToken": …}`. |
 | 200    | This client already shared this cached result: the same `id` and `expiresAt`, whatever `expiresIn` says, and a new `deleteToken`. The previous token no longer works. A result refreshed with `force`, or run again after its cache entry expired, gets a new ID. |
-| 400    | The body is not `{"queryId": …}` with a query ID, `timestamp` is not a string of 1 to 64 characters, or `expiresIn` is not one of `timeout_choices` (with `messages.share_invalid_expiry`). |
+| 400    | The body is not `{"queryId": …}` with a query ID, or `expiresIn` is not one of `timeout_choices` (with `messages.share_invalid_expiry`). |
 | 413    | The body is larger than 1024 bytes. |
 | 415    | The body is not sent as `application/json`. A page on another site can make a browser send a form or `text/plain` post without asking, which would use up its visitor's quota; a JSON post needs a CORS preflight, which only the origins in `cors_origins` pass. |
 | 403    | The result's directive has `retain: false`. |
-| 404    | The result is no longer cached, or the cache holds a result with another `timestamp` than the one sent. |
+| 404    | The result is no longer cached. |
 | 409    | The result's enrichment is still running. |
 | 413    | The snapshot would be larger than `max_size`. |
 | 429    | The client, or all clients together, created `quota` shares in this window. `Retry-After` is `quota.window`. |
@@ -125,17 +123,6 @@ The button opens a popover with a **Keep for** choice of `timeout_choices` (with
 - The popover's text is in [`web.text`](/configuration/config/complete-config#share-button-text). Each time to keep the link is shown in the largest unit it is a whole number of: days (`share_day`, `share_days`), hours (`share_hour`, `share_hours`) or minutes (`share_minute`, `share_minutes`).
 
 During UI development (`next dev`), `POST /api/share` is proxied to `HYPERGLASS_URL` too.
-
-### Sharing from the Query History
-
-With sharing and the [query history](/configuration/config/web-ui#query-history) on, a saved result can be shared too. Each result of an opened saved query has the Share button, and so does the row of a saved query of one location in "Recent queries" (a query of several locations is shared per location, once opened). The button is offered on the same terms as on a live result, checked against the current configuration: not for a location no longer configured, a directive that now has `retain: false`, or a result saved while its enrichment was running.
-
-- The request sends the saved response's `id` and `timestamp`. The server copies only what it still holds: once the result has left the query cache (`cache.timeout`, 120 seconds by default), or the query has run again since, it answers 404 and the popover shows `messages.share_result_expired` with a **Run again** button (`web.text.history_rerun`), which fills the form with the saved query and submits it, as **Run again** in the history does. The query is never run again on its own. A link created from the results view of the new run is a link to that new result.
-- The link's ID, expiry and delete token are stored with the saved result, in the browser's local storage (`hyperglass.history`), so the popover shows the link to copy or delete from any tab and after a reload. A saved query with a link that hasn't expired is marked with `web.text.history_shared`. The token is never shown, logged, or put in a URL or the link, and is sent only in the `X-Delete-Token` header of `DELETE /api/share/{id}`.
-- Deleting the link from the popover deletes it on the server and removes it from the history. A link that has expired is removed with its token: when the page loads, with each change to the history, and, while the history shows, when it expires.
-- Deleting a saved query that has a live link, or **Clear all** while any has one, doesn't delete the link on the server: it keeps working until it expires. Both ask first, with `web.text.history_delete_confirm` (or `history_clear_confirm`) and `web.text.history_share_kept`. Delete the link from its Share button first to stop it sooner.
-- When the history can't store the link (the saved query was deleted in another tab, or doesn't fit in the browser's storage), it is kept in the page's memory, as a live result's link is, until the page is closed or reloaded.
-- A link created from a live result (the results view) is kept in the page's memory only, as before; it is shown in the history's Share popover of the same result while the page is open.
 
 ### Operator Commands
 

@@ -218,15 +218,6 @@ class Text(HyperglassModel):
     share_hours: str = "{count} hours"  # Formatted by Javascript
     share_day: str = "{count} day"  # Formatted by Javascript
     share_days: str = "{count} days"  # Formatted by Javascript
-    # Share links kept with saved queries: the mark on a saved query with a live link, the
-    # question before deleting such a query, and the note, there and before clearing all,
-    # that deleting saved queries doesn't delete their links.
-    history_shared: str = "Link shared"
-    history_delete_confirm: str = "Delete this saved query from this browser?"
-    history_share_kept: str = (
-        "Deleting a saved query doesn't delete its share links: they keep working until "
-        "they expire. To stop a link sooner, delete it from its Share button first."
-    )
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

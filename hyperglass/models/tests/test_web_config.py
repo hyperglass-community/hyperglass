@@ -194,16 +194,3 @@ def test_share_button_text_exported():
         "shareDay": "{count} day",
         "shareDays": "{count} days",
     }.items() <= exported.items()
-
-
-def test_history_share_text_exported():
-    """Saved queries with share links read their text as camelCase keys of `web.text` (#562)."""
-    exported = Text(history_shared="Lien partagé").model_dump(by_alias=True)
-    assert {
-        "historyShared": "Lien partagé",
-        "historyDeleteConfirm": "Delete this saved query from this browser?",
-        "historyShareKept": (
-            "Deleting a saved query doesn't delete its share links: they keep working until "
-            "they expire. To stop a link sooner, delete it from its Share button first."
-        ),
-    }.items() <= exported.items()

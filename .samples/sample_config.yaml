@@ -626,12 +626,6 @@ web:
     share_hours: "{count} hours"
     share_day: "{count} day"
     share_days: "{count} days"
-    # Share links kept with saved queries: the mark on a saved query with a live
-    # link, the question before deleting one, and the note that deleting saved
-    # queries doesn't delete their links.
-    history_shared: "Link shared"
-    history_delete_confirm: "Delete this saved query from this browser?"
-    history_share_kept: "Deleting a saved query doesn't delete its share links: they keep working until they expire. To stop a link sooner, delete it from its Share button first."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).
