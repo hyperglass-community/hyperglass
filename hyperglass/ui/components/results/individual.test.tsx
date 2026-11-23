@@ -1,6 +1,7 @@
 import { Accordion } from '@chakra-ui/react';
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { BiError } from 'react-icons/bi';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
@@ -137,13 +138,15 @@ async function settled(): Promise<void> {
   await waitFor(() => expect(statusIcon()).toBeInTheDocument(), IMPORT_WAIT);
 }
 
-/**
- * Wait until a query that threw has settled. `Result` only flags and expands a result
- * when the response body arrives, so a failed request leaves it collapsed.
- */
-async function failed(): Promise<void> {
-  await waitFor(() => expect(header()).toBeEnabled(), IMPORT_WAIT);
-  await waitFor(() => expect(statusIcon()).toBeInTheDocument(), IMPORT_WAIT);
+/** The drawing of the header's status icon, to tell the error icon from the success icon. */
+function statusIconPath(): string | null | undefined {
+  return statusIcon()?.querySelector('path')?.getAttribute('d');
+}
+
+/** The drawing of the error icon the header shows for a failed query. */
+function errorIconPath(): string | null | undefined {
+  const { container } = render(<BiError />);
+  return container.querySelector('path')?.getAttribute('d');
 }
 
 /**
@@ -215,6 +218,7 @@ describe('Result', () => {
       renderResult();
       await settled();
 
+      expect(statusIconPath()).not.toBe(errorIconPath());
       await userEvent.hover(statusIcon() as Element);
 
       expect(
@@ -318,41 +322,70 @@ describe('Result', () => {
     ])('shows the message for %s', async (_, error, message) => {
       stubFetch(vi.fn(async () => Promise.reject(error)));
       renderResult();
-      await failed();
+      await settled();
 
       expect(screen.getByRole('alert', { hidden: true })).toHaveTextContent(message);
     });
 
-    // A request that fails without a response body (timeout, network error, non-JSON
-    // body) is not treated as an error: the result stays collapsed and the header shows
-    // the success icon. This documents current behaviour, which #509 tracks as a bug;
-    // the test changes when #509 is fixed.
-    it('leaves a failed request collapsed and unflagged', async () => {
-      stubFetch(vi.fn(async () => Promise.reject(new Error('Timeout exceeded'))));
+    // A request that fails without an error body (#509). `useLGQuery` surfaces each of
+    // these as an `error` with no `data`.
+    it.each([
+      [
+        // `fetchWithTimeout` aborts the request once `requestTimeout` passes.
+        'a timed out request',
+        async () => Promise.reject(new DOMException('This operation was aborted', 'AbortError')),
+        testConfig.messages.requestTimeout,
+      ],
+      [
+        'a network error',
+        async () => Promise.reject(new TypeError('Failed to fetch')),
+        'Failed To Fetch',
+      ],
+      [
+        'a response that is not JSON',
+        async () =>
+          ({
+            json: async () => Promise.reject(new SyntaxError('Unexpected token <')),
+            statusText: 'bad gateway',
+          }) as unknown as Response,
+        'Bad Gateway',
+      ],
+    ])('expands and flags %s as an error', async (_, impl, message) => {
+      stubFetch(vi.fn(impl));
       renderResult();
-      await failed();
+      await settled();
 
-      expect(header()).toHaveAttribute('aria-expanded', 'false');
+      const alert = screen.getByRole('alert', { hidden: true });
+      expect(alert).toHaveTextContent(message);
+      expect(alert).toHaveAttribute('data-status', 'error');
+      expect(screen.queryByText(testConfig.web.text.cachePrefix.trim())).not.toBeInTheDocument();
+      expect(statusIconPath()).toBe(errorIconPath());
       await userEvent.hover(statusIcon() as Element);
       expect(
-        await screen.findByRole('tooltip', { name: 'Completed in 0 seconds' }, IMPORT_WAIT),
+        await screen.findByRole('tooltip', { name: message }, IMPORT_WAIT),
       ).toBeInTheDocument();
     });
 
-    it('shows the response status text when the body is not JSON', async () => {
-      stubFetch(
-        vi.fn(
-          async () =>
-            ({
-              json: async () => Promise.reject(new SyntaxError('Unexpected token <')),
-              statusText: 'bad gateway',
-            }) as unknown as Response,
-        ),
+    it('shows the error when a requery fails', async () => {
+      const fetch = stubFetch(
+        vi
+          .fn()
+          .mockResolvedValueOnce({ json: async () => response({ output: 'first' }) })
+          .mockRejectedValueOnce(new TypeError('Failed to fetch')),
       );
-      renderResult();
-      await failed();
+      const { container } = renderResult();
+      await settled();
+      const successIconPath = statusIconPath();
 
-      expect(screen.getByRole('alert', { hidden: true })).toHaveTextContent('Bad Gateway');
+      await userEvent.click(actionButtons()[1]);
+
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+      expect(await screen.findByRole('alert', { hidden: true })).toHaveTextContent(
+        'Failed To Fetch',
+      );
+      expect(container.querySelector('pre')).not.toBeInTheDocument();
+      expect(statusIconPath()).toBe(errorIconPath());
+      expect(statusIconPath()).not.toBe(successIconPath);
     });
 
     it('shows a toast and nothing else for an unknown device', async () => {
