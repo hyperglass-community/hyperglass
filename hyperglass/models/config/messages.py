@@ -119,7 +119,7 @@ class Messages(HyperglassModel):
     share_unavailable: str = Field(
         "Sharing is unavailable right now. Please try again later.",
         title="Share Unavailable",
-        description="Returned with HTTP 503 when `share.max_entries` [shares](/configuration/config/share) exist.",
+        description="Returned with HTTP 503 when `share.max_entries` [shares](/configuration/config/share) exist, or when Redis is full (`maxmemory` with `noeviction`).",
     )
     share_not_found: str = Field(
         "This shared result does not exist or has expired.",

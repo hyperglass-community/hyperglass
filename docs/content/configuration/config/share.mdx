@@ -12,7 +12,7 @@ A visitor can copy a result from the query cache into a snapshot: a copy kept on
 | :------------------------------ | :------ | :------- | :---------- |
 | `share.enable`                  | Boolean | `false`  | Register `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}`. With `false`, none of them exist. |
 | `share.timeout`                 | Integer | `2592000` | Seconds a snapshot is kept when the request doesn't choose (no `expiresIn`). Must be one of `timeout_choices`. Reading a snapshot doesn't extend it. |
-| `share.max_timeout`             | Integer | `7776000` | The longest a visitor can choose, from `60` to `31536000` (1 year). `timeout_choices` above it are dropped. |
+| `share.max_timeout`             | Integer | `7776000` | The longest a visitor can choose, from `60` to `31536000` (1 year). `timeout_choices` above it are dropped. Lowering it doesn't shorten existing snapshots; delete them with `hyperglass share delete` or `hyperglass share clear`. Set below `timeout`, Hyperglass doesn't start (even with sharing off) until `timeout` is one of the remaining choices. |
 | `share.timeout_choices`         | List of Integers | `[604800, 2592000, 7776000]` | Times, in seconds, a visitor can choose to keep a snapshot for: 7, 30 and 90 days. Sorted and without duplicates once validated. With `timeout`, sent to the UI for its choice. |
 | `share.max_entries`             | Integer | `1000`   | Live snapshots from all clients together. When full, a new share gets HTTP 503. Existing snapshots are never deleted to make room. |
 | `share.max_size`                | Integer | `262144` | Bytes of one stored snapshot. A larger result gets HTTP 413. |

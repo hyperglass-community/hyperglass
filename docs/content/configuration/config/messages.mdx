@@ -19,7 +19,7 @@ Hyperglass keeps user-facing messages configurable so each deployment can descri
 | `messages.share_pending`        | String | This result is still being completed. Try again in a moment. | Returned with HTTP 409 when a share is requested while the result's enrichment is running. |
 | `messages.share_result_expired` | String | This result is no longer cached. Run the query again to share it. | Returned with HTTP 404 when a share is requested for a result that is no longer cached. |
 | `messages.share_too_large`      | String | This result is too large to share.                       | Returned with HTTP 413 when a snapshot would be larger than `share.max_size`. |
-| `messages.share_unavailable`    | String | Sharing is unavailable right now. Please try again later. | Returned with HTTP 503 when `share.max_entries` snapshots exist. |
+| `messages.share_unavailable`    | String | Sharing is unavailable right now. Please try again later. | Returned with HTTP 503 when `share.max_entries` snapshots exist, or when Redis is full (`maxmemory` with `noeviction`). |
 | `messages.share_unsupported`    | String | This shared result was saved in a format this version can't show. | Returned with HTTP 422 for a share stored in a snapshot version this version doesn't read. |
 | `messages.request_timeout`      | String | Request timed out.                                       | Displayed when the [`request_timeout`](/configuration/config.mdx#top-level-parameters) time expires. |
 | `messages.target_not_allowed`   | String | \{target\} is not allowed.                               | Displayed when a query target is implicitly denied by a configured rule. `{target}` will be used to display the denied query target. |

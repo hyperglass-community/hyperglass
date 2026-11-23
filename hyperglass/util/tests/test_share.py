@@ -1429,3 +1429,12 @@ def test_routes_do_not_look_up_non_ids(device, monkeypatch):
 def test_no_choice_left_is_reported_as_such(config):
     with pytest.raises(ValueError, match="no time within share.max_timeout"):
         Params(share=config)
+
+
+def test_expiry_not_offered_does_not_use_the_quota(device):
+    configure({"quota": {"client_limit": 1, "global_limit": 10, "window": 60}})
+    with client() as test_client:
+        query_id = run_query(test_client)
+        refused = create(test_client, query_id, expiresIn=3600)
+        accepted = create(test_client, query_id)
+    assert (refused.status_code, accepted.status_code) == (400, 201)

@@ -297,7 +297,7 @@ messages:
   share_not_allowed: "This result can't be shared."
   # The snapshot would be larger than share.max_size (HTTP 413).
   share_too_large: "This result is too large to share."
-  # share.max_entries snapshots exist (HTTP 503).
+  # share.max_entries snapshots exist, or Redis is full (HTTP 503).
   share_unavailable: "Sharing is unavailable right now. Please try again later."
   # The share does not exist, expired or was deleted, or the delete token is wrong (HTTP 404).
   share_not_found: "This shared result does not exist or has expired."
