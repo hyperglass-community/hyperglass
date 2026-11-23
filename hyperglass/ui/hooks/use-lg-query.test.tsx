@@ -220,9 +220,8 @@ describe('useLGQuery timeout', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(firstRequest()[1].signal?.aborted).toBe(true);
-    // The error is the abort, not a "timeout" message. The results view maps an error to
-    // `messages.requestTimeout` only when its message starts with "timeout", so a timed
-    // out query does not show the configured message.
+    // The error is the abort, whose message doesn't mention the timeout. The results view
+    // maps an `AbortError` to `messages.requestTimeout` by its name (#542).
     const error = result.current.error as DOMException;
     expect(error.name).toBe('AbortError');
     expect(error.message.toLowerCase().startsWith('timeout')).toBe(false);
@@ -597,5 +596,241 @@ describe('useLGQuery enrichment polling', () => {
 
     expect(interval.isCleared()).toBe(true);
     expect((enrichmentCalls()[0][1] as RequestInit).signal?.aborted).toBe(true);
+  });
+});
+
+describe('useLGQuery forced refresh', () => {
+  // Fake timers that follow the real clock, so `waitFor` still runs, with a fixed start
+  // time so `refreshAt` can be compared with `Date.now()`.
+  const start = new Date('2026-11-20T08:00:00Z').getTime();
+  const enabled = makeConfig({ cache: { refresh: { enable: true } } });
+  const disabled = makeConfig({ cache: { refresh: { enable: false } } });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(start);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The parsed JSON body of each `/api/query` request. */
+  function queryBodies(): Record<string, unknown>[] {
+    return fetchMock.mock.calls
+      .filter(([url]) => url === '/api/query')
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+  }
+
+  it('sends force on the next request only when refresh is enabled', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...success, refresh_in: 0 }));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.requery();
+    });
+    // A normal refetch after the forced one, such as React Query's own, is not forced.
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(queryBodies().map(body => body.force)).toEqual([undefined, true, undefined]);
+  });
+
+  it('does not send force when refresh is disabled', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...success, refresh_in: null }));
+    const { result } = renderQuery(query, { config: disabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.requery();
+    });
+
+    expect(queryBodies()).toHaveLength(2);
+    expect(queryBodies().map(body => 'force' in body)).toEqual([false, false]);
+  });
+
+  it('keeps force out of the query key', async () => {
+    // `back()`, `reset()` and the enrichment polling rebuild the key from the form values,
+    // so a forced result must be stored under the same key as an unforced one.
+    const fresh = { ...success, output: 'fresh output', refresh_in: 30 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...success, refresh_in: 0 }))
+      .mockResolvedValueOnce(jsonResponse(fresh));
+    const { result, client } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.requery();
+    });
+
+    const keys = client
+      .getQueryCache()
+      .getAll()
+      .map(q => q.queryKey);
+    expect(keys).toEqual([['/api/query', query]]);
+    expect(client.getQueryData(['/api/query', query])).toEqual(fresh);
+    await waitFor(() => expect(result.current.data).toEqual(fresh));
+  });
+
+  it('ends the cooldown refresh_in seconds after the response arrived', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...success, refresh_in: 20 }));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const arrived = result.current.dataUpdatedAt;
+
+    expect(arrived).toBeGreaterThanOrEqual(start);
+    expect(result.current.refreshAt).toBe(arrived + 20_000);
+  });
+
+  it('has no cooldown when refresh is disabled', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ ...success, refresh_in: 20 }));
+    const { result } = renderQuery(query, { config: disabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.refreshAt).toBeNull();
+  });
+
+  it('has no cooldown for a response without refresh_in', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.refreshAt).toBeNull();
+  });
+
+  it('starts no cooldown when a forced request gets an error body', async () => {
+    // Error responses carry no `refresh_in`. The server may have started a cooldown for
+    // the failed run, but the UI can't know how long it is: the next forced request is
+    // answered from the cache with `refresh_in`, and that starts the cooldown.
+    const error = { output: 'Request timed out.', level: 'danger', keywords: [] };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...success, refresh_in: 0 }))
+      .mockResolvedValueOnce(jsonResponse(error, { status: 504 }))
+      .mockResolvedValueOnce(jsonResponse({ ...success, cached: true, refresh_in: 25 }));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.requery();
+    });
+    await waitFor(() => expect(result.current.data).toEqual(error));
+    expect(result.current.refreshAt).toBeNull();
+
+    await act(async () => {
+      await result.current.requery();
+    });
+    expect(queryBodies().map(body => body.force)).toEqual([undefined, true, true]);
+    await waitFor(() => expect(result.current.data?.cached).toBe(true));
+    expect(result.current.refreshAt).toBe(result.current.dataUpdatedAt + 25_000);
+  });
+
+  it('tells the caller a forced request was answered from the cache', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...success, refresh_in: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ ...success, cached: true, refresh_in: 25 }));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.requery();
+    });
+
+    await waitFor(() => expect(result.current.data?.cached).toBe(true));
+    expect(outcome).toEqual({ cached: true, refreshAt: result.current.dataUpdatedAt + 25_000 });
+  });
+
+  it('tells the caller a forced request ran on the device', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...success, cached: true, refresh_in: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ ...success, cached: false, refresh_in: 30 }));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.requery();
+    });
+
+    await waitFor(() => expect(result.current.data?.cached).toBe(false));
+    expect(outcome).toEqual({ cached: false, refreshAt: result.current.dataUpdatedAt + 30_000 });
+  });
+
+  it('tells the caller a failed request has no cooldown', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...success, cached: true, refresh_in: 0 }))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.requery();
+    });
+
+    expect(outcome).toEqual({ cached: false, refreshAt: null });
+  });
+
+  it('starts no cooldown when a forced request fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ...success, refresh_in: 0 }))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { result } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const before = result.current.refreshAt;
+
+    vi.advanceTimersByTime(5_000);
+    await act(async () => {
+      await result.current.requery();
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    // The last response's cooldown, which had already ended, not a new one.
+    expect(result.current.refreshAt).toBe(before);
+    expect(result.current.refreshAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('still applies the enrichment after a forced refresh, keeping the cooldown', async () => {
+    const enrichmentUrl = `/api/query/${success.id}/enrichment`;
+    let polls = 0;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url === enrichmentUrl) {
+        polls += 1;
+        return jsonResponse(
+          polls < 2 ? { status: 'pending' } : { status: 'complete', output: 'enriched output' },
+        );
+      }
+      const forced = JSON.parse(init.body as string).force === true;
+      return jsonResponse(
+        forced
+          ? { ...success, output: 'fresh output', enrichment: 'pending', refresh_in: 30 }
+          : { ...success, refresh_in: 0 },
+      );
+    });
+    const { result, client } = renderQuery(query, { config: enabled });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await act(async () => {
+      await result.current.requery();
+    });
+    await waitFor(() => expect(result.current.data?.enrichment).toBe('pending'));
+    const refreshAt = result.current.refreshAt;
+    expect(refreshAt).toBe(result.current.dataUpdatedAt + 30_000);
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+    await waitFor(() => expect(result.current.data?.enrichment).toBe('complete'));
+
+    expect(result.current.data?.output).toBe('enriched output');
+    expect(client.getQueryData(['/api/query', query])).toMatchObject({
+      output: 'enriched output',
+      enrichment: 'complete',
+    });
+    expect(useFormState.getState().response(query.queryLocation)?.output).toBe('enriched output');
+    // The poll's update is not a new response from the server, so the cooldown stays.
+    expect(result.current.refreshAt).toBe(refreshAt);
   });
 });

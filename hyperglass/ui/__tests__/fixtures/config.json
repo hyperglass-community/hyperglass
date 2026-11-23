@@ -1,5 +1,8 @@
 {
   "cache": {
+    "refresh": {
+      "enable": false
+    },
     "showText": true,
     "timeout": 120
   },
@@ -420,6 +423,7 @@
       "queryLocation": "Location",
       "queryTarget": "Target",
       "queryType": "Query Type",
+      "refreshCooldown": "Refresh available in {seconds}s",
       "reloadQuery": "Reload Query",
       "rpkiInvalid": "Invalid",
       "rpkiUnknown": "No ROAs Exist",

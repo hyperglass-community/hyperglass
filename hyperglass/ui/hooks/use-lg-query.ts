@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useConfig } from '~/context';
 import { fetchWithTimeout } from '~/util';
 
@@ -28,20 +28,49 @@ type LGQueryOptions = Omit<
   | 'retryOnMount'
 >;
 
+/** What a requery got back, for the requery button's cooldown. */
+export interface RequeryOutcome {
+  /** The server answered from its cache: a forced request was inside the cooldown. */
+  cached: boolean;
+  /** `refreshAt` of the response; `null` for a failed request. */
+  refreshAt: number | null;
+}
+
+export type LGQueryResult = QueryObserverResult<QueryResponse> & {
+  /**
+   * Run the query again. With `cache.refresh.enable`, this one request is sent with
+   * `force`, so the server runs it on the device instead of answering from its cache
+   * (unless the cooldown of `refreshAt` is running).
+   */
+  requery(): Promise<RequeryOutcome>;
+  /**
+   * When a forced request would run on the device, in milliseconds since the epoch: the
+   * last response's `refresh_in` after it arrived. `null` when refresh is disabled or the
+   * last response didn't say, such as an error.
+   */
+  refreshAt: number | null;
+};
+
 /**
  * Custom hook handle submission of a query to the hyperglass backend.
  */
 export function useLGQuery(
   query: FormQuery,
   options: LGQueryOptions = {} as LGQueryOptions,
-): QueryObserverResult<QueryResponse> {
+): LGQueryResult {
   const { requestTimeout, cache } = useConfig();
+  // Set by `requery` and read by the next request only. `force` stays out of the query
+  // key: `back()`, `reset()` and the enrichment polling rebuild the key from the form
+  // values, and a forced result must replace the unforced one under that key.
+  const forceNext = useRef(false);
 
   const runQuery: QueryFunction<QueryResponse, LGQueryKey> = async (
     ctx: QueryFunctionContext<LGQueryKey>,
   ): Promise<QueryResponse> => {
     const [url, data] = ctx.queryKey;
     const { queryLocation, queryTarget, queryType, queryVariables = {} } = data;
+    const force = forceNext.current;
+    forceNext.current = false;
     const res = await fetchWithTimeout(
       url,
       {
@@ -52,6 +81,7 @@ export function useLGQuery(
           queryTarget,
           queryType,
           queryVariables,
+          ...(force ? { force: true } : {}),
         }),
         mode: 'cors',
         // React Query aborts this signal when the query is cancelled, such as when the last
@@ -141,7 +171,10 @@ export function useLGQuery(
           enrichment,
           ...(update.output === undefined ? {} : { output: update.output }),
         };
-        queryClient.setQueryData<QueryResponse>(queryKey, updated);
+        // Keep the time the response arrived: the cooldown of `refreshAt` counts from it.
+        queryClient.setQueryData<QueryResponse>(queryKey, updated, {
+          updatedAt: queryClient.getQueryState(queryKey)?.dataUpdatedAt,
+        });
         useFormState.getState().addResponse(query.queryLocation, updated);
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -160,5 +193,31 @@ export function useLGQuery(
     };
   }, [query, queryClient, result.data?.enrichment, result.data?.id]);
 
-  return result;
+  const { refetch } = result;
+  const refreshEnabled = cache.refresh.enable;
+  // From the server's `refresh_in`, counted on this browser's clock from when the response
+  // arrived, so the two clocks don't need to agree.
+  const refreshAtOf = useCallback(
+    (data: QueryResponse | undefined, updatedAt: number): number | null => {
+      const refreshIn = data?.refresh_in;
+      return refreshEnabled && typeof refreshIn === 'number' ? updatedAt + refreshIn * 1000 : null;
+    },
+    [refreshEnabled],
+  );
+
+  const requery = useCallback(async (): Promise<RequeryOutcome> => {
+    forceNext.current = refreshEnabled;
+    const next = await refetch();
+    if (next.isError) {
+      return { cached: false, refreshAt: null };
+    }
+    return {
+      cached: next.data?.cached === true,
+      refreshAt: refreshAtOf(next.data, next.dataUpdatedAt),
+    };
+  }, [refetch, refreshEnabled, refreshAtOf]);
+
+  const refreshAt = refreshAtOf(result.data, result.dataUpdatedAt);
+
+  return { ...result, requery, refreshAt };
 }

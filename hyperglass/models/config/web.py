@@ -153,6 +153,9 @@ class Text(HyperglassModel):
     # Tooltips and accessible names of the icon-only result buttons.
     copy_output: str = "Copy Output"
     reload_query: str = "Reload Query"
+    # Shown under a result's header when its requery button is pressed during a forced
+    # refresh cooldown, counting down.
+    refresh_cooldown: str = "Refresh available in {seconds}s"  # Formatted by Javascript
     view_as_path: str = "View AS Path"
     # Results view: the button that copies a link to the query, its confirmation, and the
     # label of the field that shows the link when the clipboard isn't available.
