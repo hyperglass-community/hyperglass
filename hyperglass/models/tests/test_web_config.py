@@ -174,3 +174,23 @@ def test_share_page_text_exported():
         "shareRunQuery": "Lancer cette requête",
         "shareNewQuery": "New query",
     }.items() <= exported.items()
+
+
+def test_share_button_text_exported():
+    """The Share button and its popover read their text as camelCase keys of `web.text` (#561)."""
+    exported = Text(share_delete="Supprimer le lien").model_dump(by_alias=True)
+    assert {
+        "shareResult": "Share Result",
+        "shareKeepFor": "Keep for",
+        "shareCreate": "Create Link",
+        "shareLink": "Link to this result",
+        "shareNotice": "Anyone with the link can see this result, including the target.",
+        "shareDelete": "Supprimer le lien",
+        "shareDeleted": "Link deleted",
+        "shareMinute": "{count} minute",
+        "shareMinutes": "{count} minutes",
+        "shareHour": "{count} hour",
+        "shareHours": "{count} hours",
+        "shareDay": "{count} day",
+        "shareDays": "{count} days",
+    }.items() <= exported.items()

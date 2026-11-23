@@ -74,8 +74,9 @@ class UICache(HyperglassModel):
 
 
 class UIShare(HyperglassModel):
-    """UI: Share. The times a visitor can keep a share for, and the default."""
+    """UI: Share. Whether it is enabled, the times a visitor can keep a share for, and the default."""
 
+    enable: bool
     timeout: int
     timeout_choices: t.List[int]
 

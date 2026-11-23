@@ -610,6 +610,22 @@ web:
     share_expires: "Link expires {time}"
     share_run_query: "Run this query"
     share_new_query: "New query"
+    # A result's Share button and its popover. Each time a visitor can keep the
+    # link for (share.timeout_choices) is shown in the largest unit it is a whole
+    # number of, with {count} in that unit.
+    share_result: "Share Result"
+    share_keep_for: "Keep for"
+    share_create: "Create Link"
+    share_link: "Link to this result"
+    share_notice: "Anyone with the link can see this result, including the target."
+    share_delete: "Delete Link"
+    share_deleted: "Link deleted"
+    share_minute: "{count} minute"
+    share_minutes: "{count} minutes"
+    share_hour: "{count} hour"
+    share_hours: "{count} hours"
+    share_day: "{count} day"
+    share_days: "{count} days"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

@@ -91,6 +91,19 @@ interface _Text {
   share_expires: string;
   share_run_query: string;
   share_new_query: string;
+  share_result: string;
+  share_keep_for: string;
+  share_create: string;
+  share_link: string;
+  share_notice: string;
+  share_delete: string;
+  share_deleted: string;
+  share_minute: string;
+  share_minutes: string;
+  share_hour: string;
+  share_hours: string;
+  share_day: string;
+  share_days: string;
 }
 
 interface _History {
@@ -216,6 +229,7 @@ interface _DeviceGroup {
 }
 
 interface _Share {
+  enable: boolean;
   timeout: number;
   timeout_choices: number[];
 }

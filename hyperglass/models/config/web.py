@@ -199,6 +199,25 @@ class Text(HyperglassModel):
     share_expires: str = "Link expires {time}"
     share_run_query: str = "Run this query"
     share_new_query: str = "New query"
+    # A result's Share button (its tooltip and accessible name) and its popover: the
+    # "keep for" choice, the button that creates the link, the label of the field that
+    # shows it, the notice under it, and the button that deletes it with what it
+    # announces. Each time to keep the link is labelled with the largest unit it is a
+    # whole number of (`{count}` is formatted by Javascript). The link is copied with
+    # `copy_link` and its expiry shown with `share_expires`; errors use `messages`.
+    share_result: str = "Share Result"
+    share_keep_for: str = "Keep for"
+    share_create: str = "Create Link"
+    share_link: str = "Link to this result"
+    share_notice: str = "Anyone with the link can see this result, including the target."
+    share_delete: str = "Delete Link"
+    share_deleted: str = "Link deleted"
+    share_minute: str = "{count} minute"  # Formatted by Javascript
+    share_minutes: str = "{count} minutes"  # Formatted by Javascript
+    share_hour: str = "{count} hour"  # Formatted by Javascript
+    share_hours: str = "{count} hours"  # Formatted by Javascript
+    share_day: str = "{count} day"  # Formatted by Javascript
+    share_days: str = "{count} days"  # Formatted by Javascript
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:
