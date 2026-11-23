@@ -360,6 +360,31 @@ describe('Result query history with retain: false', () => {
     },
   );
 
+  // A forced run (#553) replaces the result shown; it must not save it either (#558).
+  it('saves nothing when the requery button forces a fresh run', async () => {
+    const config = unretained(juniperRoute);
+    config.cache.refresh.enable = true;
+    const fetch = stubFetch(
+      vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(response({ output: 'first', refresh_in: 0 })))
+        .mockResolvedValueOnce(
+          jsonResponse(response({ id: 'second', output: 'second', refresh_in: 30 })),
+        ),
+    );
+    const { container } = renderResults(['router_one'], config);
+    await settled();
+
+    await userEvent.click(screen.getByRole('button', { name: testConfig.web.text.reloadQuery }));
+    await waitFor(() => expect(container.querySelector('pre')).toHaveTextContent('second'));
+    await finished();
+
+    const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(bodies.map(body => body.force)).toEqual([undefined, true]);
+    expect(entries()).toEqual([]);
+    expect(localStorage.getItem('hyperglass.history')).toBeNull();
+  });
+
   it("saves nothing for a query type the location doesn't list", async () => {
     // Neither the ID nor the name is one of Router One's directives.
     const unknown: Directive = { ...directive, id: 'unlisted', name: 'Unlisted' };

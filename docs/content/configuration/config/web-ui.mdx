@@ -199,6 +199,7 @@ What is stored, and where:
 -   When local storage is full, the oldest saved queries are removed until the new one fits. When the browser does not allow local storage (some private browsing modes), history lasts until the page is closed or reloaded.
 -   All tabs of a browser share one history: a query deleted or cleared in one tab is gone from the others too.
 -   Saved queries this version of Hyperglass can't read, such as history saved by another version in another format, are not shown and are deleted from the browser when the page loads.
+-   History saved by hyperglass-ng, under the `hyperglass.queryHistory` key, is not migrated: it is deleted from the browser when the page loads, whether history is on or off.
 
 Visitors delete history with the **Delete** button of a query, with **Clear all**, or by clearing the site's data in their browser.
 
