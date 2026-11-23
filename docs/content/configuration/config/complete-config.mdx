@@ -604,7 +604,7 @@ Text of the Share button on each result and of its popover, shown when [sharing]
 | `web.text.share_delete` | String | `Delete Link` | Button that deletes the link. |
 | `web.text.share_deleted` | String | `Link deleted` | Shown and announced once the link is deleted. |
 | `web.text.share_earlier_link` | String | `Link to the result from {time}` | Label of a link created for an earlier result of the same query, before it ran again (a forced refresh, or after its cache expired). `{time}` is when that result was produced, in the viewer's locale and time zone. |
-| `web.text.share_delete_scope` | String | `You can delete the link from this browser, here or under Your shared links, until it expires.` | Shown under the links this browser can delete. The delete token is kept in this browser's storage (`hyperglass.shares`) until the link is deleted, forgotten or expires. |
+| `web.text.share_delete_scope` | String | `You can delete the link from this browser, here or under {shares}, until it expires.` | Shown under the links this browser can delete. `{shares}` is `web.text.shares_title`. The delete token is kept in this browser's storage (`hyperglass.shares`) until the link is deleted, forgotten or expires. |
 | `web.text.share_delete_rotated` | String | `This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.` | Shown in place of **Delete Link** when deleting got HTTP 404 but the link still exists: the same client shared the result again from another page or browser, which replaced the token. |
 | `web.text.share_link_expired` | String | `The link has expired.` | Announced when a link expires while the popover is open. |
 | `web.text.share_minute` | String | `{count} minute` | A time to keep the link of exactly one minute. |
@@ -626,7 +626,7 @@ Text of "Your shared links", the share links created in this browser, and of the
 | `web.text.shares_clear_confirm` | String | `Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here.` | Question shown before every link is removed from the list. |
 | `web.text.shares_clear_cancel` | String | `Cancel` | Button that keeps the links. |
 | `web.text.history_shared` | String | `Link shared` | Shown on a saved query whose result has a share link that hasn't expired. |
-| `web.text.history_share_kept` | String | `Deleting saved queries doesn't delete their share links: they stay under Your shared links and keep working until they expire.` | Shown before every saved query is deleted, when any of them has a share link. |
+| `web.text.history_share_kept` | String | `Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire.` | Shown before every saved query is deleted, when any of them has a share link. `{shares}` is `web.text.shares_title`. |
 
 #### BGP/RPKI Status Text
 
@@ -1503,7 +1503,7 @@ web:
     # ({time} in the viewer's time zone), who can delete a link, the note when it
     # was shared again elsewhere, and what is announced when a link expires.
     share_earlier_link: "Link to the result from {time}"
-    share_delete_scope: "You can delete the link from this browser, here or under Your shared links, until it expires."
+    share_delete_scope: "You can delete the link from this browser, here or under {shares}, until it expires."
     share_delete_rotated: "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
     share_link_expired: "The link has expired."
     share_minute: "{count} minute"
@@ -1515,7 +1515,7 @@ web:
     # Saved queries whose result has a share link, and "Your shared links", the
     # links created in this browser.
     history_shared: "Link shared"
-    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under Your shared links and keep working until they expire."
+    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire."
     shares_title: "Your shared links"
     shares_forget: "Forget"
     shares_clear_all: "Forget all"

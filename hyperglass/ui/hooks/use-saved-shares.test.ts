@@ -1,5 +1,12 @@
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SHARES_KEY, isSavedShare, savedSharesFor, useSavedShares } from './use-saved-shares';
+import {
+  SHARES_KEY,
+  isSavedShare,
+  savedSharesFor,
+  useSavedShares,
+  useSavedSharesExpiry,
+} from './use-saved-shares';
 
 import type { SavedShare } from './use-saved-shares';
 
@@ -257,6 +264,15 @@ describe('useSavedShares', () => {
       expect(stored()).toEqual({ version: 1, links: [share()] });
     });
 
+    it('keeps only the fields of a link, and stores the links again without the rest', async () => {
+      seed([{ ...share(), extra: 'x', labels: { ...share().labels, more: 1 } }]);
+
+      const store = await load();
+
+      expect(store.getState().links).toEqual([share()]);
+      expect(stored()).toEqual({ version: 1, links: [share()] });
+    });
+
     it('removes a value with nothing left to keep', async () => {
       seed([expired, { id: 'x' }]);
 
@@ -372,5 +388,31 @@ describe('useSavedShares', () => {
 
       expect(store.getState().links).toEqual([share()]);
     });
+  });
+});
+
+describe('useSavedSharesExpiry', () => {
+  it('checks again when its timer fires before the deadline by the clock', async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const deadline = Date.now() + 200;
+    useSavedShares.getState().add(share({ deadline }));
+    renderHook(() => useSavedSharesExpiry());
+
+    // The timer fires while the clock (not faked) is still before the deadline.
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(useSavedShares.getState().links).toHaveLength(1);
+
+    // Once the clock has passed it, the next check drops the link.
+    while (Date.now() <= deadline) {
+      // Wait for the real clock.
+    }
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(useSavedShares.getState().links).toEqual([]);
+    vi.useRealTimers();
   });
 });

@@ -81,17 +81,35 @@ function rows(): HTMLElement[] {
   return within(section() as HTMLElement).getAllByRole('listitem');
 }
 
-/** The buttons and field of the row of link `target` at `location`. */
-function rowGroup(target: string, location: string): HTMLElement {
-  return screen.getByRole('group', { name: `${target} ${location}` });
+/** The buttons and field of the row of the `type` link of `target` at `location`. */
+function rowGroup(type: string, target: string, location: string): HTMLElement {
+  return screen.getByRole('group', { name: `${type} ${target} ${location}` });
 }
 
+let consoleSpies: ReturnType<typeof vi.spyOn>[];
+
 beforeEach(() => {
+  consoleSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map(level =>
+    vi.spyOn(console, level),
+  );
   localStorage.clear();
   stubFetch();
 });
 
 afterEach(() => {
+  // A delete token is never logged, not even inside a logged object.
+  for (const spy of consoleSpies) {
+    for (const args of spy.mock.calls) {
+      const logged = args.map((arg: unknown) => {
+        try {
+          return typeof arg === 'string' ? arg : JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      });
+      expect(logged.join(' ')).not.toContain(TOKEN);
+    }
+  }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   useSavedShares.getState().clear();
@@ -120,7 +138,7 @@ describe('SavedShares', () => {
     expect(row).toHaveTextContent('Router One');
     expect(row).toHaveTextContent(`Result from ${formatTimestamp('2026-11-20 08:00:00')}`);
     expect(row).toHaveTextContent(`Link expires ${formatTimestamp('2099-12-21T08:00:00Z')}`);
-    const group = rowGroup('2001:db8::/32', 'Router One');
+    const group = rowGroup('BGP Route', '2001:db8::/32', 'Router One');
     expect(within(group).getByRole('textbox', { name: text.shareLink })).toHaveValue(
       `${window.location.origin}/?share=${ONE}`,
     );
@@ -149,21 +167,27 @@ describe('SavedShares', () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     useSavedShares.getState().add(saved());
+    useSavedShares.getState().add(second());
     renderList();
 
     await userEvent.click(
-      within(rowGroup('2001:db8::/32', 'Router One')).getByRole('button', { name: text.copyLink }),
+      within(rowGroup('BGP Route', '2001:db8::/32', 'Router One')).getByRole('button', {
+        name: text.copyLink,
+      }),
     );
 
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/?share=${ONE}`);
     expect(screen.getByRole('status')).toHaveTextContent(text.linkCopied);
+    // Shown on the row copied, not on the others.
+    expect(rowGroup('BGP Route', '2001:db8::/32', 'Router One')).toHaveTextContent(text.linkCopied);
+    expect(rowGroup('Ping', '192.0.2.1', 'Router Three')).not.toHaveTextContent(text.linkCopied);
   });
 
   it('selects the link to copy by hand when the browser can not copy', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
     useSavedShares.getState().add(saved());
     renderList();
-    const group = rowGroup('2001:db8::/32', 'Router One');
+    const group = rowGroup('BGP Route', '2001:db8::/32', 'Router One');
 
     await userEvent.click(within(group).getByRole('button', { name: text.copyLink }));
 
@@ -178,7 +202,7 @@ describe('SavedShares', () => {
     renderList();
 
     await userEvent.click(
-      within(rowGroup('2001:db8::/32', 'Router One')).getByRole('button', {
+      within(rowGroup('BGP Route', '2001:db8::/32', 'Router One')).getByRole('button', {
         name: text.shareDelete,
       }),
     );
@@ -200,6 +224,8 @@ describe('SavedShares', () => {
 
     await waitFor(() => expect(section()).toBeNull());
     expect(screen.getByRole('main')).toHaveFocus();
+    // The status region stays, so the deletion is announced.
+    expect(screen.getByRole('status')).toHaveTextContent(text.shareDeleted);
   });
 
   it('forgets a link that is already gone, with the configured message', async () => {
@@ -209,7 +235,7 @@ describe('SavedShares', () => {
     renderList(config({ messages: { shareNotFound: 'Already gone.' } }));
 
     await userEvent.click(
-      within(rowGroup('2001:db8::/32', 'Router One')).getByRole('button', {
+      within(rowGroup('BGP Route', '2001:db8::/32', 'Router One')).getByRole('button', {
         name: text.shareDelete,
       }),
     );
@@ -219,6 +245,17 @@ describe('SavedShares', () => {
     expect(document.body).not.toHaveTextContent('SERVER TEXT');
   });
 
+  it('says the last link was already gone, after the list goes', async () => {
+    stubFetch(404, 404);
+    useSavedShares.getState().add(saved());
+    renderList(config({ messages: { shareNotFound: 'Already gone.' } }));
+
+    await userEvent.click(screen.getByRole('button', { name: text.shareDelete }));
+
+    await waitFor(() => expect(section()).toBeNull());
+    expect(screen.getByRole('alert')).toHaveTextContent('Already gone.');
+  });
+
   it('keeps a link whose token was replaced, without its token, and lets it be forgotten', async () => {
     stubFetch(404, 200);
     useSavedShares.getState().add(saved());
@@ -226,7 +263,7 @@ describe('SavedShares', () => {
 
     await userEvent.click(screen.getByRole('button', { name: text.shareDelete }));
 
-    const group = rowGroup('2001:db8::/32', 'Router One');
+    const group = rowGroup('BGP Route', '2001:db8::/32', 'Router One');
     await within(group).findByText(text.shareDeleteRotated);
     expect(useSavedShares.getState().links).toEqual([
       expect.objectContaining({ id: ONE, deleteToken: null }),

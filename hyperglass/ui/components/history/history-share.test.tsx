@@ -16,6 +16,8 @@ import type { Config } from '~/types';
 // browser's store of shared links (`hyperglass.shares`), not into the history.
 
 const { text } = testConfig.web;
+/** The Clear all note, as shown with the default list title. */
+const kept = text.historyShareKept.replace('{shares}', text.sharesTitle);
 const JUNIPER_ROUTE = '__hyperglass_juniper_bgp_route__';
 const QUERY_ID = `hyperglass.query.${'ab'.repeat(32)}`;
 const SHARE_ID = '00112233445566778899aabbccddeeff';
@@ -361,6 +363,25 @@ describe('Share in an opened history entry', () => {
     expect(storedShares()).toBe('');
   });
 
+  it("names the list in the popover's delete note with its configured title", async () => {
+    useSavedShares.getState().add(saved());
+    renderOpened(config({ overrides: { web: { text: { sharesTitle: 'Mes liens' } } } }));
+
+    const dialog = await openPopover(shareButtons()[0]);
+
+    expect(dialog).toHaveTextContent(text.shareDeleteScope.replace('{shares}', 'Mes liens'));
+  });
+
+  it('has no Share button for a location no longer configured', () => {
+    const value = entry();
+    value.query.queryLocation = ['gone'];
+    value.results = { gone: { ...value.results.router_one, name: 'Gone Router' } };
+    renderOpened(config(), value);
+
+    expect(screen.getByRole('button', { name: /Gone Router/ })).toBeInTheDocument();
+    expect(shareButtons()).toHaveLength(0);
+  });
+
   it('does not show an expired link, and drops it from storage', async () => {
     useSavedShares.getState().add(saved({ deadline: Date.now() + 200 }));
     await act(async () => {
@@ -452,6 +473,15 @@ describe('Share in Recent queries', () => {
     expect(rows()[1]).not.toHaveTextContent(text.historyShared);
   });
 
+  it("hides the mark's icon from screen readers", async () => {
+    useSavedShares.getState().add(saved());
+    renderList([entry('live')]);
+
+    const mark = within(rows()[0]).getByText(text.historyShared);
+    await waitFor(() => expect(mark.querySelector('svg')).toBeInTheDocument(), IMPORT_WAIT);
+    expect(mark.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
   it('drops the mark when the link expires while the list shows', async () => {
     useSavedShares.getState().add(saved({ deadline: Date.now() + 400 }));
     renderList([entry('two', { two: true })]);
@@ -517,8 +547,8 @@ describe('Share in Recent queries', () => {
 
       const group = await pressClearAll();
 
-      expect(group).toHaveTextContent(text.historyShareKept);
-      expect(group).toHaveAccessibleDescription(text.historyShareKept);
+      expect(group).toHaveTextContent(kept);
+      expect(group).toHaveAccessibleDescription(kept);
     });
 
     it('says nothing about links when no query has one', async () => {
@@ -527,7 +557,7 @@ describe('Share in Recent queries', () => {
 
       const group = await pressClearAll();
 
-      expect(group).not.toHaveTextContent(text.historyShareKept);
+      expect(group).not.toHaveTextContent(kept);
     });
 
     it('keeps every link in this browser, and makes no request', async () => {
@@ -548,14 +578,22 @@ describe('Share in Recent queries', () => {
     renderList(
       [entry('live')],
       config({
-        overrides: { web: { text: { historyShared: 'Has a link', historyShareKept: 'Kept.' } } },
+        overrides: {
+          web: {
+            text: {
+              historyShared: 'Has a link',
+              historyShareKept: 'Kept under {shares}.',
+              sharesTitle: 'Mes liens',
+            },
+          },
+        },
       }),
     );
 
     expect(rows()[0]).toHaveTextContent('Has a link');
     await userEvent.click(screen.getByRole('button', { name: text.historyClearAll }));
     expect(screen.getByRole('group', { name: text.historyClearConfirm })).toHaveTextContent(
-      'Kept.',
+      'Kept under Mes liens.',
     );
   });
 });

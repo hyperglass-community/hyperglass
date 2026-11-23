@@ -8,6 +8,7 @@ import {
   useQueryHistory,
   useSavedShares,
   useSavedSharesExpiry,
+  useStrf,
 } from '~/hooks';
 import { HistoryEntryRow } from './history-entry-row';
 import { hasSavedLink } from './history-share-button';
@@ -28,6 +29,7 @@ function focusTarget(): HTMLElement | null {
  */
 export const RecentQueries = (): JSX.Element | null => {
   const { web } = useConfig();
+  const strF = useStrf();
   const { enable, limit } = web.history;
   const entries = useQueryHistory(s => s.entries);
   const { clear, dropUnretained, prune, remove } = useQueryHistory.getState();
@@ -180,7 +182,7 @@ export const RecentQueries = (): JSX.Element | null => {
             {/* Clearing the history doesn't delete share links (#562). */}
             {anyShared && (
               <Text id={keptId} fontSize="sm" mt={1}>
-                {web.text.historyShareKept}
+                {strF(web.text.historyShareKept, { shares: web.text.sharesTitle })}
               </Text>
             )}
           </Box>

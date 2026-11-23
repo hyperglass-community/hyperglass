@@ -59,9 +59,11 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
   const { web, messages } = useConfig();
   const strF = useStrf();
   const muted = useColorValue('gray.600', 'gray.400');
+  const typeId = useId();
   const targetId = useId();
   const locationId = useId();
   const field = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
   const url = shareLink(share.id, window.location);
   const { labels } = share;
 
@@ -69,6 +71,7 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
     try {
       // Outside a secure context there is no `navigator.clipboard`, so this throws too.
       await navigator.clipboard.writeText(url);
+      setCopied(true);
       onCopied();
     } catch {
       // The link is in the field: select it to copy by hand. No `prompt` or `alert`.
@@ -82,7 +85,7 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
   return (
     <ListItem px={3} py={2} borderTopWidth="1px" _first={{ borderTopWidth: 0 }}>
       <Text fontSize="sm" overflowWrap="anywhere">
-        <Text as="span" fontWeight="bold">
+        <Text as="span" fontWeight="bold" id={typeId}>
           {labels.type}
         </Text>{' '}
         <Text as="span" fontFamily="mono" id={targetId}>
@@ -98,60 +101,72 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
       <Text fontSize="xs" color={muted}>
         {strF(web.text.shareExpires, { time: formatTimestamp(share.expiresAt) })}
       </Text>
-      {/* Each row has the same names: name its field and buttons after its target and
-          location. */}
+      {/* Each row has the same names: name its field and buttons after its query type,
+          target and location. */}
       <Flex
         role="group"
-        aria-labelledby={`${targetId} ${locationId}`}
-        direction={{ base: 'column', sm: 'row' }}
-        align={{ base: 'stretch', sm: 'flex-end' }}
+        aria-labelledby={`${typeId} ${targetId} ${locationId}`}
+        direction="column"
         gap={2}
         mt={2}
       >
-        <FormControl flex="1 1 auto" minW={0}>
-          <FormLabel fontSize="xs" mb={1}>
-            {web.text.shareLink}
-          </FormLabel>
-          <Input
-            ref={field}
-            size="sm"
-            isReadOnly
-            value={url}
-            fontFamily="mono"
-            onFocus={e => selectAll(e.currentTarget)}
-          />
-        </FormControl>
-        <HStack spacing={2} flex="0 0 auto" flexWrap="wrap">
-          <Button
-            size="sm"
-            colorScheme="primary"
-            onClick={handleCopy}
-            leftIcon={<DynamicIcon icon={{ fi: 'FiLink' }} boxSize="16px" />}
-          >
-            {web.text.copyLink}
-          </Button>
-          {share.deleteToken !== null ? (
+        <Flex
+          direction={{ base: 'column', sm: 'row' }}
+          align={{ base: 'stretch', sm: 'flex-end' }}
+          gap={2}
+        >
+          <FormControl flex="1 1 auto" minW={0}>
+            <FormLabel fontSize="xs" mb={1}>
+              {web.text.shareLink}
+            </FormLabel>
+            <Input
+              ref={field}
+              size="sm"
+              isReadOnly
+              value={url}
+              fontFamily="mono"
+              onFocus={e => selectAll(e.currentTarget)}
+            />
+          </FormControl>
+          <HStack spacing={2} flex="0 0 auto" flexWrap="wrap">
             <Button
               size="sm"
-              variant="outline"
-              colorScheme="red"
-              onClick={() => onDelete(share)}
-              // Not `isLoading`: its spinner has a fixed English label and hides the
-              // button's name. Not `isDisabled`, which would drop the focus.
-              aria-disabled={busy}
-              aria-busy={deleting}
-              leftIcon={deleting ? <Spinner size="xs" aria-hidden="true" label="" /> : undefined}
+              colorScheme="primary"
+              onClick={handleCopy}
+              leftIcon={<DynamicIcon icon={{ fi: copied ? 'FiCheck' : 'FiLink' }} boxSize="16px" />}
             >
-              {web.text.shareDelete}
+              {web.text.copyLink}
             </Button>
-          ) : (
-            <Button size="sm" variant="outline" onClick={() => onForget(share.id)}>
-              {web.text.sharesForget}
-            </Button>
-          )}
-        </HStack>
-        {/* Always rendered, so the note is announced when the token is dropped. */}
-        <Box aria-live="polite" fontSize="sm" flexBasis="100%">
+            {/* Which row was copied; the list's status region announces it. */}
+            {copied && (
+              <Text fontSize="sm" aria-hidden="true">
+                {web.text.linkCopied}
+              </Text>
+            )}
+            {share.deleteToken !== null ? (
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="red"
+                onClick={() => onDelete(share)}
+                // Not `isLoading`: its spinner has a fixed English label and hides the
+                // button's name. Not `isDisabled`, which would drop the focus.
+                aria-disabled={busy}
+                aria-busy={deleting}
+                leftIcon={deleting ? <Spinner size="xs" aria-hidden="true" label="" /> : undefined}
+              >
+                {web.text.shareDelete}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => onForget(share.id)}>
+                {web.text.sharesForget}
+              </Button>
+            )}
+          </HStack>
+        </Flex>
+        {/* Always rendered, under the field and buttons, so the note is announced when the
+            token is dropped. */}
+        <Box aria-live="polite" fontSize="sm">
           {share.deleteToken === null && <Text>{web.text.shareDeleteRotated}</Text>}
         </Box>
       </Flex>
@@ -211,7 +226,7 @@ export const SavedShares = (): JSX.Element | null => {
     }
   }, [confirming]);
 
-  if (!mounted || !config.enable || links.length === 0) {
+  if (!mounted || !config.enable) {
     return null;
   }
 
@@ -279,83 +294,90 @@ export const SavedShares = (): JSX.Element | null => {
   const gone = failure !== null && !links.some(l => l.id === failure.id) ? failure : null;
 
   return (
-    <Box
-      as="section"
-      aria-labelledby={headingId}
-      w="100%"
-      mx="auto"
-      my={4}
-      textAlign="left"
-      maxW={{ base: '100%', lg: '75%' }}
-    >
-      <Flex align="center" justify="space-between" flexWrap="wrap" mb={2}>
-        <Heading as="h2" size="sm" id={headingId} ref={headingRef} tabIndex={-1}>
-          {web.text.sharesTitle}
-        </Heading>
-        {!confirming && (
-          <Button ref={clearRef} size="sm" variant="ghost" onClick={() => setConfirming(true)}>
-            {web.text.sharesClearAll}
-          </Button>
-        )}
-      </Flex>
-      {confirming && (
-        <Flex
-          role="group"
-          aria-labelledby={confirmId}
-          align="center"
-          justify="space-between"
-          flexWrap="wrap"
-          gap={2}
-          mb={2}
-          p={3}
-          borderWidth="1px"
-          rounded="lg"
-          onKeyDown={e => {
-            if (e.key === 'Escape') {
-              cancel();
-            }
-          }}
+    <>
+      {links.length > 0 && (
+        <Box
+          as="section"
+          aria-labelledby={headingId}
+          w="100%"
+          mx="auto"
+          mt={4}
+          textAlign="left"
+          maxW={{ base: '100%', lg: '75%' }}
         >
-          <Text id={confirmId} fontSize="sm">
-            {web.text.sharesClearConfirm}
-          </Text>
-          <HStack>
-            <Button size="sm" colorScheme="red" onClick={handleClear}>
-              {web.text.sharesClearAll}
-            </Button>
-            <Button ref={cancelRef} size="sm" onClick={cancel}>
-              {web.text.sharesClearCancel}
-            </Button>
-          </HStack>
-        </Flex>
+          <Flex align="center" justify="space-between" flexWrap="wrap" mb={2}>
+            <Heading as="h2" size="sm" id={headingId} ref={headingRef} tabIndex={-1}>
+              {web.text.sharesTitle}
+            </Heading>
+            {!confirming && (
+              <Button ref={clearRef} size="sm" variant="ghost" onClick={() => setConfirming(true)}>
+                {web.text.sharesClearAll}
+              </Button>
+            )}
+          </Flex>
+          {confirming && (
+            <Flex
+              role="group"
+              aria-labelledby={confirmId}
+              align="center"
+              justify="space-between"
+              flexWrap="wrap"
+              gap={2}
+              mb={2}
+              p={3}
+              borderWidth="1px"
+              rounded="lg"
+              onKeyDown={e => {
+                if (e.key === 'Escape') {
+                  cancel();
+                }
+              }}
+            >
+              <Text id={confirmId} fontSize="sm">
+                {web.text.sharesClearConfirm}
+              </Text>
+              <HStack>
+                <Button size="sm" colorScheme="red" onClick={handleClear}>
+                  {web.text.sharesClearAll}
+                </Button>
+                <Button ref={cancelRef} size="sm" onClick={cancel}>
+                  {web.text.sharesClearCancel}
+                </Button>
+              </HStack>
+            </Flex>
+          )}
+          <List borderWidth="1px" rounded="lg">
+            {links.map(share => (
+              <SavedShareRow
+                key={share.id}
+                share={share}
+                busy={busy !== null}
+                deleting={busy === share.id}
+                failure={failure?.id === share.id ? failure.failure : null}
+                onCopied={() => setAnnouncement('copied')}
+                onDelete={handleDelete}
+                onForget={handleForget}
+              />
+            ))}
+          </List>
+        </Box>
       )}
-      {gone !== null && (
-        <Alert status="warning" rounded="md" fontSize="sm" mb={2}>
-          {shareFailureMessage(gone.failure, messages)}
-        </Alert>
-      )}
-      <List borderWidth="1px" rounded="lg">
-        {links.map(share => (
-          <SavedShareRow
-            key={share.id}
-            share={share}
-            busy={busy !== null}
-            deleting={busy === share.id}
-            failure={failure?.id === share.id ? failure.failure : null}
-            onCopied={() => setAnnouncement('copied')}
-            onDelete={handleDelete}
-            onForget={handleForget}
-          />
-        ))}
-      </List>
-      {/* Always rendered, so a screen reader announces the change. */}
-      <Text role="status" aria-atomic="true" fontSize="sm" mt={1}>
-        {announcement === 'copied'
-          ? web.text.linkCopied
-          : announcement === 'deleted'
-            ? web.text.shareDeleted
-            : ''}
-      </Text>
-    </Box>
+      {/* Kept while the list is on, also once its last link has gone, so what happened
+          to that link is still shown and announced. */}
+      <Box w="100%" mx="auto" mb={4} textAlign="left" maxW={{ base: '100%', lg: '75%' }}>
+        {gone !== null && (
+          <Alert status="warning" rounded="md" fontSize="sm" mt={2}>
+            {shareFailureMessage(gone.failure, messages)}
+          </Alert>
+        )}
+        <Text role="status" aria-atomic="true" fontSize="sm" mt={1}>
+          {announcement === 'copied'
+            ? web.text.linkCopied
+            : announcement === 'deleted'
+              ? web.text.shareDeleted
+              : ''}
+        </Text>
+      </Box>
+    </>
   );
 };

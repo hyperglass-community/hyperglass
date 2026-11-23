@@ -217,8 +217,14 @@ class Text(HyperglassModel):
     # depends on where this browser keeps its token; the note shown when the token no
     # longer deletes it; and what is announced when a link expires while shown.
     share_earlier_link: str = "Link to the result from {time}"  # Formatted by Javascript
-    share_delete_scope: str = "You can delete the link from this browser, here or under Your shared links, until it expires."
-    share_delete_rotated: str = "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
+    # `{shares}` is `shares_title`, formatted by Javascript.
+    share_delete_scope: str = (
+        "You can delete the link from this browser, here or under {shares}, until it expires."
+    )
+    share_delete_rotated: str = (
+        "This link can't be deleted from this browser any more: the result was shared again "
+        "elsewhere. It works until it expires."
+    )
     share_link_expired: str = "The link has expired."
     share_minute: str = "{count} minute"  # Formatted by Javascript
     share_minutes: str = "{count} minutes"  # Formatted by Javascript
@@ -227,11 +233,12 @@ class Text(HyperglassModel):
     share_day: str = "{count} day"  # Formatted by Javascript
     share_days: str = "{count} days"  # Formatted by Javascript
     # The mark on a saved query whose result has a live share link, and the note in the
-    # Clear all confirmation that clearing the history doesn't delete share links.
+    # Clear all confirmation that clearing the history doesn't delete share links
+    # (`{shares}` is `shares_title`, formatted by Javascript).
     history_shared: str = "Link shared"
     history_share_kept: str = (
-        "Deleting saved queries doesn't delete their share links: they stay under Your "
-        "shared links and keep working until they expire."
+        "Deleting saved queries doesn't delete their share links: they stay under "
+        "{shares} and keep working until they expire."
     )
     # "Your shared links": the links created in this browser, each copied with `copy_link`
     # and deleted with `share_delete`; `shares_forget` forgets one this browser can no

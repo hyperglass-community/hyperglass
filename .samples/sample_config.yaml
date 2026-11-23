@@ -624,7 +624,7 @@ web:
     # ({time} in the viewer's time zone), who can delete a link, the note when it
     # was shared again elsewhere, and what is announced when a link expires.
     share_earlier_link: "Link to the result from {time}"
-    share_delete_scope: "You can delete the link from this browser, here or under Your shared links, until it expires."
+    share_delete_scope: "You can delete the link from this browser, here or under {shares}, until it expires."
     share_delete_rotated: "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
     share_link_expired: "The link has expired."
     share_minute: "{count} minute"
@@ -636,7 +636,7 @@ web:
     # Saved queries whose result has a share link, and "Your shared links", the
     # links created in this browser.
     history_shared: "Link shared"
-    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under Your shared links and keep working until they expire."
+    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire."
     shares_title: "Your shared links"
     shares_forget: "Forget"
     shares_clear_all: "Forget all"

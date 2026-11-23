@@ -11,6 +11,10 @@ export const SHARES_KEY = 'hyperglass.shares';
  * The version of the stored value. A value of any other version, older or newer, is
  * deleted on load and replaced on the next save: after a downgrade nothing else would
  * show or delete it, and this browser must not keep tokens the visitor can't see (#550).
+ *
+ * Whoever changes the format and adds version 2 must migrate version 1 (read it as
+ * version 2), not let it be deleted: its delete tokens can't be got back, and the visitor
+ * would lose the only way to delete those links before they expire.
  */
 const SHARES_VERSION = 1;
 
@@ -184,8 +188,17 @@ function storedShares(now = Date.now()): SavedShare[] {
   if (value === null) {
     return [];
   }
-  return (parse(value) ?? []).filter(
-    (l): l is SavedShare => isSavedShare(l) && isLiveSavedShare(l, now),
+  return (parse(value) ?? [])
+    .filter((l): l is SavedShare => isSavedShare(l) && isLiveSavedShare(l, now))
+    .map(fields);
+}
+
+/** Whether a stored link is kept as it is: well-formed, live, and with no other fields. */
+function isKeptAsIs(link: unknown, now: number): boolean {
+  return (
+    isSavedShare(link) &&
+    isLiveSavedShare(link, now) &&
+    JSON.stringify(fields(link)) === JSON.stringify(link)
   );
 }
 
@@ -196,7 +209,7 @@ function holdsDeadData(now = Date.now()): boolean {
     return false;
   }
   const links = parse(value);
-  return links === null || links.some(l => !(isSavedShare(l) && isLiveSavedShare(l, now)));
+  return links === null || links.some(l => !isKeptAsIs(l, now));
 }
 
 interface SavedSharesState {

@@ -188,7 +188,7 @@ def test_share_button_text_exported():
         "shareDelete": "Supprimer le lien",
         "shareDeleted": "Link deleted",
         "shareEarlierLink": "Link to the result from {time}",
-        "shareDeleteScope": "You can delete the link from this browser, here or under Your shared links, until it expires.",
+        "shareDeleteScope": "You can delete the link from this browser, here or under {shares}, until it expires.",
         "shareDeleteRotated": "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.",
         "shareLinkExpired": "The link has expired.",
         "shareMinute": "{count} minute",
@@ -214,7 +214,7 @@ def test_shared_links_text_exported():
         "sharesClearCancel": "Cancel",
         "historyShared": "Link shared",
         "historyShareKept": (
-            "Deleting saved queries doesn't delete their share links: they stay under Your "
-            "shared links and keep working until they expire."
+            "Deleting saved queries doesn't delete their share links: they stay under "
+            "{shares} and keep working until they expire."
         ),
     }.items() <= exported.items()

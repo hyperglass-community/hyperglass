@@ -478,7 +478,9 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
               ))}
               {live.length > 0 && <Text fontSize="sm">{web.text.shareNotice}</Text>}
               {live.some(l => l.deleteToken !== null) && (
-                <Text fontSize="sm">{web.text.shareDeleteScope}</Text>
+                <Text fontSize="sm">
+                  {strF(web.text.shareDeleteScope, { shares: web.text.sharesTitle })}
+                </Text>
               )}
               {failure !== null && (
                 <Alert status="warning" rounded="md" fontSize="sm">
