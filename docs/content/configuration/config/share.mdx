@@ -153,7 +153,7 @@ What is stored, and where:
 
 #### Kiosks and Shared Terminals
 
-With `share.remember_links: false`, nothing about share links is written to the browser's storage. The links created on a page, with their delete tokens, are kept in that page's memory, as listed under "Your shared links" and in the Share popovers, until the page is closed or reloaded; other tabs don't see them. The popover says so with `web.text.share_delete_scope_page` in place of `share_delete_scope`. A value a browser stored before (`hyperglass.shares`) is deleted when it loads the page. Turn it off, with `web.history.enable`, on kiosks and shared terminals, where the next person would otherwise see the previous person's links and could delete them.
+With `share.remember_links: false`, nothing about share links is written to the browser's storage. The links created on a page, with their delete tokens, are kept in that page's memory, as listed under "Your shared links" and in the Share popovers, until the page is closed or reloaded; other tabs don't see them. The popover says so with `web.text.share_delete_scope_page` in place of `share_delete_scope`. A value a browser stored before (`hyperglass.shares`) is deleted when it loads the page. Turn it off, with `web.history.enable`, on kiosks and shared terminals, where the next person would otherwise see the previous person's links and could delete them. Reload the page, or close the tab, between users: the links created on a page stay listed under "Your shared links", also after **Reset**, until the page is reloaded.
 
 ### Operator Commands
 

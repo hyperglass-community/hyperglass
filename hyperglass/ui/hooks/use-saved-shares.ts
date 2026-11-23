@@ -129,6 +129,12 @@ const memory = new Map<string, string>();
  */
 let remember = true;
 
+/**
+ * Whether the page has applied `share.remember_links` (`configure`). Until then nothing is
+ * read from the storage, so with `false` the only access is deleting what was stored.
+ */
+let configured = false;
+
 function browserStorage(): Storage | null {
   try {
     return typeof window === 'undefined' ? null : window.localStorage;
@@ -305,9 +311,11 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
     },
 
     configure(rememberLinks: boolean): void {
-      if (rememberLinks === remember) {
+      if (configured && rememberLinks === remember) {
         return;
       }
+      const first = !configured;
+      configured = true;
       remember = rememberLinks;
       memory.delete(SHARES_KEY);
       if (!rememberLinks) {
@@ -316,8 +324,16 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
         } catch {
           // Nothing to delete from a storage that can't be used.
         }
+        set({ links: [] });
+        return;
       }
       set({ links: storedShares() });
+      // On load: don't keep what this version wouldn't show (another version, malformed or
+      // expired links, other fields): it is stored again without it, or removed.
+      if (first && holdsDeadData()) {
+        const { links } = get();
+        writeRaw(links.length > 0 ? JSON.stringify({ version: SHARES_VERSION, links }) : null);
+      }
     },
 
     dropExpired(): void {
@@ -409,18 +425,13 @@ export function useSavedSharesExpiry(): void {
 }
 
 if (typeof window !== 'undefined') {
-  // On load: show what is stored, and don't keep what this version wouldn't show (another
-  // version, malformed or expired links): it is stored again without it, or removed.
-  useSavedShares.setState({ links: storedShares() });
-  if (holdsDeadData()) {
-    const { links } = useSavedShares.getState();
-    writeRaw(links.length > 0 ? JSON.stringify({ version: SHARES_VERSION, links }) : null);
-  }
+  // What is stored is read once the page applies `share.remember_links` (`configure`, from
+  // `useRememberLinks`), never before.
 
   // Another tab saved or forgot links: show its changes. (`key` is `null` when another
   // tab cleared the whole storage.)
   window.addEventListener('storage', event => {
-    if (remember && (event.key === SHARES_KEY || event.key === null)) {
+    if (configured && remember && (event.key === SHARES_KEY || event.key === null)) {
       useSavedShares.setState({ links: storedShares() });
     }
   });

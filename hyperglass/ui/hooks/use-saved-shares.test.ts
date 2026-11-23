@@ -42,10 +42,15 @@ function seed(links: unknown[], version = 1): void {
   localStorage.setItem(SHARES_KEY, JSON.stringify({ version, links }));
 }
 
-/** A fresh copy of the module, as a page load (or another tab) gets. */
-async function load() {
+/**
+ * A fresh copy of the module, as a page load (or another tab) gets, once the page has
+ * applied `share.remember_links` (on, by default).
+ */
+async function load(rememberLinks = true) {
   vi.resetModules();
-  return (await import('./use-saved-shares')).useSavedShares;
+  const store = (await import('./use-saved-shares')).useSavedShares;
+  store.getState().configure(rememberLinks);
+  return store;
 }
 
 beforeEach(() => {
@@ -393,27 +398,24 @@ describe('useSavedShares', () => {
 
 describe('useSavedSharesExpiry', () => {
   it('checks again when its timer fires before the deadline by the clock', async () => {
-    vi.useRealTimers();
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const deadline = Date.now() + 200;
-    useSavedShares.getState().add(share({ deadline }));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(NOW);
+    useSavedShares.getState().add(share({ deadline: NOW + 200 }));
     renderHook(() => useSavedSharesExpiry());
 
-    // The timer fires while the clock (not faked) is still before the deadline.
+    // The clock goes back a second, so the timer fires while it is still before the
+    // deadline, as a timer firing early does.
+    vi.setSystemTime(NOW - 1000);
     await act(async () => {
       vi.advanceTimersByTime(250);
     });
     expect(useSavedShares.getState().links).toHaveLength(1);
 
-    // Once the clock has passed it, the next check drops the link.
-    while (Date.now() <= deadline) {
-      // Wait for the real clock.
-    }
+    // Checked again at the deadline by the clock, the link goes.
     await act(async () => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(1000);
     });
     expect(useSavedShares.getState().links).toEqual([]);
-    vi.useRealTimers();
   });
 });
 
@@ -434,6 +436,35 @@ describe('useSavedShares with remember_links off', () => {
     expect(store.getState().links).toEqual([]);
     expect(localStorage.getItem(SHARES_KEY)).toBeNull();
     store.getState().configure(true);
+  });
+
+  it('touches storage only to delete what was stored, when the page loads', async () => {
+    seed([share()]);
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+
+    const store = await load(false);
+
+    expect(getItem.mock.calls.filter(([key]) => key === SHARES_KEY)).toEqual([]);
+    expect(setItem.mock.calls.filter(([key]) => key === SHARES_KEY)).toEqual([]);
+    expect(removeItem.mock.calls.filter(([key]) => key === SHARES_KEY)).toEqual([[SHARES_KEY]]);
+    expect(store.getState().links).toEqual([]);
+    expect(localStorage.getItem(SHARES_KEY)).toBeNull();
+    store.getState().configure(true);
+  });
+
+  it('reads nothing before the page applies the setting', async () => {
+    seed([share({ deadline: NOW - 1 })]);
+    const getItem = vi.spyOn(Storage.prototype, 'getItem');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    vi.resetModules();
+
+    const store = (await import('./use-saved-shares')).useSavedShares;
+
+    expect(getItem.mock.calls.filter(([key]) => key === SHARES_KEY)).toEqual([]);
+    expect(setItem.mock.calls.filter(([key]) => key === SHARES_KEY)).toEqual([]);
+    expect(store.getState().links).toEqual([]);
   });
 
   it('keeps links in memory and writes nothing to storage', () => {

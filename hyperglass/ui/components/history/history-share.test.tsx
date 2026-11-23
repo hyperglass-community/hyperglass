@@ -16,6 +16,11 @@ import type { Config } from '~/types';
 // browser's store of shared links (`hyperglass.shares`), not into the history.
 
 const { text } = testConfig.web;
+/** Fake timers that follow real time for Testing Library; intervals and frames stay real. */
+const FAKE: Parameters<typeof vi.useFakeTimers>[0] = {
+  shouldAdvanceTime: true,
+  toFake: ['setTimeout', 'clearTimeout', 'Date'],
+};
 /** The Clear all note, as shown with the default list title. */
 const kept = text.historyShareKept.replace('{shares}', text.sharesTitle);
 const JUNIPER_ROUTE = '__hyperglass_juniper_bgp_route__';
@@ -356,10 +361,10 @@ describe('Share in an opened history entry', () => {
     act(() => useSavedShares.getState().clear());
     await act(async () => {
       release();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await Promise.resolve();
     });
 
-    expect(useSavedShares.getState().links).toEqual([]);
+    await waitFor(() => expect(useSavedShares.getState().links).toEqual([]));
     expect(storedShares()).toBe('');
   });
 
@@ -383,17 +388,20 @@ describe('Share in an opened history entry', () => {
   });
 
   it('does not show an expired link, and drops it from storage', async () => {
-    useSavedShares.getState().add(saved({ deadline: Date.now() + 200 }));
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 250));
-    });
-    renderOpened();
+    vi.useFakeTimers(FAKE);
+    try {
+      useSavedShares.getState().add(saved({ deadline: Date.now() + 60 * 60_000 }));
+      vi.setSystemTime(Date.now() + 2 * 60 * 60_000);
+      renderOpened();
 
-    const dialog = await openPopover(shareButtons()[0]);
+      const dialog = await openPopover(shareButtons()[0]);
 
-    expect(within(dialog).queryByRole('textbox', { name: text.shareLink })).toBeNull();
-    expect(within(dialog).getByRole('button', { name: text.shareCreate })).toBeInTheDocument();
-    await waitFor(() => expect(storedShares()).not.toContain(TOKEN));
+      expect(within(dialog).queryByRole('textbox', { name: text.shareLink })).toBeNull();
+      expect(within(dialog).getByRole('button', { name: text.shareCreate })).toBeInTheDocument();
+      await waitFor(() => expect(storedShares()).not.toContain(TOKEN));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('says when the server no longer holds the result, with the configured text, and offers Run again', async () => {
@@ -483,14 +491,21 @@ describe('Share in Recent queries', () => {
   });
 
   it('drops the mark when the link expires while the list shows', async () => {
-    useSavedShares.getState().add(saved({ deadline: Date.now() + 400 }));
-    renderList([entry('two', { two: true })]);
-    expect(rows()[0]).toHaveTextContent(text.historyShared);
+    vi.useFakeTimers(FAKE);
+    try {
+      useSavedShares.getState().add(saved({ deadline: Date.now() + 60 * 60_000 }));
+      renderList([entry('two', { two: true })]);
+      expect(rows()[0]).toHaveTextContent(text.historyShared);
 
-    await waitFor(() => expect(rows()[0]).not.toHaveTextContent(text.historyShared), {
-      timeout: 3000,
-    });
-    expect(storedShares()).not.toContain(TOKEN);
+      await act(async () => {
+        vi.advanceTimersByTime(60 * 60_000);
+      });
+
+      expect(rows()[0]).not.toHaveTextContent(text.historyShared);
+      expect(storedShares()).not.toContain(TOKEN);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('offers Run again from the row when the server no longer holds the result', async () => {

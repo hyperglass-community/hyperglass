@@ -13,6 +13,11 @@ import type { Config } from '~/types';
 // saved queries, to copy or delete later. Shown whether query history is on or not.
 
 const { text } = testConfig.web;
+/** Fake timers that follow real time for Testing Library; intervals and frames stay real. */
+const FAKE: Parameters<typeof vi.useFakeTimers>[0] = {
+  shouldAdvanceTime: true,
+  toFake: ['setTimeout', 'clearTimeout', 'Date'],
+};
 const TOKEN = 'y0ur-sh4r3d-l1nks_d3l3t3-t0k3n-n0t-1n-th3-url';
 const ONE = '00112233445566778899aabbccddeeff';
 const TWO = 'ffeeddccbbaa99887766554433221100';
@@ -183,6 +188,35 @@ describe('SavedShares', () => {
     expect(rowGroup('Ping', '192.0.2.1', 'Router Three')).not.toHaveTextContent(text.linkCopied);
   });
 
+  it('clears what it said a few seconds later, so it does not linger', async () => {
+    vi.useFakeTimers(FAKE);
+    try {
+      const writeText = vi.fn(async () => undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      useSavedShares.getState().add(saved());
+      useSavedShares.getState().add(second());
+      renderList();
+      const group = rowGroup('BGP Route', '2001:db8::/32', 'Router One');
+
+      await userEvent.click(within(group).getByRole('button', { name: text.copyLink }));
+      expect(screen.getByRole('status')).toHaveTextContent(text.linkCopied);
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('');
+      expect(group).not.toHaveTextContent(text.linkCopied);
+
+      await userEvent.click(within(group).getByRole('button', { name: text.shareDelete }));
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(text.shareDeleted));
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('selects the link to copy by hand when the browser can not copy', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
     useSavedShares.getState().add(saved());
@@ -314,10 +348,10 @@ describe('SavedShares', () => {
 
       await act(async () => {
         release();
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await Promise.resolve();
       });
 
-      expect(calls.map(c => c.method)).toEqual(['DELETE', 'GET']);
+      await waitFor(() => expect(calls.map(c => c.method)).toEqual(['DELETE', 'GET']));
       expect(useSavedShares.getState().links).toEqual([]);
       expect(localStorage.getItem(SHARES_KEY)).toBeNull();
       expect(section()).toBeNull();
@@ -336,9 +370,10 @@ describe('SavedShares', () => {
       });
       await act(async () => {
         release();
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await Promise.resolve();
       });
 
+      await waitFor(() => expect(calls.map(c => c.method)).toEqual(['DELETE', 'GET']));
       expect(localStorage.getItem(SHARES_KEY)).toBeNull();
       expect(useSavedShares.getState().links).toEqual([]);
     });
@@ -366,9 +401,10 @@ describe('SavedShares', () => {
     await userEvent.click(button);
     await act(async () => {
       release();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await Promise.resolve();
     });
 
+    await waitFor(() => expect(section()).toBeNull());
     expect(calls).toHaveLength(1);
   });
 
@@ -435,13 +471,22 @@ describe('SavedShares', () => {
   });
 
   it('drops a link when it expires while the list shows', async () => {
-    useSavedShares.getState().add(saved({ deadline: Date.now() + 300 }));
-    useSavedShares.getState().add(second());
-    renderList();
-    expect(rows()).toHaveLength(2);
+    vi.useFakeTimers(FAKE);
+    try {
+      useSavedShares.getState().add(saved({ deadline: Date.now() + 60 * 60_000 }));
+      useSavedShares.getState().add(second());
+      renderList();
+      expect(rows()).toHaveLength(2);
 
-    await waitFor(() => expect(rows()).toHaveLength(1), { timeout: 3000 });
-    expect(localStorage.getItem(SHARES_KEY)).not.toContain(TOKEN);
+      await act(async () => {
+        vi.advanceTimersByTime(60 * 60_000);
+      });
+
+      expect(rows()).toHaveLength(1);
+      expect(localStorage.getItem(SHARES_KEY)).not.toContain(TOKEN);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows a link another tab saves', async () => {

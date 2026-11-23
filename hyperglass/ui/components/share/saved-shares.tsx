@@ -30,6 +30,12 @@ import { formatTimestamp } from '~/util';
 
 import type { SavedShare, ShareFailure } from '~/hooks';
 
+/**
+ * How long what the list said (copied, deleted) stays shown. Not configurable: it only
+ * keeps a confirmation from lingering, and a screen reader announces it once anyway.
+ */
+const SAID_FOR = 5000;
+
 /** Where focus goes when the list goes away: the page's main landmark (see `Layout`). */
 function focusTarget(): HTMLElement | null {
   return document.querySelector<HTMLElement>('main');
@@ -65,6 +71,14 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
   const locationId = useId();
   const field = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setCopied(false), SAID_FOR);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const url = shareLink(share.id, window.location);
   const { labels } = share;
 
@@ -220,6 +234,15 @@ export const SavedShares = (): JSX.Element | null => {
       clear();
     }
   }, [config.enable, clear]);
+
+  // Clear what was said, a few seconds later.
+  useEffect(() => {
+    if (announcement === null) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setAnnouncement(null), SAID_FOR);
+    return () => clearTimeout(timer);
+  }, [announcement]);
 
   useEffect(() => {
     if (confirming) {
