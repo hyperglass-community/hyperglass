@@ -101,6 +101,100 @@ function isTarget(value: unknown): value is string | string[] {
   );
 }
 
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+const isScalar = (value: unknown): boolean => isString(value) || isNumber(value);
+
+/** `value` passes `check`, or is `null` or absent: a field the tables show as blank. */
+function orNull(check: (value: unknown) => boolean): (value: unknown) => boolean {
+  return value => value === null || value === undefined || check(value);
+}
+
+/** Whether `value` is an object whose listed fields each pass their check. */
+function hasFields(value: unknown, fields: Record<string, (v: unknown) => boolean>): boolean {
+  return isObject(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
+}
+
+/** The fields of a BGP route the table and the copied text read (`Route`, `cell.tsx`). */
+const ROUTE_FIELDS: Record<string, (v: unknown) => boolean> = {
+  prefix: isString,
+  active: isBoolean,
+  age: isNumber,
+  weight: isNumber,
+  med: isNumber,
+  local_preference: isNumber,
+  as_path: v => Array.isArray(v) && v.every(isScalar),
+  communities: v => Array.isArray(v) && v.every(isString),
+  next_hop: isString,
+  source_as: isScalar,
+  source_rid: isString,
+  peer_rid: isString,
+  // An index into the RPKI icons and colours.
+  rpki_state: v => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 3,
+  filtered: orNull(isBoolean),
+  next_hop_asn: orNull(isScalar),
+  next_hop_org: orNull(isString),
+  next_hop_country: orNull(isString),
+};
+
+const NULLABLE_NUMBER = orNull(isNumber);
+const NULLABLE_STRING = orNull(isString);
+
+/** The fields of a traceroute hop the table and the copied text read (`TracerouteHop`). */
+const HOP_FIELDS: Record<string, (v: unknown) => boolean> = {
+  hop_number: isNumber,
+  ip_address: NULLABLE_STRING,
+  display_ip: NULLABLE_STRING,
+  hostname: NULLABLE_STRING,
+  rtt1: NULLABLE_NUMBER,
+  rtt2: NULLABLE_NUMBER,
+  rtt3: NULLABLE_NUMBER,
+  loss_pct: NULLABLE_NUMBER,
+  sent_count: NULLABLE_NUMBER,
+  last_rtt: NULLABLE_NUMBER,
+  avg_rtt: NULLABLE_NUMBER,
+  best_rtt: NULLABLE_NUMBER,
+  worst_rtt: NULLABLE_NUMBER,
+  asn: orNull(isScalar),
+  org: NULLABLE_STRING,
+  prefix: NULLABLE_STRING,
+  country: NULLABLE_STRING,
+  rir: NULLABLE_STRING,
+  allocated: NULLABLE_STRING,
+};
+
+/** AS names by ASN, as the AS path and the tables read them. */
+const isAsnOrganizations = orNull(
+  v =>
+    isObject(v) &&
+    Object.values(v).every(org =>
+      hasFields(org, { name: NULLABLE_STRING, country: NULLABLE_STRING }),
+    ),
+);
+
+/**
+ * Whether structured output has every field the BGP or traceroute table reads, with its
+ * type: a value of another type (an object where text is expected) would crash the table,
+ * and with it the page.
+ */
+function isRenderableStructured(output: unknown): boolean {
+  if (!isObject(output) || !isAsnOrganizations(output.asn_organizations)) {
+    return false;
+  }
+  if (Array.isArray(output.routes)) {
+    return (
+      orNull(v => v === 'high' || v === 'low')(output.winning_weight) &&
+      output.routes.every(route => hasFields(route, ROUTE_FIELDS))
+    );
+  }
+  if (Array.isArray(output.hops)) {
+    return output.hops.every(hop => hasFields(hop, HOP_FIELDS));
+  }
+  return false;
+}
+
 function isSharedResult(value: unknown): value is SharedResult {
   if (!isObject(value) || !isObject(value.query) || !isObject(value.labels)) {
     return false;
@@ -116,15 +210,18 @@ function isSharedResult(value: unknown): value is SharedResult {
     typeof labels.queryType === 'string' &&
     typeof value.timestamp === 'string' &&
     typeof value.runtime === 'number' &&
-    // The output the result view renders, as for a saved history entry.
-    isRenderableResponse({ level: 'success', format: value.format, output: value.output })
+    isRenderableResponse({ level: 'success', format: value.format, output: value.output }) &&
+    (value.format !== 'application/json' || isRenderableStructured(value.output))
   );
 }
 
 /**
- * Whether a response has the shape of a snapshot this page can show. The server checks
- * every snapshot before it returns it; this keeps a response from something else (a
- * proxy, another version) from breaking the page.
+ * Whether a response has the shape of a snapshot this page can show: S1's fields, and
+ * output with the fields and types the result view reads. The server checks the snapshot's
+ * own fields, not the structured output inside it, and a response can also come from
+ * something else (a proxy, another version). Values the tables don't read are not checked,
+ * so this is not a full schema check; `SharedResult` also renders the results inside an
+ * error boundary.
  */
 export function isSnapshot(value: unknown): value is Snapshot {
   return (
@@ -151,7 +248,13 @@ export async function fetchShare(id: string, timeout: number): Promise<ShareOutc
   try {
     response = await fetchWithTimeout(
       `/api/share/${id}`,
-      { method: 'GET', headers: { accept: 'application/json' }, cache: 'no-store' },
+      {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+        // A redirect would be a second request, to wherever it points: fail instead.
+        redirect: 'error',
+      },
       timeout,
     );
   } catch {
