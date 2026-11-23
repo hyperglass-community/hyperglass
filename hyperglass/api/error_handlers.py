@@ -67,12 +67,17 @@ def default_handler(request: Request, exc: BaseException) -> Response:
 
 
 def http_handler(request: Request, exc: BaseException) -> Response:
-    """Handle web server errors."""
+    """Handle web server errors.
+
+    Headers set on the exception, such as `Retry-After` on a 429 or `Allow` on a 405,
+    are sent with the response.
+    """
     log.bind(method=request.method, path=request.url.path, detail=exc.detail).critical("HTTP Error")
     record_query_error(request, exc)
     return Response(
         {"output": exc.detail, "level": "danger", "keywords": []},
         status_code=exc.status_code,
+        headers=exc.headers,
     )
 
 

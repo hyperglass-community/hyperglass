@@ -401,14 +401,14 @@ def test_lookup_quota_unchanged(monkeypatch):
         second = test_client.post("/api/aspath/enrich", json={"as_path": [13335]})
     assert first.status_code == 201
     assert second.status_code == 429
-    # What clients get through the app's `http_handler`, as on main: it answers with the
-    # detail as `output`, and doesn't pass the `Retry-After` header on.
+    # What clients get through the app's `http_handler`: the detail as `output`, and
+    # the `Retry-After` header (#585).
     assert second.json() == {
         "output": "Lookup rate limit exceeded",
         "level": "danger",
         "keywords": [],
     }
-    assert "retry-after" not in second.headers
+    assert second.headers["Retry-After"] == "60"
     instance = use_state("redis").instance
     keys = [key.decode() for key in instance.keys("*quota*aspath*")]
     assert len(keys) == 2
