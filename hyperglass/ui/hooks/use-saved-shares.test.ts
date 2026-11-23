@@ -124,6 +124,33 @@ describe('useSavedShares', () => {
     expect(localStorage.getItem(SHARES_KEY)).toBeNull();
   });
 
+  it('cuts labels too long to fit, and keeps the link with its token', () => {
+    // A target with no length limit: about 45 IPv6 prefixes, joined as the form shows them.
+    const target = Array.from({ length: 45 }, (_, i) => `2001:db8:${i.toString(16)}::/48`)
+      .join(', ')
+      .repeat(2);
+    expect(target.length).toBeGreaterThan(1024);
+    useSavedShares
+      .getState()
+      .add(share({ labels: { location: 'L'.repeat(2000), type: 'BGP Route', target } }));
+
+    const [saved] = stored().links;
+    expect(saved.deleteToken).toBe(TOKEN);
+    expect(saved.labels).toEqual({
+      location: 'L'.repeat(1024),
+      type: 'BGP Route',
+      target: target.slice(0, 1024),
+    });
+    expect(useSavedShares.getState().links).toEqual([saved]);
+  });
+
+  it('does not split a surrogate pair when cutting a label', () => {
+    const location = `${'a'.repeat(1023)}\u{1F310}rest`;
+    useSavedShares.getState().add(share({ labels: { ...share().labels, location } }));
+
+    expect(stored().links[0].labels.location).toBe('a'.repeat(1023));
+  });
+
   it('does not keep a link that has expired', () => {
     useSavedShares.getState().add(expired);
 
@@ -267,6 +294,18 @@ describe('useSavedShares', () => {
 
       expect(store.getState().links).toEqual([share()]);
       expect(stored()).toEqual({ version: 1, links: [share()] });
+    });
+
+    it('drops a stored link whose label is too long', async () => {
+      const long = share({
+        id: 'dddddddddddddddddddddddddddddddd',
+        labels: { ...share().labels, target: 't'.repeat(1025) },
+      });
+      seed([share(), long]);
+
+      const store = await load();
+
+      expect(store.getState().links).toEqual([share()]);
     });
 
     it('keeps only the fields of a link, and stores the links again without the rest', async () => {

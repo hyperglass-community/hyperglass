@@ -202,7 +202,7 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
  *
  * The links are in this browser's storage only: render this from the client only
  * (`next/dynamic` with `ssr: false`); it also renders nothing until mounted. With sharing
- * off, the links can't be deleted any more, so they are forgotten.
+ * off, the links are forgotten (`useRememberLinks`).
  */
 export const SavedShares = (): JSX.Element | null => {
   const { web, messages, share: config, requestTimeout } = useConfig();
@@ -229,11 +229,7 @@ export const SavedShares = (): JSX.Element | null => {
 
   useEffect(() => {
     setMounted(true);
-    // Don't keep tokens that can no longer delete anything, or links the visitor can't see.
-    if (!config.enable && useSavedShares.getState().links.length > 0) {
-      clear();
-    }
-  }, [config.enable, clear]);
+  }, []);
 
   // Clear what was said, a few seconds later.
   useEffect(() => {

@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
-import { SHARES_KEY, useQueryHistory, useSavedShares } from '~/hooks';
+import { SHARES_KEY, useQueryHistory, useRememberLinks, useSavedShares } from '~/hooks';
 import { formatTimestamp } from '~/util';
 import { SavedShares } from './saved-shares';
 
@@ -166,6 +166,18 @@ describe('SavedShares', () => {
     expect(useSavedShares.getState().links).toEqual([]);
     expect(localStorage.getItem(SHARES_KEY)).toBeNull();
     expect(calls).toEqual([]);
+  });
+
+  it('forgets every link when sharing is off, on a page without the list', () => {
+    useSavedShares.getState().add(saved());
+    const Page = (): null => {
+      useRememberLinks();
+      return null;
+    };
+    renderWithProviders(<Page />, { config: makeConfig({ share: { enable: false } }) });
+
+    expect(useSavedShares.getState().links).toEqual([]);
+    expect(localStorage.getItem(SHARES_KEY)).toBeNull();
   });
 
   it('copies a link', async () => {

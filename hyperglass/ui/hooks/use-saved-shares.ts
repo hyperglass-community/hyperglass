@@ -63,6 +63,33 @@ function isLabel(value: unknown): value is string {
   return typeof value === 'string' && value.length <= MAX_LABEL;
 }
 
+/** `label` cut to `MAX_LABEL`, without splitting a surrogate pair. */
+function fitLabel(label: string): string {
+  if (label.length <= MAX_LABEL) {
+    return label;
+  }
+  const end = /[\uD800-\uDBFF]/.test(label[MAX_LABEL - 1]) ? MAX_LABEL - 1 : MAX_LABEL;
+  return label.slice(0, end);
+}
+
+/**
+ * `share` with its labels cut to fit. They are shown, never sent, and a query target has no
+ * length limit: a link the server created must not be dropped, with its token, over a label.
+ */
+function fitLabels(share: SavedShare): SavedShare {
+  if (!isObject(share) || !isObject(share.labels)) {
+    return share;
+  }
+  const { location, type, target } = share.labels;
+  if (typeof location !== 'string' || typeof type !== 'string' || typeof target !== 'string') {
+    return share;
+  }
+  return {
+    ...share,
+    labels: { location: fitLabel(location), type: fitLabel(type), target: fitLabel(target) },
+  };
+}
+
 /** A time a `Date` can hold, in milliseconds since the epoch. */
 function isTime(value: unknown): value is number {
   return typeof value === 'number' && !Number.isNaN(new Date(value).getTime());
@@ -239,7 +266,8 @@ interface SavedSharesState {
   links: SavedShare[];
   /**
    * Keep `share`, newest first, or replace the link with its id in place (keeping when it
-   * was saved), as when its token was replaced. A malformed or expired one is not kept.
+   * was saved), as when its token was replaced. Labels too long are cut to fit; a
+   * malformed or expired link is not kept.
    */
   add(share: SavedShare): void;
   /**
@@ -279,7 +307,8 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
   return {
     links: [],
 
-    add(share: SavedShare): void {
+    add(added: SavedShare): void {
+      const share = fitLabels(added);
       if (!isSavedShare(share) || !isLiveSavedShare(share)) {
         return;
       }
@@ -352,14 +381,20 @@ export function savedSharesFor(links: SavedShare[], queryId: string): SavedShare
 
 /**
  * Apply `share.remember_links` to this browser's store of shared links, once the page has
- * mounted: what a view of the links shows, or a Share button saves, follows it.
+ * mounted: what a view of the links shows, or a Share button saves, follows it. With
+ * sharing off, the links can't be deleted any more, so they are forgotten, on any page.
  */
 export function useRememberLinks(): boolean {
   const { share } = useConfig();
   const configure = useSavedShares(s => s.configure);
+  const clear = useSavedShares(s => s.clear);
   useEffect(() => {
     configure(share.rememberLinks);
-  }, [configure, share.rememberLinks]);
+    // Don't keep tokens that can no longer delete anything, or links the visitor can't see.
+    if (!share.enable && useSavedShares.getState().links.length > 0) {
+      clear();
+    }
+  }, [configure, clear, share.enable, share.rememberLinks]);
   return share.rememberLinks;
 }
 
