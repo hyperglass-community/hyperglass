@@ -748,7 +748,7 @@ describe('ShareButton', () => {
 
 // Links come newest first, as this browser's store keeps them (#562).
 describe('ShareButton link order', () => {
-  it("shows the newest link of the result shown, then the others, newest first", async () => {
+  it('shows the newest link of the result shown, then the others, newest first', async () => {
     const id = (c: string) => c.repeat(32);
     const at = (t: string) => `${window.location.origin}${window.location.pathname}?share=${t}`;
     const shown = '2026-11-23 08:10:00';

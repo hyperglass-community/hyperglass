@@ -207,6 +207,12 @@ interface SavedSharesState {
    * was saved), as when its token was replaced. A malformed or expired one is not kept.
    */
   add(share: SavedShare): void;
+  /**
+   * Drop the token of link `id`, which can no longer delete it (the result was shared
+   * again elsewhere), and keep the link. Only while the link is stored: an answer that
+   * arrives after the link was forgotten, here or in another tab, brings nothing back.
+   */
+  dropToken(id: string): void;
   /** Forget link `id`: deleted, gone, or no longer wanted. */
   remove(id: string): void;
   /** Forget every link. The links themselves keep working until they expire. */
@@ -246,6 +252,15 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
       }
     },
 
+    dropToken(id: string): void {
+      const links = storedShares();
+      if (links.some(l => l.id === id)) {
+        save(links.map(l => (l.id === id ? { ...l, deleteToken: null } : l)));
+      } else if (get().links.some(l => l.id === id)) {
+        save(links);
+      }
+    },
+
     remove(id: string): void {
       save(storedShares().filter(l => l.id !== id));
     },
@@ -282,13 +297,21 @@ export interface SavedShareLinks {
 export function useSavedShareLinks(queryId: string, labels: SavedShareLabels): SavedShareLinks {
   const all = useSavedShares(s => s.links);
   const add = useSavedShares(s => s.add);
+  const dropToken = useSavedShares(s => s.dropToken);
   const remove = useSavedShares(s => s.remove);
   const { location, type, target } = labels;
   const links = useMemo(() => savedSharesFor(all, queryId), [all, queryId]);
   const onAdd = useCallback(
-    (link: ShareLink) =>
-      add({ ...link, queryId, savedAt: Date.now(), labels: { location, type, target } }),
-    [add, queryId, location, type, target],
+    (link: ShareLink) => {
+      // A link without its token is one whose token was replaced: an update only, never a
+      // link to keep again if it was forgotten meanwhile.
+      if (link.deleteToken === null) {
+        dropToken(link.id);
+        return;
+      }
+      add({ ...link, queryId, savedAt: Date.now(), labels: { location, type, target } });
+    },
+    [add, dropToken, queryId, location, type, target],
   );
   return { links, onAdd, onRemove: remove };
 }

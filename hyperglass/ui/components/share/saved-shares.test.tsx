@@ -241,6 +241,100 @@ describe('SavedShares', () => {
     expect(calls).toHaveLength(before);
   });
 
+  describe('a late answer that the token was replaced', () => {
+    /** `DELETE` answers 404 once `release` is called; the `GET` after it, 200. */
+    function stubSlowRotation(): () => void {
+      calls = [];
+      let release = (): void => undefined;
+      const answered = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init: RequestInit = {}) => {
+          calls.push({ url, method: init.method ?? 'GET', headers: {} });
+          if (init.method === 'DELETE') {
+            await answered;
+            return new Response('', { status: 404 });
+          }
+          return new Response('{}', { status: 200 });
+        }),
+      );
+      return release;
+    }
+
+    it('does not bring back a link forgotten with Forget all meanwhile', async () => {
+      const release = stubSlowRotation();
+      useSavedShares.getState().add(saved());
+      renderList();
+      await userEvent.click(screen.getByRole('button', { name: text.shareDelete }));
+      await userEvent.click(screen.getByRole('button', { name: text.sharesClearAll }));
+      await userEvent.click(
+        within(screen.getByRole('group', { name: text.sharesClearConfirm })).getByRole('button', {
+          name: text.sharesClearAll,
+        }),
+      );
+
+      await act(async () => {
+        release();
+        await new Promise(resolve => setTimeout(resolve, 50));
+      });
+
+      expect(calls.map(c => c.method)).toEqual(['DELETE', 'GET']);
+      expect(useSavedShares.getState().links).toEqual([]);
+      expect(localStorage.getItem(SHARES_KEY)).toBeNull();
+      expect(section()).toBeNull();
+    });
+
+    it('does not bring back a link another tab forgot meanwhile', async () => {
+      const release = stubSlowRotation();
+      useSavedShares.getState().add(saved());
+      renderList();
+      await userEvent.click(screen.getByRole('button', { name: text.shareDelete }));
+
+      // Another tab forgets every link.
+      localStorage.removeItem(SHARES_KEY);
+      act(() => {
+        window.dispatchEvent(new StorageEvent('storage', { key: SHARES_KEY }));
+      });
+      await act(async () => {
+        release();
+        await new Promise(resolve => setTimeout(resolve, 50));
+      });
+
+      expect(localStorage.getItem(SHARES_KEY)).toBeNull();
+      expect(useSavedShares.getState().links).toEqual([]);
+    });
+  });
+
+  it('sends one delete request for two quick presses', async () => {
+    let release = (): void => undefined;
+    const answered = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    calls = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        calls.push({ url, method: init.method ?? 'GET', headers: {} });
+        await answered;
+        return new Response(null, { status: 204 });
+      }),
+    );
+    useSavedShares.getState().add(saved());
+    renderList();
+    const button = screen.getByRole('button', { name: text.shareDelete });
+
+    await userEvent.click(button);
+    await userEvent.click(button);
+    await act(async () => {
+      release();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(calls).toHaveLength(1);
+  });
+
   it('keeps the link when deleting is refused for now', async () => {
     stubFetch(429);
     useSavedShares.getState().add(saved());

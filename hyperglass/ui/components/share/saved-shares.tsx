@@ -177,7 +177,7 @@ const SavedShareRow = (props: SavedShareRowProps): JSX.Element => {
 export const SavedShares = (): JSX.Element | null => {
   const { web, messages, share: config, requestTimeout } = useConfig();
   const links = useSavedShares(s => s.links);
-  const { add, clear, remove } = useSavedShares.getState();
+  const { clear, dropToken, remove } = useSavedShares.getState();
   useSavedSharesExpiry();
 
   const [mounted, setMounted] = useState(false);
@@ -246,7 +246,7 @@ export const SavedShares = (): JSX.Element | null => {
         return;
       case 'rotated':
         // Still there, with a token this browser doesn't have: keep the link, drop the token.
-        add({ ...share, deleteToken: null });
+        dropToken(share.id);
         return;
       case 'notFound':
         remove(share.id);

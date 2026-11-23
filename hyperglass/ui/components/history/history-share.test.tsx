@@ -329,6 +329,38 @@ describe('Share in an opened history entry', () => {
     expect(storedShares()).not.toContain(TOKEN);
   });
 
+  it('does not bring back a link forgotten while its delete was answered', async () => {
+    let release = (): void => undefined;
+    const answered = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit = {}) => {
+        if (init.method === 'DELETE') {
+          await answered;
+          return new Response('', { status: 404 });
+        }
+        // The share is still there: its token was replaced.
+        return new Response('{}', { status: 200 });
+      }),
+    );
+    useSavedShares.getState().add(saved());
+    renderOpened();
+    const dialog = await openPopover(shareButtons()[0]);
+    await userEvent.click(within(dialog).getByRole('button', { name: text.shareDelete }));
+
+    // Forgotten meanwhile, as Forget all under Your shared links does.
+    act(() => useSavedShares.getState().clear());
+    await act(async () => {
+      release();
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    expect(useSavedShares.getState().links).toEqual([]);
+    expect(storedShares()).toBe('');
+  });
+
   it('does not show an expired link, and drops it from storage', async () => {
     useSavedShares.getState().add(saved({ deadline: Date.now() + 200 }));
     await act(async () => {

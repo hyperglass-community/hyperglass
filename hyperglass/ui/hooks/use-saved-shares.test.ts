@@ -118,6 +118,40 @@ describe('useSavedShares', () => {
     expect(useSavedShares.getState().links).toEqual([]);
   });
 
+  describe('dropToken', () => {
+    it("drops a stored link's token and keeps the link where it is", () => {
+      useSavedShares.getState().add(share());
+      useSavedShares.getState().add(other);
+
+      useSavedShares.getState().dropToken(share().id);
+
+      expect(stored().links).toEqual([other, share({ deleteToken: null })]);
+      expect(localStorage.getItem(SHARES_KEY)).not.toContain(TOKEN);
+    });
+
+    it('brings back nothing that was forgotten meanwhile', () => {
+      useSavedShares.getState().add(share());
+      useSavedShares.getState().remove(share().id);
+
+      useSavedShares.getState().dropToken(share().id);
+
+      expect(useSavedShares.getState().links).toEqual([]);
+      expect(localStorage.getItem(SHARES_KEY)).toBeNull();
+    });
+
+    it('brings back nothing another tab forgot meanwhile', async () => {
+      seed([share()]);
+      const one = await load();
+      const two = await load();
+
+      two.getState().clear();
+      one.getState().dropToken(share().id);
+
+      expect(localStorage.getItem(SHARES_KEY)).toBeNull();
+      expect(one.getState().links).toEqual([]);
+    });
+  });
+
   it('forgets a link', () => {
     useSavedShares.getState().add(share());
     useSavedShares.getState().add(other);
