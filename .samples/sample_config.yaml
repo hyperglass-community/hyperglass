@@ -119,9 +119,11 @@ share:
     # Length of the counting window, in seconds. Default: 3600
     window: 3600
   read_quota:
-    # Snapshot reads per window from one IPv4 address or IPv6 /64. Default: 60
+    # Snapshot reads and delete requests per window from one IPv4 address or
+    # IPv6 /64. Default: 60
     client_limit: 60
-    # Snapshot reads per window from all clients together. Default: 1200
+    # Snapshot reads and delete requests per window from all clients together.
+    # Default: 1200
     global_limit: 1200
     # Length of the counting window, in seconds. Default: 60
     window: 60

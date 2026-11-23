@@ -111,8 +111,8 @@ Lets visitors copy a cached query result into a snapshot that anyone with its li
 | `share.quota.client_limit` | Integer | `10` | Shares per window from one client: an IPv4 address or an IPv6 /64. |
 | `share.quota.global_limit` | Integer | `100` | Shares per window from all clients together. |
 | `share.quota.window` | Integer | `3600` | Length of the share counting window, in seconds, up to 2592000. Also sent as `Retry-After`. |
-| `share.read_quota.client_limit` | Integer | `60` | Snapshot reads per window from one client. |
-| `share.read_quota.global_limit` | Integer | `1200` | Snapshot reads per window from all clients together. |
+| `share.read_quota.client_limit` | Integer | `60` | Snapshot reads and delete requests per window from one client. |
+| `share.read_quota.global_limit` | Integer | `1200` | Snapshot reads and delete requests per window from all clients together. |
 | `share.read_quota.window` | Integer | `60` | Length of the read counting window, in seconds, up to 2592000. Also sent as `Retry-After`. |
 
 #### Example: Share Snapshots
@@ -937,9 +937,11 @@ share:
     # Length of the counting window, in seconds. Default: 3600
     window: 3600
   read_quota:
-    # Snapshot reads per window from one IPv4 address or IPv6 /64. Default: 60
+    # Snapshot reads and delete requests per window from one IPv4 address or
+    # IPv6 /64. Default: 60
     client_limit: 60
-    # Snapshot reads per window from all clients together. Default: 1200
+    # Snapshot reads and delete requests per window from all clients together.
+    # Default: 1200
     global_limit: 1200
     # Length of the counting window, in seconds. Default: 60
     window: 60

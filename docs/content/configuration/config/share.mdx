@@ -17,8 +17,8 @@ A visitor can copy a result from the query cache into a snapshot: a copy kept on
 | `share.quota.client_limit`      | Integer | `10`     | Shares one client can create per window: an IPv4 address or an IPv6 /64. |
 | `share.quota.global_limit`      | Integer | `100`    | Shares all clients together can create per window. |
 | `share.quota.window`            | Integer | `3600`   | Length of the share counting window, in seconds, up to 2592000. Also sent as `Retry-After`. |
-| `share.read_quota.client_limit` | Integer | `60`     | Snapshot reads per window from one client. |
-| `share.read_quota.global_limit` | Integer | `1200`   | Snapshot reads per window from all clients together. |
+| `share.read_quota.client_limit` | Integer | `60`     | Snapshot reads and delete requests per window from one client. |
+| `share.read_quota.global_limit` | Integer | `1200`   | Snapshot reads and delete requests per window from all clients together. |
 | `share.read_quota.window`       | Integer | `60`     | Length of the read counting window, in seconds, up to 2592000. Also sent as `Retry-After`. |
 
 ### Example
@@ -42,7 +42,9 @@ Snapshots are kept in Redis under `hyperglass.share:`, outside the state Hypergl
 - **Worst case:** `max_entries × max_size`, 256 MiB with the defaults, plus a few hundred bytes per snapshot. Size Redis for it, or lower either value.
 - **Snapshot size:** a structured BGP result takes roughly 350 to 500 bytes per route, so the default `max_size` holds a result of about 500 routes. Larger results get HTTP 413 with [`messages.share_too_large`](/configuration/config/messages).
 - **Restarts of Redis:** snapshots survive a restart of Redis only if Redis persists its data (RDB snapshots or an append-only file) to a volume. The shipped `compose.yaml` runs Redis (Valkey) without a volume, so restarting that container deletes every snapshot. Add a volume for `/data` to keep them.
-- **Memory limits:** if Redis has a `maxmemory` limit, use the `noeviction` policy or a `volatile-*` policy. Every snapshot has an expiry, so a `volatile-*` policy can delete snapshots to make room; `allkeys-*` policies can also delete Hyperglass's configuration state.
+- **Memory limits:** if Redis has a `maxmemory` limit, use the `noeviction` policy or a `volatile-*` policy; `allkeys-*` policies can also delete Hyperglass's configuration state.
+  - With `noeviction`, a full Redis refuses writes. New shares then get HTTP 503 with `messages.share_unavailable`; existing snapshots can still be read and deleted, without being counted against `read_quota`. Queries are affected too: a query that is not in the cache fails with HTTP 500 when its result can't be written to the cache, and with [`query_limit`](/configuration/config/query-limit) enabled every query does, because its counter can't be written.
+  - Every snapshot has an expiry, so a `volatile-*` policy can delete snapshots before they expire. Their IDs stay in the index until their expiry time: `hyperglass share list` shows them as `(not_found)`, and they count toward `max_entries` until the store is full, when a new share removes the IDs whose snapshot is gone before it counts again.
 - **Several instances** sharing one Redis database share their snapshots too; give each instance its own `HYPERGLASS_REDIS_DB`.
 
 ### API
@@ -62,12 +64,16 @@ All three routes need `share.enable: true`. Their error bodies have the same sha
 | 201    | Created. The body is `{"id": …, "expiresAt": …, "deleteToken": …}`. |
 | 200    | This client already shared this cached result: the same `id` and `expiresAt`, and a new `deleteToken`. The previous token no longer works. A result refreshed with `force`, or run again after its cache entry expired, gets a new ID. |
 | 400    | The body is not `{"queryId": …}` with a query ID. |
+| 413    | The body is larger than 1024 bytes. |
+| 415    | The body is not sent as `application/json`. A page on another site can make a browser send a form or `text/plain` post without asking, which would use up its visitor's quota; a JSON post needs a CORS preflight, which only the origins in `cors_origins` pass. |
 | 403    | The result's directive has `retain: false`. |
 | 404    | The result is no longer cached. |
 | 409    | The result's enrichment is still running. |
 | 413    | The snapshot would be larger than `max_size`. |
 | 429    | The client, or all clients together, created `quota` shares in this window. `Retry-After` is `quota.window`. |
-| 503    | `max_entries` snapshots exist, or Redis is unreachable. |
+| 503    | `max_entries` snapshots exist, Redis is full (`maxmemory` with `noeviction`), or Redis is unreachable. |
+
+Every response of the three routes, errors included, has `Cache-Control: no-store`: a create response carries the delete token, and any answer can change with the next request.
 
 The share ID is 16 random bytes in hex. The delete token is 32 random bytes in URL-safe base64; only its SHA-256 hash is stored, and it is never logged. Keep it to delete the snapshot later.
 
@@ -77,11 +83,13 @@ Returns the snapshot: `id`, `version`, `createdAt`, `expiresAt` and `results`, a
 
 The stored snapshot is checked against its format before it is returned. A snapshot that doesn't match, for example one changed by hand in Redis, gets HTTP 404 and is logged as an error. One stored in a `version` this release doesn't read, for example after a downgrade, gets HTTP 422 with `messages.share_unsupported`. A snapshot whose location or query type has since been removed from the configuration, or whose directive now has `retain: false`, gets HTTP 404; it is kept until it expires, so setting `retain: true` again serves it.
 
-Reads are counted per client and globally against `read_quota`; over it, HTTP 429 with `Retry-After`.
+Reads are counted per client and globally against `read_quota`; over it, HTTP 429 with `Retry-After`. An ID that isn't 32 hexadecimal characters gets HTTP 404 without a lookup.
 
 #### `DELETE /api/share/{id}`
 
-Send the delete token in the `X-Delete-Token` header, never in the URL. HTTP 204 when the snapshot is deleted. A wrong or missing token gets the same HTTP 404 as an ID that doesn't exist, so the answer doesn't tell whether an ID exists.
+Send the delete token in the `X-Delete-Token` header, never in the URL. HTTP 204 when the snapshot is deleted. A wrong or missing token gets the same HTTP 404 as an ID that doesn't exist, so the answer doesn't tell whether an ID exists. Delete requests count against `read_quota`, like reads.
+
+If the client's existing share of a result can no longer be read (for example, changed by hand), a new share request replaces it with a new snapshot and ID.
 
 ### Operator Commands
 
@@ -91,7 +99,15 @@ hyperglass share delete <id>  # delete one snapshot, without its token
 hyperglass share clear        # delete every snapshot (asks first; --yes skips the question)
 ```
 
-`hyperglass clear-cache` does not delete snapshots.
+`hyperglass share delete` accepts only share IDs (32 hexadecimal characters), so it can't delete the index or another key. `hyperglass clear-cache` does not delete snapshots.
+
+### Limits on Abuse
+
+Creating shares is cheap to refuse but can be used to deny sharing to others:
+
+- Every create request that passes validation counts toward `quota`, including requests refused with 403, 404, 409 or 413. A client can use up its own quota, and clients with many addresses or /64s can use up `quota.global_limit` for a window.
+- A full store (`max_entries`) refuses new shares until snapshots expire, after `timeout` seconds. With the defaults, filling it takes at least 10 windows of the global quota (10 hours). Lower `timeout`, or remove snapshots with `hyperglass share delete <id>` or `hyperglass share clear`.
+- `hyperglass_share_requests_total` shows these as `rate_limited` and `full` results.
 
 ### How Clients Are Identified
 
