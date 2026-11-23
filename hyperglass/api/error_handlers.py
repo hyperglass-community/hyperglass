@@ -23,6 +23,7 @@ __all__ = (
     "app_handler",
     "validation_handler",
     "unavailable_handler",
+    "not_found_handler",
 )
 
 
@@ -96,6 +97,21 @@ def app_handler(request: Request, exc: BaseException) -> Response:
     log.bind(method=request.method, path=request.url.path, detail=exc.message).critical(
         "hyperglass Error"
     )
+    record_query_error(request, exc)
+    return Response(
+        {"output": exc.message, "level": exc.level, "keywords": exc.keywords},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
+
+
+def not_found_handler(request: Request, exc: PublicHyperglassError) -> Response:
+    """Handle a request for an object that does not exist, such as an unknown device ID.
+
+    Any client can ask for any ID, so a miss is logged as a warning rather than as a
+    critical server error.
+    """
+    log.bind(method=request.method, path=request.url.path, detail=exc.message).warning("Not Found")
     record_query_error(request, exc)
     return Response(
         {"output": exc.message, "level": exc.level, "keywords": exc.keywords},

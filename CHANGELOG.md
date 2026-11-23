@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Count a query either as a success or as an error, never both. `POST /api/query` read the configuration from Redis again after recording the query as a success, so a Redis failure at that point also counted it as an error ([#582](https://github.com/hyperglass-community/hyperglass/issues/582)).
 - Keep a stable directive order across restarts. Each device lists its custom directives in the order of the directives file, then its built-in directives. The order changed on every restart, which reordered the query type menu and rebuilt the UI on every start ([#492](https://github.com/hyperglass-community/hyperglass/issues/492)).
 - Send the headers set on an HTTP error with its response. The API's HTTP error handler rebuilt the response without them, so the lookup quota's 429 from `/api/dns` and `/api/aspath/enrich` reached clients without `Retry-After`, and a 405 without `Allow` ([#585](https://github.com/hyperglass-community/hyperglass/issues/585)).
+- Return HTTP 404 from `GET /api/devices/{id}` for an ID that no device has, with `messages.not_found` (`{type}` is `web.text.query_location`) and level `warning`. The miss is logged at `ERROR` when the error is created, as every public error is, and as a warning with the method and path, never at `CRITICAL`. It returned HTTP 500 with `messages.general` and logged a critical error ([#530](https://github.com/hyperglass-community/hyperglass/issues/530)).
 
 ## 3.0.0-rc.2 - 2026-11-19
 

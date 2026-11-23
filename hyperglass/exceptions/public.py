@@ -121,6 +121,23 @@ class QueryTypeNotFound(NotFound):
         super().__init__(type=text.query_type, name=str(query_type), **kwargs)
 
 
+class DeviceNotFound(NotFound):
+    """Raised when a device requested by ID does not exist."""
+
+    def __init__(self, device_id: str, **kwargs: Dict[str, Any]) -> None:
+        """Initialize a NotFound error for a device, which the UI calls a location."""
+        # Project
+        from hyperglass.state import use_state
+
+        (text := use_state("params").web.text)
+        super().__init__(type=text.query_location, name=device_id, **kwargs)
+
+    @property
+    def status_code(self) -> int:
+        """Return HTTP 404, Not Found."""
+        return 404
+
+
 class InputInvalid(PublicHyperglassError, template="invalid_input"):
     """Raised when input validation fails."""
 

@@ -21,7 +21,7 @@ from netmiko.exceptions import ReadTimeout
 from hyperglass.log import log
 from hyperglass.state import HyperglassState, use_state
 from hyperglass.exceptions import HyperglassError
-from hyperglass.exceptions.public import DeviceTimeout
+from hyperglass.exceptions.public import DeviceTimeout, DeviceNotFound
 from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override, device_delay_factor
 from hyperglass.models.api import Query
 from hyperglass.models.data import OutputDataModel
@@ -45,6 +45,7 @@ from .metrics import (
 )
 from .middleware import skip_state_recovery
 from .fake_output import fake_output
+from .error_handlers import not_found_handler
 from .refresh import ForcedRefresh
 from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
 
@@ -158,10 +159,18 @@ async def query_enrichment(query_id: str) -> dict:
     }
 
 
-@get("/api/devices/{id:str}", dependencies={"devices": Provide(get_devices)})
+@get(
+    "/api/devices/{id:str}",
+    dependencies={"devices": Provide(get_devices)},
+    exception_handlers={DeviceNotFound: not_found_handler},
+)
 async def device(devices: Devices, id: str) -> APIDevice:
     """Retrieve a device by ID."""
-    return devices[id].export_api()
+    # Not `devices[id]`: its IndexError for a missing ID would be a server error.
+    match = next((item for item in devices if item.id == id), None)
+    if match is None:
+        raise DeviceNotFound(device_id=id)
+    return match.export_api()
 
 
 @get("/api/devices", dependencies={"devices": Provide(get_devices)})
