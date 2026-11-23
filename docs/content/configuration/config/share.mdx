@@ -59,10 +59,12 @@ All three routes need `share.enable: true`. Their error bodies have the same sha
 #### `POST /api/share`
 
 ```json
-{ "queryId": "hyperglass.query.<64 hex characters>", "expiresIn": 2592000 }
+{ "queryId": "hyperglass.query.<64 hex characters>", "expiresIn": 2592000, "timestamp": "2026-11-23 08:00:00" }
 ```
 
 `expiresIn` is optional: absent or `null`, the snapshot is kept for `timeout` seconds. Otherwise it must be one of `timeout_choices` (after the `max_timeout` cap), as an integer.
+
+`timestamp` is optional: the `timestamp` of the same `POST /api/query` response, as a string of 1 to 64 characters. `queryId` names the query's cache entry, not one result: once the query has run again (refreshed with `force`, or after its cache entry expired), the entry holds the newer result. With `timestamp`, the server shares only the result the device produced at that time, and answers 404 when the cache holds another. The UI always sends it, so a result opened from the query history is never shared as a newer result.
 
 `queryId` is the `id` of a `POST /api/query` response. The result must still be in the query cache: the server copies the result, its query (location, query type ID and name, validated target, variables), its labels, format, time and runtime from the cache entry, never from the request.
 
@@ -70,11 +72,11 @@ All three routes need `share.enable: true`. Their error bodies have the same sha
 | :----- | :------ |
 | 201    | Created. The body is `{"id": …, "expiresAt": …, "deleteToken": …}`. |
 | 200    | This client already shared this cached result: the same `id` and `expiresAt`, whatever `expiresIn` says, and a new `deleteToken`. The previous token no longer works. A result refreshed with `force`, or run again after its cache entry expired, gets a new ID. |
-| 400    | The body is not `{"queryId": …}` with a query ID, or `expiresIn` is not one of `timeout_choices` (with `messages.share_invalid_expiry`). |
+| 400    | The body is not `{"queryId": …}` with a query ID, `timestamp` is not a string of 1 to 64 characters, or `expiresIn` is not one of `timeout_choices` (with `messages.share_invalid_expiry`). |
 | 413    | The body is larger than 1024 bytes. |
 | 415    | The body is not sent as `application/json`. A page on another site can make a browser send a form or `text/plain` post without asking, which would use up its visitor's quota; a JSON post needs a CORS preflight, which only the origins in `cors_origins` pass. |
 | 403    | The result's directive has `retain: false`. |
-| 404    | The result is no longer cached. |
+| 404    | The result is no longer cached, or the cache holds a result with another `timestamp` than the one sent. |
 | 409    | The result's enrichment is still running. |
 | 413    | The snapshot would be larger than `max_size`. |
 | 429    | The client, or all clients together, created `quota` shares in this window. `Retry-After` is `quota.window`. |
