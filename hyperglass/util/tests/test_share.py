@@ -696,6 +696,26 @@ def test_newer_result_than_the_timestamp_is_not_shared(device):
     assert index() == []
 
 
+@pytest.mark.parametrize(
+    "change",
+    (
+        lambda t: t[:10],  # the date alone, a prefix of the real timestamp
+        lambda t: t + " ",
+        lambda t: t.replace(" ", "T"),
+        lambda t: t + "Z",
+    ),
+    ids=("prefix", "trailing-space", "iso-separator", "zulu"),
+)
+def test_timestamp_must_match_exactly(device, change):
+    """Only the exact timestamp of the cached result shares it."""
+    with client() as test_client:
+        data = test_client.post("/api/query", json=body()).json()
+        response = create(test_client, data["id"], timestamp=change(data["timestamp"]))
+    assert response.status_code == 404
+    assert response.json()["output"] == MESSAGES["share_result_expired"]
+    assert index() == []
+
+
 def test_timestamp_is_optional(device):
     with client() as test_client:
         query_id = run_query(test_client)
