@@ -145,8 +145,9 @@ const ROUTE_FIELDS: Record<string, (v: unknown) => boolean> = {
   // An index into the RPKI icons and colours.
   rpki_state: v => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 3,
   filtered: orNull(isBoolean),
-  // The server writes it as `AS<number>` (`BGPRouteTable` enrichment).
-  next_hop_asn: orNull(v => isString(v) && /^AS\d{1,10}$/.test(v)),
+  // The server writes it as `AS<number>`, or `ASIXP` for a next hop on an exchange's
+  // peering LAN (`BGPRouteTable` enrichment, `AS` before the enrichment's ASN).
+  next_hop_asn: orNull(v => isString(v) && /^AS(\d{1,10}|IXP)$/.test(v)),
   next_hop_org: orNull(isString),
   next_hop_country: orNull(isString),
 };

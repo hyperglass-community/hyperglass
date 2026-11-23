@@ -318,6 +318,22 @@ describe('Shared result page', () => {
     expect(urls()).toEqual([`/api/share/${ID}`]);
   });
 
+  it('shows a route whose next hop is on an exchange, as the enrichment stores it', async () => {
+    answer(
+      200,
+      snapshot(bgpResult([route({ next_hop_asn: 'ASIXP', next_hop_org: 'Example IX' })])),
+    );
+    openPage(`/?share=${ID}`);
+
+    const section = await sharedSection();
+    const nextHop = await within(section).findByText('2001:db8::1', undefined, IMPORT_WAIT);
+    expect(within(section).queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.hover(nextHop);
+    expect(await screen.findByRole('tooltip', undefined, IMPORT_WAIT)).toHaveTextContent(
+      'IXP - Example IX',
+    );
+  });
+
   it('shows the targets of a query with several, IPv4 and IPv6', async () => {
     answer(200, snapshot(textResult(['192.0.2.1', '2001:db8::1'])));
     openPage(`/?share=${ID}`);
