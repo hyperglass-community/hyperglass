@@ -5,8 +5,6 @@ import typing as t
 
 # Third Party
 from litestar import Request, Response
-from redis.exceptions import TimeoutError as RedisTimeoutError
-from redis.exceptions import ConnectionError as RedisConnectionError
 from litestar.exceptions import ValidationException
 
 # Project
@@ -15,7 +13,7 @@ from hyperglass.state import HyperglassState, use_state
 from hyperglass.state.store import STATE_UNAVAILABLE
 
 # Local
-from .metrics import record_query_error
+from .metrics import REDIS_UNAVAILABLE, record_query_error
 
 __all__ = (
     "default_handler",
@@ -24,10 +22,6 @@ __all__ = (
     "validation_handler",
     "unavailable_handler",
 )
-
-# Redis being unreachable is temporary, so these are answered with 503. Other Redis
-# errors, such as a command error, are bugs and stay 500.
-REDIS_UNAVAILABLE = (RedisConnectionError, RedisTimeoutError)
 
 
 def get_validation_exception_detail(exc: ValidationException) -> Response:

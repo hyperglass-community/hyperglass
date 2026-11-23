@@ -397,7 +397,7 @@ class TestForcedRefresh:
                 monkeypatch.setattr(ForcedRefresh, "refresh_in", unreachable)
             successes = sample("hyperglass_queries_total", **LABELS, status="success")
             errors = sample("hyperglass_queries_total", **LABELS, status="error")
-            reason = sample("hyperglass_query_errors_total", **LABELS, reason="internal_error")
+            reason = sample("hyperglass_query_errors_total", **LABELS, reason="service_unavailable")
             durations = sample("hyperglass_query_duration_seconds_count", **LABELS)
 
             response = client.post("/api/query", json=self.payload())
@@ -407,7 +407,7 @@ class TestForcedRefresh:
         assert len(device) == 1
         assert sample("hyperglass_queries_total", **LABELS, status="success") == successes
         assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
-        assert sample("hyperglass_query_errors_total", **LABELS, reason="internal_error") == (
+        assert sample("hyperglass_query_errors_total", **LABELS, reason="service_unavailable") == (
             reason + 1
         )
         assert sample("hyperglass_query_duration_seconds_count", **LABELS) == durations
@@ -512,14 +512,14 @@ def test_redis_outage_counted(metrics_client, monkeypatch, where, labels, error)
     else:
         monkeypatch.setattr(RedisManager, "get_map", unreachable)
     errors = sample("hyperglass_queries_total", **labels, status="error")
-    reason = sample("hyperglass_query_errors_total", **labels, reason="internal_error")
+    reason = sample("hyperglass_query_errors_total", **labels, reason="service_unavailable")
 
     response = metrics_client.post("/api/query", json={**QUERY, "queryTarget": "2001:db8::/32"})
 
     assert response.status_code == 503
     assert response.json()["output"] == STATE_UNAVAILABLE
     assert sample("hyperglass_queries_total", **labels, status="error") == errors + 1
-    assert sample("hyperglass_query_errors_total", **labels, reason="internal_error") == (
+    assert sample("hyperglass_query_errors_total", **labels, reason="service_unavailable") == (
         reason + 1
     )
 
@@ -535,7 +535,7 @@ def test_redis_down_query_counted(metrics_client):
 
     labels = {"device": "unknown", "query_type": "unknown"}
     errors = sample("hyperglass_queries_total", **labels, status="error")
-    reason = sample("hyperglass_query_errors_total", **labels, reason="internal_error")
+    reason = sample("hyperglass_query_errors_total", **labels, reason="service_unavailable")
     server = use_state("redis").instance.connection_pool.connection_kwargs["server"]
 
     server.connected = False
@@ -547,7 +547,7 @@ def test_redis_down_query_counted(metrics_client):
     assert response.status_code == 503
     assert response.json()["output"] == STATE_UNAVAILABLE
     assert sample("hyperglass_queries_total", **labels, status="error") == errors + 1
-    assert sample("hyperglass_query_errors_total", **labels, reason="internal_error") == (
+    assert sample("hyperglass_query_errors_total", **labels, reason="service_unavailable") == (
         reason + 1
     )
 
@@ -580,6 +580,25 @@ def test_error_reason_is_snake_case_class_name():
     from hyperglass.api.metrics import error_reason
 
     assert error_reason(QueryLocationNotFound(location="x")) == "query_location_not_found"
+
+
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        pytest.param("ConnectionError", "service_unavailable", id="connection"),
+        pytest.param("TimeoutError", "service_unavailable", id="timeout"),
+        # Not an outage: a Redis command error is a bug.
+        pytest.param("ResponseError", "internal_error", id="response-error"),
+    ],
+)
+def test_error_reason_for_redis_errors(error, reason):
+    # Third Party
+    from redis import exceptions
+
+    # Project
+    from hyperglass.api.metrics import error_reason
+
+    assert error_reason(getattr(exceptions, error)("redis:6379")) == reason
 
 
 def test_record_query_error_ignores_request_stand_ins():
