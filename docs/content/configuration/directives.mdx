@@ -27,6 +27,7 @@ Each directive has the following options:
 | `multiple`           | Boolean         | `false`       | Command supports receiving multiple values. For example, Cisco IOS's `show ip bgp community` accepts multiple communities as arguments.                                    |
 | `multiple_separator` | String          | `" "`         | String by which multiple values are separated. For example, a list of values `[65001, 65002, 65003]` would be rendered as `65001 65002 65003` for when the command is run. |
 | `variables`          | Mapping         |               | Mapping/dict of [optional variables](#variables), each with a fixed list of allowed values.                                                                                |
+| `retain`             | Boolean         | `true`        | Let browsers keep this directive's results in [query history](/configuration/config/web-ui.mdx#query-history). Set `false` to [keep them out](#keep-results-out-of-history). |
 
 ## Rules
 
@@ -250,3 +251,27 @@ show-bgp-summary:
 With no selection, the command is `show bgp summary`. With both selected, the command is `show bgp summary instance inet group party_x`. The API accepts the selection as `queryVariables`, for example `{"queryVariables": {"group": "party_x"}}`.
 
 Set `required: true` to reject queries without a selection. Hyperglass rejects unknown variable keys and values outside `items`. Variable selections form part of the query cache key, so different selections do not share cached results.
+
+## Keep results out of history
+
+By default, each browser keeps the results of its successful queries in its [query history](/configuration/config/web-ui.mdx#query-history). Set `retain: false` on a directive whose output should not be kept in the browser, for example because it is sensitive or large:
+
+```yaml filename="directives.yaml" copy {12}
+neighbor-entry:
+    name: Neighbor Entry
+    rules:
+        - condition: 0.0.0.0/0
+          ge: 32
+          command: show ip arp {target}
+        - condition: ::/0
+          ge: 128
+          command: show ipv6 neighbors {target}
+    field:
+        description: IP address
+    retain: false
+```
+
+-   Results of the directive are shown as usual, but are not saved to the history. Nothing in the UI mentions it: no hint, icon or disabled button.
+-   A query of several locations runs each location's own directive of the same name, as a query type with built-in directives of different vendors does. Only the locations whose directive retains its results are saved; when none does, the query is not saved at all.
+-   Results saved before the directive was set to `retain: false` are deleted from each browser's history when the browser next loads the page. A query left without results is removed.
+-   Built-in directives always retain their results. To keep a built-in query type out of history, [disable that built-in](/configuration/devices.mdx#examples) on the device and add a directive of your own with `retain: false`.
