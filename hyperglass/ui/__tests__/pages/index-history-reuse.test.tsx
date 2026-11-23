@@ -30,6 +30,9 @@ const router = vi.hoisted(() => ({
 vi.mock('next/router', () => ({ useRouter: () => router }));
 
 const { text } = testConfig.web;
+
+/** `messages.noInput` for a field label, as the form formats it. */
+const noInput = (field: string): string => testConfig.messages.noInput.replace('{field}', field);
 const initialFormState = useFormState.getState();
 
 function response(id: string): QueryResponse {
@@ -379,7 +382,8 @@ describe('Run again', () => {
 
     await userEvent.click(await rowButton(0, text.historyRerun));
 
-    // The form is filled without the target, which gets focus.
+    // The form is filled without the target, which the form reports and focuses.
+    expect(await screen.findByText(noInput(text.queryTarget))).toBeInTheDocument();
     await waitFor(() =>
       expect(
         container.querySelector('[data-query-field="queryTarget"] input[role="combobox"]'),
@@ -387,6 +391,43 @@ describe('Run again', () => {
     );
     expect(useFormState.getState().form.queryType).toBe('peer_communities');
     expect(useFormState.getState().form.queryTarget).toEqual([]);
+    expect(useFormState.getState().status).toBe('form');
+    expect(queries()).toEqual([]);
+  });
+
+  it('reports and focuses the query type when the saved one is gone', async () => {
+    const dev = structuredClone(device('router_one'));
+    dev.directives = dev.directives.filter(d => d.name !== 'BGP Route');
+    const config = makeConfig({
+      devices: [{ group: 'North America', locations: [dev] }],
+    } as never);
+    seed(entry('saved', { queryTarget: ['2001:db8::/32'] }));
+    const { container } = renderPage(config);
+
+    await userEvent.click(await rowButton(0, text.historyRerun));
+
+    expect(await screen.findByText(noInput(text.queryType))).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-query-field="queryType"] input[role="combobox"]'),
+      ).toHaveFocus(),
+    );
+    expect(useFormState.getState().form.queryType).toBe('');
+    expect(useFormState.getState().status).toBe('form');
+    expect(queries()).toEqual([]);
+  });
+
+  it('reports and focuses the target of a query saved with several targets', async () => {
+    seed(entry('saved', { queryTarget: ['192.0.2.1', '2001:db8::1'] }));
+    renderPage();
+
+    await userEvent.click(await rowButton(0, text.historyRerun));
+
+    expect(await screen.findByText(noInput(text.queryTarget))).toBeInTheDocument();
+    const input = await targetInput();
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(input).toHaveValue('');
+    expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_bgp_route__');
     expect(useFormState.getState().status).toBe('form');
     expect(queries()).toEqual([]);
   });

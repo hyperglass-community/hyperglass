@@ -41,8 +41,12 @@ const EMPTY_VALUES: FormData = {
   queryVariables: {},
 };
 
-/** What follows once a saved query fills the form: submit it, or focus the first field found. */
-type AfterReuse = { submit: true } | { focus: string[] };
+/**
+ * What follows once a saved query fills the form: submit it, or validate some fields (to
+ * show the form's own message for an empty query type or target) and focus the first
+ * field found.
+ */
+type AfterReuse = { submit: true } | { validate: ('queryType' | 'queryTarget')[]; focus: string[] };
 
 /** The `data-query-field` of the Submit button's row. */
 const SUBMIT_FIELD = 'submit';
@@ -126,7 +130,7 @@ export const LookingGlassForm = (): JSX.Element => {
     },
   });
 
-  const { handleSubmit, register, reset, setValue, setError, clearErrors } = formInstance;
+  const { handleSubmit, register, reset, setValue, setError, clearErrors, trigger } = formInstance;
   const formRef = useRef<HTMLFormElement>(null);
 
   const isFqdnQuery = useCallback(
@@ -339,7 +343,7 @@ export const LookingGlassForm = (): JSX.Element => {
       });
     }
     if (mode === 'newTarget') {
-      setAfterReuse({ focus: ['queryTarget', 'queryType', 'queryLocation'] });
+      setAfterReuse({ validate: [], focus: ['queryTarget', 'queryType', 'queryLocation'] });
       return;
     }
     // Run the saved query only as it was saved. Anything `prefillForm` left out or chose
@@ -362,11 +366,18 @@ export const LookingGlassForm = (): JSX.Element => {
       setAfterReuse({ submit: true });
       return;
     }
+    // A query type or target that differs because it was left out is reported as the
+    // form's Submit would report it. (One the form chose on its own is valid: no message.)
+    const checkTarget = sameType && !sameTarget && selected?.fieldType !== null;
     setAfterReuse({
+      validate: [
+        ...(sameType ? [] : ['queryType' as const]),
+        ...(checkTarget ? ['queryTarget' as const] : []),
+      ],
       focus: [
         ...(unavailable.length > 0 ? ['queryLocation'] : []),
         ...(sameType ? [] : ['queryType']),
-        ...(sameType && !sameTarget && selected?.fieldType !== null ? ['queryTarget'] : []),
+        ...(checkTarget ? ['queryTarget'] : []),
         ...droppedVariables.map(([id]) => `var.${id}`),
         SUBMIT_FIELD,
       ],
@@ -381,7 +392,12 @@ export const LookingGlassForm = (): JSX.Element => {
     }
     setAfterReuse(null);
     if ('focus' in afterReuse) {
-      focusField(formRef.current, afterReuse.focus);
+      const { validate, focus } = afterReuse;
+      if (validate.length === 0) {
+        focusField(formRef.current, focus);
+      } else {
+        void trigger(validate).then(() => focusField(formRef.current, focus));
+      }
       return;
     }
     const order: [string, string][] = [
