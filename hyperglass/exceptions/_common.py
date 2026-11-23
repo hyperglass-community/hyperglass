@@ -198,8 +198,14 @@ class PrivateHyperglassError(HyperglassError):
         if level is not None:
             cls._level = level
 
-    def __init__(self, message: str, **kwargs: Any) -> None:
-        """Format error message with keyword arguments."""
+    def __init__(self, message: str, *, level: Optional[ErrorLevel] = None, **kwargs: Any) -> None:
+        """Format error message with keyword arguments.
+
+        `level` overrides the class level for this instance. Every other
+        keyword argument is a format argument for `message`.
+        """
+        if level is not None:
+            self._level = level
         if "error" in kwargs:
             error = kwargs.pop("error")
             error = self._safe_format(str(error), **kwargs)
