@@ -261,7 +261,16 @@ describe('isSnapshot with structured output', () => {
 
   it('accepts the next hop AS as the server writes it', () => {
     expect(isSnapshot(bgp({ routes: [{ ...route, next_hop_asn: 'AS13335' }] }))).toBe(true);
+    // A next hop on an exchange's peering LAN: the enrichment's ASN is `IXP`.
+    expect(isSnapshot(bgp({ routes: [{ ...route, next_hop_asn: 'ASIXP' }] }))).toBe(true);
   });
+
+  it.each(['AS__proto__', 'ASconstructor', 'AStoString', 'AS', 'IXP', 'AS13335x'])(
+    'refuses %j as the next hop AS',
+    value => {
+      expect(isSnapshot(bgp({ routes: [{ ...route, next_hop_asn: value }] }))).toBe(false);
+    },
+  );
 
   it.each([
     ['an ASN', '65000'],
