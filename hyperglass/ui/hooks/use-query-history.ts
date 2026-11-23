@@ -69,6 +69,11 @@ export interface RecordInput {
   /** The location (device) ID of `result`. */
   deviceId: string;
   result: HistoryResult;
+  /**
+   * Whether the directive this location ran for the query lets its results be kept
+   * (`retain`, see `directiveRetains`). When it doesn't, nothing is saved.
+   */
+  retain: boolean;
 }
 
 interface QueryHistoryState {
@@ -84,6 +89,11 @@ interface QueryHistoryState {
   clear(): void;
   /** Drop the oldest entries beyond `limit`. */
   prune(limit: number): void;
+  /**
+   * Drop each saved response for which `retains` is false, and the entries left without
+   * a response. `retains` gets the entry's query and the response's location ID.
+   */
+  dropUnretained(retains: (query: HistoryQuery, deviceId: string) => boolean): void;
 }
 
 interface HistoryViewState {
@@ -246,7 +256,11 @@ export const useQueryHistory = create<QueryHistoryState>()(
 
         // Each change starts from the stored entries, not this tab's copy of them.
         record(input: RecordInput, limit: number): void {
-          const { submissionId, query, labels, deviceId, result } = input;
+          const { submissionId, query, labels, deviceId, result, retain } = input;
+          // The location's directive keeps its results out of the history.
+          if (!retain) {
+            return;
+          }
           const entries = storedEntries();
           // The entry may be in memory only: storage was too full to hold it.
           const existing =
@@ -284,6 +298,24 @@ export const useQueryHistory = create<QueryHistoryState>()(
           const { entries } = get();
           if (entries.length > limit) {
             set({ entries: storedEntries().slice(0, limit) });
+          }
+        },
+
+        dropUnretained(retains: (query: HistoryQuery, deviceId: string) => boolean): void {
+          const keep = (entry: HistoryEntry): HistoryEntry => ({
+            ...entry,
+            results: Object.fromEntries(
+              Object.entries(entry.results).filter(([deviceId]) => retains(entry.query, deviceId)),
+            ),
+          });
+          const dropsAny = (entry: HistoryEntry): boolean =>
+            Object.keys(entry.results).some(deviceId => !retains(entry.query, deviceId));
+          if (get().entries.some(dropsAny)) {
+            set({
+              entries: storedEntries()
+                .map(keep)
+                .filter(entry => Object.keys(entry.results).length > 0),
+            });
           }
         },
       }),

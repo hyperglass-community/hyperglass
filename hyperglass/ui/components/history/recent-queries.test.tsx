@@ -169,6 +169,68 @@ describe('RecentQueries', () => {
     expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['v6']);
   });
 
+  describe('a directive with retain: false', () => {
+    // An operator set `retain: false` on a directive after its results were saved (#558).
+    const juniperRoute = '__hyperglass_juniper_bgp_route__';
+
+    function unretained(...ids: string[]): Config {
+      const config = makeConfig();
+      config.devices = config.devices.map(group => ({
+        ...group,
+        locations: group.locations.map(location => ({
+          ...location,
+          directives: location.directives.map(d =>
+            ids.includes(d.id) ? { ...d, retain: false } : d,
+          ),
+        })),
+      }));
+      return config;
+    }
+
+    const two = { name: 'Router Two', queryId: 'two', data: response({ id: 'two' }) };
+
+    it('drops the results it saved when the page loads, and the queries left without any', () => {
+      // Router Two runs Arista's "BGP Route", which still retains its results.
+      const mixed = entry('mixed', '2001:db8::/32', {
+        results: { ...ipv6.results, router_two: two },
+      });
+      seed([mixed, ipv4]);
+
+      renderList(unretained(juniperRoute));
+
+      expect(rows()).toHaveLength(1);
+      const { entries } = useQueryHistory.getState();
+      expect(entries.map(e => e.id)).toEqual(['mixed']);
+      expect(entries[0].results).toEqual({ router_two: two });
+      expect(JSON.parse(localStorage.getItem(HISTORY_KEY) as string).state.entries).toEqual(
+        entries,
+      );
+    });
+
+    it('removes the history when nothing is left', () => {
+      seed([ipv6, ipv4]);
+
+      renderList(unretained(juniperRoute));
+
+      expect(screen.queryByRole('list')).not.toBeInTheDocument();
+      expect(useQueryHistory.getState().entries).toEqual([]);
+    });
+
+    it('keeps the queries of a location or query type that is no longer configured', () => {
+      const gone = entry('gone', '192.0.2.0/24', {
+        results: { removed_router: { name: 'Removed', queryId: 'r', data: response() } },
+      });
+      const renamed = entry('renamed', '192.0.2.0/24', {
+        query: { ...ipv4.query, queryType: 'old_id', queryTypeName: 'Old Name' },
+      });
+      seed([gone, renamed]);
+
+      renderList(unretained(juniperRoute));
+
+      expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['gone', 'renamed']);
+    });
+  });
+
   it('opens a query', async () => {
     seed([ipv6, ipv4]);
     renderList();

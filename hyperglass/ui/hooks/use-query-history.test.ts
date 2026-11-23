@@ -37,6 +37,7 @@ function input(overrides: Partial<RecordInput> = {}): RecordInput {
     },
     deviceId: 'router_one',
     result: { name: 'Router One', queryId: 'c0ffee', data: response() },
+    retain: true,
     ...overrides,
   };
 }
@@ -528,5 +529,90 @@ describe('useQueryHistory across tabs', () => {
     window.dispatchEvent(new StorageEvent('storage', { key: 'hyperglass-greeting' }));
 
     expect(two.getState().entries).toHaveLength(2);
+  });
+});
+
+// A directive with `retain: false` keeps its results out of the history (#558).
+describe('useQueryHistory retain', () => {
+  const two = { name: 'Router Two', queryId: 'beef', data: response({ id: 'beef' }) };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('saves nothing for a location whose directive does not retain its results', () => {
+    useQueryHistory.getState().record(input({ retain: false }), 10);
+
+    expect(useQueryHistory.getState().entries).toEqual([]);
+    expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  });
+
+  it('saves only the locations whose directive retains their results', () => {
+    const { record } = useQueryHistory.getState();
+    record(input({ retain: false }), 10);
+    record(input({ deviceId: 'router_two', result: two }), 10);
+
+    const { entries } = useQueryHistory.getState();
+    expect(entries.map(e => e.id)).toEqual(['s1']);
+    expect(Object.keys(entries[0].results)).toEqual(['router_two']);
+    expect(stored().state.entries).toEqual(entries);
+  });
+
+  it('does not replace a saved response with one it may not keep', () => {
+    const { record } = useQueryHistory.getState();
+    record(input(), 10);
+    const later = { name: 'Router One', queryId: 'later', data: response({ id: 'later' }) };
+    record(input({ result: later, retain: false }), 10);
+
+    expect(useQueryHistory.getState().entries[0].results.router_one.queryId).toBe('c0ffee');
+  });
+
+  describe('dropUnretained', () => {
+    function seed(): void {
+      const { record } = useQueryHistory.getState();
+      record(input({ submissionId: 'mixed' }), 10);
+      record(input({ submissionId: 'mixed', deviceId: 'router_two', result: two }), 10);
+      record(input({ submissionId: 'only-one' }), 10);
+      record(input({ submissionId: 'only-two', deviceId: 'router_two', result: two }), 10);
+    }
+
+    it("drops the results a location's directive no longer retains, and entries left empty", () => {
+      seed();
+
+      useQueryHistory.getState().dropUnretained((_, deviceId) => deviceId !== 'router_one');
+
+      const { entries } = useQueryHistory.getState();
+      expect(entries.map(e => e.id)).toEqual(['only-two', 'mixed']);
+      expect(entries.map(e => Object.keys(e.results))).toEqual([['router_two'], ['router_two']]);
+      expect(stored().state.entries).toEqual(entries);
+    });
+
+    it('passes the query each result was saved with', () => {
+      seed();
+      const retains = vi.fn(() => true);
+
+      useQueryHistory.getState().dropUnretained(retains);
+
+      expect(retains).toHaveBeenCalledWith(input().query, 'router_two');
+    });
+
+    it('removes the stored history when nothing is left', () => {
+      useQueryHistory.getState().record(input(), 10);
+
+      useQueryHistory.getState().dropUnretained(() => false);
+
+      expect(useQueryHistory.getState().entries).toEqual([]);
+      expect(stored().state.entries).toEqual([]);
+    });
+
+    it('does not write to storage when every result is retained', () => {
+      seed();
+      const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+      useQueryHistory.getState().dropUnretained(() => true);
+
+      expect(setItem).not.toHaveBeenCalled();
+      expect(useQueryHistory.getState().entries).toHaveLength(3);
+    });
   });
 });

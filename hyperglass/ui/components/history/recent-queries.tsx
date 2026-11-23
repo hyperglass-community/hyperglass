@@ -1,7 +1,7 @@
 import { Box, Button, Flex, HStack, Heading, List, Text } from '@chakra-ui/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useConfig } from '~/context';
-import { useHistoryView, useQueryHistory } from '~/hooks';
+import { directiveRetains, useDevice, useHistoryView, useQueryHistory } from '~/hooks';
 import { HistoryEntryRow } from './history-entry-row';
 
 /** Where focus goes when the list goes away: the page's main landmark (see `Layout`). */
@@ -21,7 +21,8 @@ export const RecentQueries = (): JSX.Element | null => {
   const { web } = useConfig();
   const { enable, limit } = web.history;
   const entries = useQueryHistory(s => s.entries);
-  const { clear, prune, remove } = useQueryHistory.getState();
+  const { clear, dropUnretained, prune, remove } = useQueryHistory.getState();
+  const getDevice = useDevice();
   const { open } = useHistoryView.getState();
 
   const [mounted, setMounted] = useState(false);
@@ -46,10 +47,17 @@ export const RecentQueries = (): JSX.Element | null => {
       }
       useQueryHistory.persist.clearStorage();
     } else {
+      // A directive may have been set to `retain: false` since its results were saved.
+      // Keep the results of a location or query type no longer configured: nothing says
+      // they may not be kept, and the visitor can still see and delete them.
+      dropUnretained((query, deviceId) => {
+        const device = getDevice(deviceId);
+        return device === null || directiveRetains(device, query) !== false;
+      });
       // The limit may have been lowered since the entries were saved.
       prune(limit);
     }
-  }, [enable, limit, clear, prune]);
+  }, [enable, limit, clear, dropUnretained, prune, getDevice]);
 
   // Back from an opened entry: return focus to its Open button, or to the list if it is
   // gone. Once the list has rendered.

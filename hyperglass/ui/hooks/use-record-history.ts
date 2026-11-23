@@ -4,9 +4,34 @@ import { useDevice } from './use-device';
 import { useFormState } from './use-form-state';
 import { useQueryHistory } from './use-query-history';
 
+import type { Device } from '~/types';
+import type { HistoryQuery } from './use-query-history';
+
+/**
+ * Whether the directive `device` runs for `query` lets its results be kept (`retain`):
+ * `null` when the device has no such directive.
+ *
+ * The query type is one location's directive ID. Another location runs its own directive
+ * of the same name, as the backend resolves it (`resolve_directive_by_name`), so a query
+ * of several locations can have directives that differ in `retain`. When the device has
+ * no directive with the ID and several with the name, all of them must retain.
+ */
+export function directiveRetains(
+  device: Device,
+  query: Pick<HistoryQuery, 'queryType' | 'queryTypeName'>,
+): boolean | null {
+  const byId = device.directives.filter(d => d.id === query.queryType);
+  const candidates =
+    byId.length > 0 ? byId : device.directives.filter(d => d.name === query.queryTypeName);
+  if (candidates.length === 0) {
+    return null;
+  }
+  return candidates.every(d => d.retain !== false);
+}
+
 /**
  * Save a location's response to the query history while the results show, when history
- * is enabled and the response is a success. The response is saved again each time it
+ * is enabled, the response is a success and the location's directive retains its results. The response is saved again each time it
  * changes (enrichment, or the query run again), in the same entry.
  *
  * @param deviceId The location's device ID.
@@ -35,6 +60,7 @@ export function useRecordHistory(
     // The query the results were requested with. It can't change while they show.
     const { form, getDirective } = useFormState.getState();
     const directive = getDirective();
+    const queryTypeName = directive?.name ?? form.queryType;
     const variables = (directive?.variables ?? []).flatMap(variable => {
       const value = form.queryVariables[variable.id];
       if (value === undefined) {
@@ -49,7 +75,7 @@ export function useRecordHistory(
         query: {
           queryLocation: form.queryLocation,
           queryType: form.queryType,
-          queryTypeName: directive?.name ?? form.queryType,
+          queryTypeName,
           queryTarget: form.queryTarget,
           queryVariables: form.queryVariables,
         },
@@ -61,6 +87,8 @@ export function useRecordHistory(
         },
         deviceId: device.id,
         result: { name: device.name, queryId: data.id, data },
+        // Only a directive known to retain them: not one this device doesn't list.
+        retain: directiveRetains(device, { queryType: form.queryType, queryTypeName }) === true,
       },
       limit,
     );

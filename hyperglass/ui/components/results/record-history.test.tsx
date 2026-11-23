@@ -233,6 +233,7 @@ describe('Result query history', () => {
         },
         deviceId: 'router_one',
         result: { name: 'Router One', queryId: 'old', data: response({ id: 'old' }) },
+        retain: true,
       },
       10,
     );
@@ -299,5 +300,91 @@ describe('Result query history', () => {
     await waitFor(() => expect(entries()[0].results.router_one.queryId).toBe('second'));
     expect(entries()).toHaveLength(1);
     expect(entries()[0].results.router_one.data.output).toBe('second');
+  });
+});
+
+// A directive with `retain: false` keeps its results out of the history (#558).
+describe('Result query history with retain: false', () => {
+  const juniperRoute = '__hyperglass_juniper_bgp_route__';
+  const aristaRoute = '__hyperglass_arista_eos_bgp_route__';
+
+  /** The test configuration, with `retain: false` on the directives with these IDs. */
+  function unretained(...ids: string[]): Config {
+    const config = makeConfig();
+    config.devices = config.devices.map(group => ({
+      ...group,
+      locations: group.locations.map(location => ({
+        ...location,
+        directives: location.directives.map(d =>
+          ids.includes(d.id) ? { ...d, retain: false } : d,
+        ),
+      })),
+    }));
+    return config;
+  }
+
+  function stubByLocation(): void {
+    stubFetch(
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const { queryLocation } = JSON.parse(init.body as string);
+        return jsonResponse(response({ id: `id-${queryLocation}` }));
+      }),
+    );
+  }
+
+  it('saves nothing for a directive that does not retain its results', async () => {
+    stubFetch(vi.fn(async () => jsonResponse(response())));
+    renderResults(['router_one'], unretained(juniperRoute));
+    await settled();
+
+    expect(entries()).toEqual([]);
+    expect(localStorage.getItem('hyperglass.history')).toBeNull();
+  });
+
+  it.each([
+    ["another location's directive does not", aristaRoute, 'router_one'],
+    ["the query type's own directive does not", juniperRoute, 'router_two'],
+  ])(
+    'saves only the locations whose directive retains its results, when %s',
+    async (_, off, kept) => {
+      // Both locations run "BGP Route": Juniper's by its ID, Arista's by its name.
+      useFormState.setState({ form: { ...form, queryLocation: ['router_one', 'router_two'] } });
+      stubByLocation();
+      renderResults(['router_one', 'router_two'], unretained(off));
+      await finished('Router One');
+      await finished('Router Two');
+      await waitFor(() => expect(entries()).toHaveLength(1));
+
+      expect(Object.keys(entries()[0].results)).toEqual([kept]);
+      expect(entries()[0].labels.locations).toEqual(['Router One', 'Router Two']);
+    },
+  );
+
+  it('shows nothing about history or sharing for such a directive', async () => {
+    stubFetch(vi.fn(async () => jsonResponse(response())));
+
+    /** The result's buttons and text, once settled. */
+    async function rendered(config: Config): Promise<[string[], string]> {
+      const { container } = renderResults(['router_one'], config);
+      await settled();
+      await waitFor(
+        () => expect(container.querySelectorAll('button svg').length).toBeGreaterThan(0),
+        IMPORT_WAIT,
+      );
+      const names = screen
+        .getAllByRole('button')
+        .map(b => b.getAttribute('aria-label') ?? b.textContent ?? '');
+      const text = container.textContent ?? '';
+      cleanup();
+      return [names, text];
+    }
+
+    const retained = await rendered(makeConfig());
+    useFormState.setState({ submissionId: 'another' });
+    const notRetained = await rendered(unretained(juniperRoute));
+
+    // The same result as for a directive that retains it: no hint, icon or control.
+    expect(notRetained).toEqual(retained);
+    expect(notRetained[1]).not.toMatch(/history|share|recent|saved/i);
   });
 });
