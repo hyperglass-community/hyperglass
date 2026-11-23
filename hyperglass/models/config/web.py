@@ -251,6 +251,11 @@ class Text(HyperglassModel):
         "expire, and can no longer be deleted from here."
     )
     shares_clear_cancel: str = "Cancel"
+    # In place of `share_delete_scope` with `share.remember_links: false`, when the links
+    # are kept in the page's memory only.
+    share_delete_scope_page: str = (
+        "You can delete the link from this page until you close or reload it."
+    )
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

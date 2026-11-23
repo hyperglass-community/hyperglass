@@ -479,7 +479,9 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
               {live.length > 0 && <Text fontSize="sm">{web.text.shareNotice}</Text>}
               {live.some(l => l.deleteToken !== null) && (
                 <Text fontSize="sm">
-                  {strF(web.text.shareDeleteScope, { shares: web.text.sharesTitle })}
+                  {config.rememberLinks
+                    ? strF(web.text.shareDeleteScope, { shares: web.text.sharesTitle })
+                    : web.text.shareDeleteScopePage}
                 </Text>
               )}
               {failure !== null && (

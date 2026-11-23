@@ -212,6 +212,7 @@ def test_shared_links_text_exported():
             "expire, and can no longer be deleted from here."
         ),
         "sharesClearCancel": "Cancel",
+        "shareDeleteScopePage": "You can delete the link from this page until you close or reload it.",
         "historyShared": "Link shared",
         "historyShareKept": (
             "Deleting saved queries doesn't delete their share links: they stay under "

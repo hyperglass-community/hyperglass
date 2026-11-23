@@ -416,3 +416,74 @@ describe('useSavedSharesExpiry', () => {
     vi.useRealTimers();
   });
 });
+
+// `share.remember_links: false` (#562): for kiosks and shared terminals, the links are kept
+// in the page's memory only, and what a browser stored before is deleted.
+describe('useSavedShares with remember_links off', () => {
+  afterEach(() => {
+    useSavedShares.getState().configure(true);
+  });
+
+  it('deletes what was stored and forgets it', async () => {
+    seed([share()]);
+    const store = await load();
+    expect(store.getState().links).toEqual([share()]);
+
+    store.getState().configure(false);
+
+    expect(store.getState().links).toEqual([]);
+    expect(localStorage.getItem(SHARES_KEY)).toBeNull();
+    store.getState().configure(true);
+  });
+
+  it('keeps links in memory and writes nothing to storage', () => {
+    useSavedShares.getState().configure(false);
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    const { add, dropToken, remove, clear, dropExpired } = useSavedShares.getState();
+
+    add(share());
+    add(other);
+    expect(useSavedShares.getState().links).toEqual([other, share()]);
+    dropToken(share().id);
+    expect(useSavedShares.getState().links[1].deleteToken).toBeNull();
+    remove(other.id);
+    dropExpired();
+    expect(useSavedShares.getState().links.map(l => l.id)).toEqual([share().id]);
+    clear();
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('shows nothing another tab stores', () => {
+    useSavedShares.getState().configure(false);
+
+    seed([share()]);
+    window.dispatchEvent(new StorageEvent('storage', { key: SHARES_KEY }));
+
+    expect(useSavedShares.getState().links).toEqual([]);
+  });
+
+  it('keeps its links when configured again the same way', () => {
+    useSavedShares.getState().configure(false);
+    useSavedShares.getState().add(share());
+
+    useSavedShares.getState().configure(false);
+
+    expect(useSavedShares.getState().links).toEqual([share()]);
+  });
+
+  it('changes nothing when remember_links is on', () => {
+    seed([share()]);
+    useSavedShares.setState({ links: [share()] });
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+
+    useSavedShares.getState().configure(true);
+
+    expect(useSavedShares.getState().links).toEqual([share()]);
+    expect(removeItem).not.toHaveBeenCalled();
+  });
+});

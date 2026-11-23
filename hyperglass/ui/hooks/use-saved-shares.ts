@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
+import { useConfig } from '~/context';
 import { isShareId } from './use-share';
 
 import type { ShareLink } from './use-share-links';
@@ -121,6 +122,13 @@ function fields(share: SavedShare): SavedShare {
 // modes) is kept in memory for the session instead; nothing stored is dropped to make room.
 const memory = new Map<string, string>();
 
+/**
+ * Whether the links are kept in the browser's storage (`share.remember_links`, the
+ * default). With `false`, for kiosks and shared terminals, they are kept in this page's
+ * memory only: nothing is read from or written to the storage (see `configure`).
+ */
+let remember = true;
+
 function browserStorage(): Storage | null {
   try {
     return typeof window === 'undefined' ? null : window.localStorage;
@@ -130,7 +138,7 @@ function browserStorage(): Storage | null {
 }
 
 function readRaw(): string | null {
-  if (memory.has(SHARES_KEY)) {
+  if (!remember || memory.has(SHARES_KEY)) {
     return memory.get(SHARES_KEY) ?? null;
   }
   try {
@@ -141,6 +149,14 @@ function readRaw(): string | null {
 }
 
 function writeRaw(value: string | null): void {
+  if (!remember) {
+    if (value === null) {
+      memory.delete(SHARES_KEY);
+    } else {
+      memory.set(SHARES_KEY, value);
+    }
+    return;
+  }
   const storage = browserStorage();
   try {
     if (storage === null) {
@@ -232,6 +248,12 @@ interface SavedSharesState {
   clear(): void;
   /** Drop the links that have expired. Writes only when one has. */
   dropExpired(): void;
+  /**
+   * Apply `share.remember_links`. Turned off, the links are kept in this page's memory
+   * only, and the links this browser stored, and those it read from there, are deleted
+   * and forgotten. Configured the same way again, nothing changes.
+   */
+  configure(rememberLinks: boolean): void;
 }
 
 /**
@@ -282,6 +304,22 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
       save([]);
     },
 
+    configure(rememberLinks: boolean): void {
+      if (rememberLinks === remember) {
+        return;
+      }
+      remember = rememberLinks;
+      memory.delete(SHARES_KEY);
+      if (!rememberLinks) {
+        try {
+          browserStorage()?.removeItem(SHARES_KEY);
+        } catch {
+          // Nothing to delete from a storage that can't be used.
+        }
+      }
+      set({ links: storedShares() });
+    },
+
     dropExpired(): void {
       const now = Date.now();
       if (holdsDeadData(now) || get().links.some(l => !isLiveSavedShare(l, now))) {
@@ -296,6 +334,19 @@ export function savedSharesFor(links: SavedShare[], queryId: string): SavedShare
   return links.filter(l => l.queryId === queryId);
 }
 
+/**
+ * Apply `share.remember_links` to this browser's store of shared links, once the page has
+ * mounted: what a view of the links shows, or a Share button saves, follows it.
+ */
+export function useRememberLinks(): boolean {
+  const { share } = useConfig();
+  const configure = useSavedShares(s => s.configure);
+  useEffect(() => {
+    configure(share.rememberLinks);
+  }, [configure, share.rememberLinks]);
+  return share.rememberLinks;
+}
+
 /** A query's links, and how a Share button keeps and forgets them. */
 export interface SavedShareLinks {
   links: ShareLink[];
@@ -308,6 +359,8 @@ export interface SavedShareLinks {
  * saves the links it creates with `labels` (how "Your shared links" names them).
  */
 export function useSavedShareLinks(queryId: string, labels: SavedShareLabels): SavedShareLinks {
+  const rememberLinks = useRememberLinks();
+  const configure = useSavedShares(s => s.configure);
   const all = useSavedShares(s => s.links);
   const add = useSavedShares(s => s.add);
   const dropToken = useSavedShares(s => s.dropToken);
@@ -322,9 +375,11 @@ export function useSavedShareLinks(queryId: string, labels: SavedShareLabels): S
         dropToken(link.id);
         return;
       }
+      // Before the first link is kept, in case the effect hasn't run yet.
+      configure(rememberLinks);
       add({ ...link, queryId, savedAt: Date.now(), labels: { location, type, target } });
     },
-    [add, dropToken, queryId, location, type, target],
+    [add, configure, dropToken, rememberLinks, queryId, location, type, target],
   );
   return { links, onAdd, onRemove: remove };
 }
@@ -367,7 +422,7 @@ if (typeof window !== 'undefined') {
   // Another tab saved or forgot links: show its changes. (`key` is `null` when another
   // tab cleared the whole storage.)
   window.addEventListener('storage', event => {
-    if (event.key === SHARES_KEY || event.key === null) {
+    if (remember && (event.key === SHARES_KEY || event.key === null)) {
       useSavedShares.setState({ links: storedShares() });
     }
   });

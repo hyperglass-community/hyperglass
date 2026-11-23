@@ -7,6 +7,7 @@ import {
   useHistoryView,
   useQueryHistory,
   useSavedShares,
+  useRememberLinks,
   useSavedSharesExpiry,
   useStrf,
 } from '~/hooks';
@@ -44,6 +45,8 @@ export const RecentQueries = (): JSX.Element | null => {
   // Whether a saved query's result has a live share link: clearing doesn't delete it.
   const anyShared = useSavedShares(s => entries.some(e => hasSavedLink(e, s.links)));
   // Drop expired links, and with them the marks, also as each expires.
+  // The marks follow `share.remember_links`: with `false`, this page's links only.
+  useRememberLinks();
   useSavedSharesExpiry();
   const sectionRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);

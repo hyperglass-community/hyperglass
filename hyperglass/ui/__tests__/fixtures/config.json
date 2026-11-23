@@ -334,6 +334,7 @@
   "requestTimeout": 90,
   "share": {
     "enable": false,
+    "rememberLinks": true,
     "timeout": 2592000,
     "timeoutChoices": [
       604800,
@@ -458,6 +459,7 @@
       "shareDelete": "Delete Link",
       "shareDeleteRotated": "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.",
       "shareDeleteScope": "You can delete the link from this browser, here or under {shares}, until it expires.",
+      "shareDeleteScopePage": "You can delete the link from this page until you close or reload it.",
       "shareDeleted": "Link deleted",
       "shareEarlierLink": "Link to the result from {time}",
       "shareError": "The shared result could not be loaded. Please try again later.",

@@ -101,6 +101,11 @@ share:
   # its link can read until it expires. Snapshots are kept in Redis outside
   # the state that a restart clears. Default: false
   enable: false
+  # Keep the links a browser creates, with their delete tokens, in its local
+  # storage, to copy or delete later under "Your shared links". Turn it off on
+  # kiosks and shared terminals: links then last until the page is closed or
+  # reloaded. Default: true
+  remember_links: true
   # Seconds a snapshot is kept when the visitor doesn't choose. Must be one of
   # timeout_choices. Reading a snapshot doesn't extend it. Default: 2592000 (30 days)
   timeout: 2592000
@@ -642,6 +647,7 @@ web:
     shares_clear_all: "Forget all"
     shares_clear_confirm: "Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here."
     shares_clear_cancel: "Cancel"
+    share_delete_scope_page: "You can delete the link from this page until you close or reload it."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

@@ -115,6 +115,7 @@ interface _Text {
   shares_clear_all: string;
   shares_clear_confirm: string;
   shares_clear_cancel: string;
+  share_delete_scope_page: string;
 }
 
 interface _History {
@@ -241,6 +242,7 @@ interface _DeviceGroup {
 
 interface _Share {
   enable: boolean;
+  remember_links: boolean;
   timeout: number;
   timeout_choices: number[];
 }

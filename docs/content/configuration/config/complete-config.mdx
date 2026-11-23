@@ -105,6 +105,7 @@ Lets visitors copy a cached query result into a snapshot that anyone with its li
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `share.enable` | Boolean | `false` | Register `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}`, and show a [Share button](/configuration/config/share#the-share-button) on results. Sent to the UI. |
+| `share.remember_links` | Boolean | `true` | Keep the links a browser creates, with their delete tokens, in its local storage (`hyperglass.shares`), to copy or delete later under ["Your shared links"](/configuration/config/share#your-shared-links). With `false`, they are kept in the page's memory only, until it is closed or reloaded, and a browser deletes its stored links when it loads the page. Turn it off on kiosks and shared terminals. Sent to the UI. |
 | `share.timeout` | Integer | `2592000` | Seconds a snapshot is kept when the request doesn't choose (`expiresIn`). Must be one of `share.timeout_choices`. Reading a snapshot doesn't extend it. |
 | `share.max_timeout` | Integer | `7776000` | The longest a visitor can choose, from `60` to `31536000` (1 year). Longer `timeout_choices` are dropped. Lowering it doesn't shorten existing snapshots; delete them with `hyperglass share delete` or `hyperglass share clear`. Set below `timeout`, Hyperglass doesn't start (even with sharing off) until `timeout` is one of the remaining choices. |
 | `share.timeout_choices` | List of Integers | `[604800, 2592000, 7776000]` | Times, in seconds, a visitor can choose to keep a snapshot for (7, 30 and 90 days). Sent to the UI with `share.timeout`. |
@@ -625,6 +626,7 @@ Text of "Your shared links", the share links created in this browser, and of the
 | `web.text.shares_clear_all` | String | `Forget all` | Button that removes every link from the list, and the button that confirms it. |
 | `web.text.shares_clear_confirm` | String | `Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here.` | Question shown before every link is removed from the list. |
 | `web.text.shares_clear_cancel` | String | `Cancel` | Button that keeps the links. |
+| `web.text.share_delete_scope_page` | String | `You can delete the link from this page until you close or reload it.` | Shown in place of `share_delete_scope` with `share.remember_links: false`, when links are kept in the page's memory only. |
 | `web.text.history_shared` | String | `Link shared` | Shown on a saved query whose result has a share link that hasn't expired. |
 | `web.text.history_share_kept` | String | `Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire.` | Shown before every saved query is deleted, when any of them has a share link. `{shares}` is `web.text.shares_title`. |
 
@@ -980,6 +982,11 @@ share:
   # its link can read until it expires. Snapshots are kept in Redis outside
   # the state that a restart clears. Default: false
   enable: false
+  # Keep the links a browser creates, with their delete tokens, in its local
+  # storage, to copy or delete later under "Your shared links". Turn it off on
+  # kiosks and shared terminals: links then last until the page is closed or
+  # reloaded. Default: true
+  remember_links: true
   # Seconds a snapshot is kept when the visitor doesn't choose. Must be one of
   # timeout_choices. Reading a snapshot doesn't extend it. Default: 2592000 (30 days)
   timeout: 2592000
@@ -1521,6 +1528,7 @@ web:
     shares_clear_all: "Forget all"
     shares_clear_confirm: "Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here."
     shares_clear_cancel: "Cancel"
+    share_delete_scope_page: "You can delete the link from this page until you close or reload it."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

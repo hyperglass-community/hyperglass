@@ -169,7 +169,7 @@ class Params(ParamsPublic, HyperglassModel):
             include={
                 "cache": {"show_text": ..., "timeout": ..., "refresh": {"enable"}},
                 # Whether results show a Share button, and its "keep for" choices (#561).
-                "share": {"enable", "timeout", "timeout_choices"},
+                "share": {"enable", "remember_links", "timeout", "timeout_choices"},
                 "developer_mode": ...,
                 "primary_asn": ...,
                 "request_timeout": ...,

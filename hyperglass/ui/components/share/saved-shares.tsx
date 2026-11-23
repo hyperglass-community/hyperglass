@@ -21,6 +21,7 @@ import {
   shareFailureMessage,
   shareLink,
   useColorValue,
+  useRememberLinks,
   useSavedShares,
   useSavedSharesExpiry,
   useStrf,
@@ -193,6 +194,9 @@ export const SavedShares = (): JSX.Element | null => {
   const { web, messages, share: config, requestTimeout } = useConfig();
   const links = useSavedShares(s => s.links);
   const { clear, dropToken, remove } = useSavedShares.getState();
+  // With `share.remember_links: false`, this page's links only: what this browser stored
+  // before is deleted.
+  useRememberLinks();
   useSavedSharesExpiry();
 
   const [mounted, setMounted] = useState(false);
