@@ -1,5 +1,6 @@
 import { InputGroup, InputRightElement } from '@chakra-ui/react';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders, testConfig } from '~/__tests__/render';
 import { UserIP } from './user-ip';
@@ -23,6 +24,7 @@ function renderInForm(setTarget = vi.fn()) {
           <UserIP setTarget={setTarget} />
         </InputRightElement>
       </InputGroup>
+      <button type="submit">Submit Query</button>
     </form>,
   );
   return { ...result, setTarget };
@@ -74,6 +76,58 @@ describe('UserIP on a wide screen', () => {
     fireEvent.keyDown(prompt, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByText(text.ipSelect)).not.toBeVisible());
     await waitFor(() => expect(button).toHaveFocus());
+  });
+});
+
+describe('UserIP keyboard order on a wide screen', () => {
+  // The popover is rendered at the end of the page, so the browser's own order would
+  // take Tab from its last button to the end of the page, and Shift+Tab from its first
+  // to whatever comes before it there. Keep the order it has next to the button.
+  it('moves Tab from the last address to the field after the button, and closes', async () => {
+    const user = userEvent.setup();
+    renderInForm();
+    await user.click(screen.getByRole('button', { name: text.ipButton }));
+    const last = await screen.findByRole('button', { name: IPV6 });
+    last.focus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Submit Query' })).toHaveFocus();
+    await waitFor(() => expect(screen.queryByText(text.ipSelect)).not.toBeVisible());
+    expect(screen.getByRole('button', { name: 'Submit Query' })).toHaveFocus();
+  });
+
+  it('moves Shift+Tab from the close button back to the button, and closes', async () => {
+    const user = userEvent.setup();
+    renderInForm();
+    const button = screen.getByRole('button', { name: text.ipButton });
+    await user.click(button);
+    await screen.findByRole('button', { name: IPV4 });
+    screen.getByRole('button', { name: 'Close' }).focus();
+    await user.tab({ shift: true });
+    expect(button).toHaveFocus();
+    await waitFor(() => expect(screen.queryByText(text.ipSelect)).not.toBeVisible());
+  });
+
+  it('moves Shift+Tab from the popover itself back to the button', async () => {
+    const user = userEvent.setup();
+    renderInForm();
+    const button = screen.getByRole('button', { name: text.ipButton });
+    await user.click(button);
+    const prompt = await screen.findByRole('dialog');
+    await screen.findByRole('button', { name: IPV4 });
+    prompt.focus();
+    await user.tab({ shift: true });
+    expect(button).toHaveFocus();
+  });
+
+  it('keeps Tab inside the popover between its own buttons', async () => {
+    const user = userEvent.setup();
+    renderInForm();
+    await user.click(screen.getByRole('button', { name: text.ipButton }));
+    const first = await screen.findByRole('button', { name: IPV4 });
+    first.focus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: IPV6 })).toHaveFocus();
+    expect(screen.getByText(text.ipSelect)).toBeVisible();
   });
 });
 
