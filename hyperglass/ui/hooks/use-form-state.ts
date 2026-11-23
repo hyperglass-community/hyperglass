@@ -134,6 +134,60 @@ export function withoutPrefill(search: string): string {
   return keep.length === 0 ? '' : `?${keep.join('&')}`;
 }
 
+/**
+ * The values of a submitted query for a link (see `prefillSearch`): its locations, query
+ * type, target and variables, as the form submitted them. A query type without a target
+ * field has no target in the link: the form submits a placeholder for it, which
+ * `prefillForm` would leave out anyway.
+ */
+export function queryPrefill(form: FormData, directive: Directive | null): FormPrefill {
+  return {
+    queryLocation: form.queryLocation,
+    queryType: form.queryType === '' ? null : form.queryType,
+    queryTarget: directive?.fieldType === null ? null : form.queryTarget[0] ?? null,
+    queryVariables: form.queryVariables ?? {},
+  };
+}
+
+/**
+ * The query string that `parsePrefill` reads back as `prefill`: `''` or a string that
+ * starts with `?`. Values are encoded by `URLSearchParams`, so an IPv6 address, a prefix
+ * or a zone (`%`) reads back as written. Empty values are left out, as `parsePrefill`
+ * skips them.
+ */
+export function prefillSearch(prefill: FormPrefill): string {
+  const params = new URLSearchParams();
+  for (const location of new Set(prefill.queryLocation)) {
+    if (location !== '') {
+      params.append('location', location);
+    }
+  }
+  if (prefill.queryType) {
+    params.append('type', prefill.queryType);
+  }
+  if (prefill.queryTarget) {
+    params.append('target', prefill.queryTarget);
+  }
+  for (const [id, value] of Object.entries(prefill.queryVariables)) {
+    if (id !== '' && value !== '') {
+      params.append(`${VARIABLE_PARAM}${id}`, value);
+    }
+  }
+  const search = params.toString();
+  return search === '' ? '' : `?${search}`;
+}
+
+/**
+ * A link that fills in the form with `prefill` on this page: the page's origin and path
+ * (so a sub-path behind a reverse proxy is kept), without its query string or fragment.
+ */
+export function prefillLink(
+  prefill: FormPrefill,
+  page: Pick<Location, 'origin' | 'pathname'>,
+): string {
+  return `${page.origin}${page.pathname}${prefillSearch(prefill)}`;
+}
+
 interface FormStateType<Opt extends SingleOption = SingleOption> {
   // Values
   filtered: Filtered;

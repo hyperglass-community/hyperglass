@@ -475,6 +475,9 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.copy_output` | String | `Copy Output` | Tooltip and accessible name of the button that copies a result. |
 | `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
 | `web.text.view_as_path` | String | `View AS Path` | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.copy_link` | String | `Copy Link` | Tooltip and accessible name of the button that copies a link to the submitted query. |
+| `web.text.link_copied` | String | `Link copied` | Confirmation shown and announced after the link is copied. |
+| `web.text.query_link` | String | `Link to this query` | Label of the read-only field that shows the link when the browser can't copy it. |
 | `web.text.as_path_title` | String | `Path to {target}` | Heading of the AS path chart. `{target}` is replaced with the query target. |
 | `web.text.zoom_in` | String | `Zoom In` | Accessible name of the AS path chart's zoom in button. |
 | `web.text.zoom_out` | String | `Zoom Out` | Accessible name of the AS path chart's zoom out button. |
@@ -1214,6 +1217,11 @@ web:
     copy_output: "Copy Output"
     reload_query: "Reload Query"
     view_as_path: "View AS Path"
+    # Results view: copy a link to the query, its confirmation, and the label of the
+    # field that shows the link when the clipboard isn't available.
+    copy_link: "Copy Link"
+    link_copied: "Link copied"
+    query_link: "Link to this query"
     # AS path chart: modal heading ({target} is the query target) and zoom controls.
     as_path_title: "Path to {target}"
     zoom_in: "Zoom In"

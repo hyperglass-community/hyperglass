@@ -154,6 +154,11 @@ class Text(HyperglassModel):
     copy_output: str = "Copy Output"
     reload_query: str = "Reload Query"
     view_as_path: str = "View AS Path"
+    # Results view: the button that copies a link to the query, its confirmation, and the
+    # label of the field that shows the link when the clipboard isn't available.
+    copy_link: str = "Copy Link"
+    link_copied: str = "Link copied"
+    query_link: str = "Link to this query"
     # AS path chart: modal heading and the accessible names of its zoom controls.
     as_path_title: str = "Path to {target}"  # Formatted by Javascript
     zoom_in: str = "Zoom In"

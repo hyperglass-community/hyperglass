@@ -81,6 +81,20 @@ def test_result_button_text_exported_camel_case():
     assert exported["viewAsPath"] == "View AS Path"
 
 
+def test_copy_link_text_defaults():
+    """The copy link button's text defaults to English and is exported as camelCase (#577)."""
+    text = Text()
+    assert (text.copy_link, text.link_copied, text.query_link) == (
+        "Copy Link",
+        "Link copied",
+        "Link to this query",
+    )
+    exported = Text(copy_link="Copier le lien").model_dump(by_alias=True)
+    assert exported["copyLink"] == "Copier le lien"
+    assert exported["linkCopied"] == "Link copied"
+    assert exported["queryLink"] == "Link to this query"
+
+
 def test_as_path_and_pagination_text_defaults():
     """The AS path chart and table pagination text defaults to English (#541)."""
     text = Text()
