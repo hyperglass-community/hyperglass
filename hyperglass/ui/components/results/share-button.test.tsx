@@ -7,7 +7,7 @@ import { formatTimestamp } from '~/util';
 import { ShareButton } from './share-button';
 
 import type { Mock } from 'vitest';
-import type { CreatedShare } from '~/hooks/use-share-links';
+import type { ShareLink } from '~/hooks/use-share-links';
 import type { Config } from '~/types';
 
 const QUERY_ID = `hyperglass.query.${'cd'.repeat(32)}`;
@@ -15,8 +15,17 @@ const SHARE_ID = 'fedcba9876543210fedcba9876543210';
 const TOKEN = 'D3l3t3T0k3n_n3v3r-1n-th3-l1nk-0r-l0gs-abcdefg';
 const DAY = 86400;
 const EXPIRES = '2026-12-23T08:00:00Z';
-const created: CreatedShare = { id: SHARE_ID, expiresAt: EXPIRES, deleteToken: TOKEN };
+/** The `timestamp` of the result shown, and of a later run of the same query. */
+const TS = '2026-11-23 08:00:00';
+const LATER = '2026-11-23 08:05:00';
+/** A `POST /api/share` answer. */
+const created = { id: SHARE_ID, expiresAt: EXPIRES, deleteToken: TOKEN };
 const LINK = `${window.location.origin}${window.location.pathname}?share=${SHARE_ID}`;
+
+/** A link as the button keeps it, live for a day unless overridden. */
+function stored(overrides: Partial<ShareLink> = {}): ShareLink {
+  return { ...created, deadline: Date.now() + DAY * 1000, timestamp: TS, ...overrides };
+}
 
 const enabled = (overrides: Parameters<typeof makeConfig>[0] = {}): Config =>
   makeConfig({ share: { enable: true }, ...overrides });
@@ -28,30 +37,32 @@ function setClipboard(clipboard: Partial<Clipboard> | undefined): void {
   Object.defineProperty(navigator, 'clipboard', { value: clipboard, configurable: true });
 }
 
-type Answer = { status: number; body?: unknown };
+type Answer = { status: number; body?: unknown; headers?: Record<string, string> };
 
 /** A `fetch` stub giving the answers in turn, the last one again once they run out. */
 function stubFetch(...answers: Answer[]) {
   let call = 0;
   const impl = vi.fn(async (_url: string, _init?: RequestInit) => {
-    const { status, body = {} } = answers[Math.min(call, answers.length - 1)];
+    const { status, body = {}, headers = {} } = answers[Math.min(call, answers.length - 1)];
     call += 1;
     return new Response(status === 204 ? null : JSON.stringify(body), {
       status,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...headers },
     });
   });
   vi.stubGlobal('fetch', impl);
   return impl;
 }
 
-let onChange: Mock<(share: CreatedShare | null) => void>;
+let onAdd: Mock<(link: ShareLink) => void>;
+let onRemove: Mock<(id: string) => void>;
 let consoleCalls: ReturnType<typeof vi.spyOn>[];
 let alert: ReturnType<typeof vi.fn>;
 let prompt: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  onChange = vi.fn();
+  onAdd = vi.fn();
+  onRemove = vi.fn();
   alert = vi.fn();
   prompt = vi.fn();
   vi.stubGlobal('alert', alert);
@@ -75,29 +86,38 @@ afterEach(() => {
   }
 });
 
-/** The button with its share kept in state, as a result's wrapper keeps it. */
-const Harness = (props: { initial: CreatedShare | null }): JSX.Element => {
-  const [share, setShare] = useState(props.initial);
+/** The button with its links kept in state, as a result's wrapper keeps them. */
+const Harness = (props: { initial: ShareLink[]; timestamp: string }): JSX.Element => {
+  const [links, setLinks] = useState(props.initial);
   return (
     <ShareButton
       queryId={QUERY_ID}
-      share={share}
-      onChange={next => {
-        onChange(next);
-        setShare(next);
+      timestamp={props.timestamp}
+      links={links}
+      onAdd={link => {
+        onAdd(link);
+        setLinks(current => [...current.filter(l => l.id !== link.id), link]);
+      }}
+      onRemove={id => {
+        onRemove(id);
+        setLinks(current => current.filter(l => l.id !== id));
       }}
     />
   );
 };
 
 async function renderButton(
-  options: { config?: Config; initial?: CreatedShare | null } = {},
-): Promise<{ trigger: HTMLElement; container: HTMLElement }> {
-  const { config = enabled(), initial = null } = options;
-  const result = renderWithProviders(<Harness initial={initial} />, { config });
+  options: { config?: Config; initial?: ShareLink[]; timestamp?: string } = {},
+) {
+  const { config = enabled(), initial = [], timestamp = TS } = options;
+  const result = renderWithProviders(<Harness initial={initial} timestamp={timestamp} />, {
+    config,
+  });
   const trigger = screen.getByRole('button', { name: config.web.text.shareResult });
   await waitFor(() => expect(trigger.querySelector('svg')).toBeInTheDocument(), IMPORT_WAIT);
-  return { trigger, container: result.container };
+  /** Render the same button for another result of the query, as after a forced refresh. */
+  const requery = (next: string) => result.rerender(<Harness initial={initial} timestamp={next} />);
+  return { trigger, container: result.container, requery };
 }
 
 async function open(trigger: HTMLElement): Promise<HTMLElement> {
@@ -110,6 +130,8 @@ const createButton = (): HTMLElement => screen.getByRole('button', { name: 'Crea
 const linkField = (): HTMLInputElement =>
   screen.getByRole('textbox', { name: 'Link to this result' });
 const status = (): HTMLElement => within(screen.getByRole('dialog')).getByRole('status');
+const earlierField = (): HTMLInputElement =>
+  screen.getByRole('textbox', { name: `Link to the result from ${formatTimestamp(TS)}` });
 
 /** Everything a visitor or another script could read off the page. */
 function pageText(): string {
@@ -169,6 +191,18 @@ describe('ShareButton', () => {
       await userEvent.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       await waitFor(() => expect(trigger).toHaveFocus());
+      // Focus coming back doesn't open the tooltip over the content.
+      await act(() => new Promise(resolve => setTimeout(resolve, 300)));
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    });
+
+    it('has no button with fixed English text', async () => {
+      const { trigger } = await renderButton({ initial: [stored()] });
+      const dialog = await open(trigger);
+      const names = within(dialog)
+        .getAllByRole('button')
+        .map(b => b.getAttribute('aria-label') ?? b.textContent);
+      expect(names).toEqual(['Copy Link', 'Delete Link']);
     });
 
     it('makes no request until a link is created', async () => {
@@ -240,7 +274,10 @@ describe('ShareButton', () => {
       expect(dialog).toHaveTextContent(
         'Anyone with the link can see this result, including the target.',
       );
-      expect(onChange).toHaveBeenCalledWith(created);
+      expect(dialog).toHaveTextContent(
+        'You can delete the link from this page until you close or reload it.',
+      );
+      expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ ...created, timestamp: TS }));
       expect(window.location.href).toBe(before);
     });
 
@@ -255,7 +292,7 @@ describe('ShareButton', () => {
 
     it('shows a link given to it without a request, as from a saved entry', async () => {
       const fetch = stubFetch({ status: 201, body: created });
-      const { trigger } = await renderButton({ initial: created });
+      const { trigger } = await renderButton({ initial: [stored()] });
       await open(trigger);
       expect(linkField()).toHaveValue(LINK);
       await waitFor(() => expect(linkField()).toHaveFocus());
@@ -264,21 +301,22 @@ describe('ShareButton', () => {
     });
 
     it('forgets a link given to it that has expired', async () => {
-      const { trigger } = await renderButton({
-        initial: { ...created, expiresAt: '2020-01-01T00:00:00Z' },
-      });
-      await waitFor(() => expect(onChange).toHaveBeenCalledWith(null));
+      const { trigger } = await renderButton({ initial: [stored({ deadline: Date.now() - 1 })] });
+      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID));
       await open(trigger);
       expect(keepFor()).toBeInTheDocument();
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     });
+
     it('never shows an expired link, even when the parent keeps passing it', async () => {
       const fetch = stubFetch({ status: 201, body: created });
       renderWithProviders(
         <ShareButton
           queryId={QUERY_ID}
-          share={{ ...created, expiresAt: '2020-01-01T00:00:00Z' }}
-          onChange={onChange}
+          timestamp={TS}
+          links={[stored({ deadline: Date.now() - 1 })]}
+          onAdd={onAdd}
+          onRemove={onRemove}
         />,
         { config: enabled() },
       );
@@ -287,6 +325,111 @@ describe('ShareButton', () => {
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Delete Link' })).not.toBeInTheDocument();
       expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("shows a link whose expiry is in this browser's past when the server says it is live", async () => {
+      // This browser's clock is a year ahead of the server's.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.parse('2027-11-23T08:00:00Z'));
+      try {
+        stubFetch({
+          status: 201,
+          body: created,
+          headers: { date: 'Mon, 23 Nov 2026 08:00:00 GMT' },
+        });
+        const { trigger } = await renderButton();
+        await createLink(trigger);
+        expect(linkField()).toHaveValue(LINK);
+        // The expiry the server gave, in the viewer's time zone.
+        expect(screen.getByRole('dialog')).toHaveTextContent(
+          `Link expires ${formatTimestamp(EXPIRES)}`,
+        );
+        expect(onRemove).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('forgets a link when it expires while the popover is open, and says so', async () => {
+      const { trigger } = await renderButton({
+        initial: [stored({ deadline: Date.now() + 1500 })],
+      });
+      await open(trigger);
+      await waitFor(() => expect(linkField()).toHaveFocus());
+
+      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID), { timeout: 4000 });
+      await waitFor(() => expect(status()).toHaveTextContent('The link has expired.'));
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      // Focus stays in the popover.
+      await waitFor(() => expect(keepFor()).toHaveFocus());
+    });
+  });
+
+  describe('a later result of the same query', () => {
+    it('still offers the link to the earlier result, to copy or delete', async () => {
+      const writeText = vi.fn(async () => undefined);
+      setClipboard({ writeText });
+      const fetch = stubFetch({ status: 204 });
+      const { trigger } = await renderButton({ initial: [stored()], timestamp: LATER });
+      await open(trigger);
+
+      // The later result has no link yet: it can get its own.
+      expect(keepFor()).toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Link to this result' })).toBeNull();
+      expect(earlierField()).toHaveValue(LINK);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Copy Link' }));
+      expect(writeText).toHaveBeenCalledWith(LINK);
+      await userEvent.click(screen.getByRole('button', { name: 'Delete Link' }));
+      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID));
+      const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(`/api/share/${SHARE_ID}`);
+      expect(new Headers(init.headers).get('X-Delete-Token')).toBe(TOKEN);
+      expect(screen.queryByRole('textbox')).toBeNull();
+    });
+
+    it('keeps the link to the earlier result after a requery, next to a new one', async () => {
+      const other = 'abcdefabcdefabcdefabcdefabcdefab';
+      stubFetch({ status: 201, body: created }, { status: 201, body: { ...created, id: other } });
+      const { trigger, requery } = await renderButton();
+      await createLink(trigger);
+      requery(LATER);
+
+      await waitFor(() => expect(earlierField()).toHaveValue(LINK));
+      await userEvent.click(createButton());
+      await waitFor(() =>
+        expect(linkField()).toHaveValue(
+          `${window.location.origin}${window.location.pathname}?share=${other}`,
+        ),
+      );
+      expect(earlierField()).toHaveValue(LINK);
+    });
+
+    it('files a link created while the query ran again under the result it was made from', async () => {
+      let release: () => void = () => undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          () =>
+            new Promise<Response>(resolve => {
+              release = () => resolve(new Response(JSON.stringify(created), { status: 201 }));
+            }),
+        ),
+      );
+      const { trigger, requery } = await renderButton();
+      await open(trigger);
+      await userEvent.click(createButton());
+      requery(LATER);
+      await act(async () => release());
+
+      await waitFor(() =>
+        expect(onAdd).toHaveBeenCalledWith(
+          expect.objectContaining({ id: SHARE_ID, timestamp: TS }),
+        ),
+      );
+      expect(earlierField()).toHaveValue(LINK);
+      expect(keepFor()).toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Link to this result' })).toBeNull();
     });
   });
 
@@ -355,34 +498,81 @@ describe('ShareButton', () => {
       expect(JSON.stringify(createInit)).not.toContain(TOKEN);
       expect(fetch.mock.calls.map(([u]) => u).join(' ')).not.toContain(TOKEN);
 
-      expect(onChange).toHaveBeenLastCalledWith(null);
+      expect(onRemove).toHaveBeenCalledWith(SHARE_ID);
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       await waitFor(() => expect(keepFor()).toHaveFocus());
       expect(pageText()).not.toContain(TOKEN);
     });
 
     it('forgets a link the server no longer has, with the configured message', async () => {
-      stubFetch({ status: 404, body: { output: 'server text' } });
-      const { trigger } = await renderButton({ initial: created });
+      // The delete gets 404, and so does the read that follows it.
+      const fetch = stubFetch({ status: 404, body: { output: 'server text' } });
+      const { trigger } = await renderButton({ initial: [stored()] });
       await open(trigger);
       await userEvent.click(screen.getByRole('button', { name: 'Delete Link' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent(testConfig.messages.shareNotFound);
-      expect(onChange).toHaveBeenLastCalledWith(null);
+      expect(onRemove).toHaveBeenCalledWith(SHARE_ID);
       expect(keepFor()).toBeInTheDocument();
       expect(screen.queryByText('server text')).not.toBeInTheDocument();
+      expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual(['DELETE', 'GET']);
+    });
+
+    it('keeps a link that still exists when its token was replaced elsewhere', async () => {
+      // Shared again from another page by the same client: this token is no longer valid.
+      const fetch = stubFetch({ status: 404 }, { status: 200, body: { id: SHARE_ID } });
+      const { trigger } = await renderButton({ initial: [stored()] });
+      await open(trigger);
+      await userEvent.click(screen.getByRole('button', { name: 'Delete Link' }));
+
+      await waitFor(() =>
+        expect(screen.getByRole('dialog')).toHaveTextContent(
+          "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires.",
+        ),
+      );
+      expect(linkField()).toHaveValue(LINK);
+      await waitFor(() => expect(linkField()).toHaveFocus());
+      expect(screen.queryByRole('button', { name: 'Delete Link' })).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(onRemove).not.toHaveBeenCalled();
+      // The useless token is dropped.
+      expect(onAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ id: SHARE_ID, deleteToken: null }),
+      );
+      const [, read] = fetch.mock.calls[1] as [string, RequestInit];
+      expect(read.method).toBe('GET');
+      expect(JSON.stringify(read)).not.toContain(TOKEN);
+      expect(screen.getByRole('dialog')).not.toHaveTextContent(
+        'You can delete the link from this page until you close or reload it.',
+      );
     });
 
     it('keeps the link when deleting is rate limited', async () => {
       const fetch = stubFetch({ status: 429 });
-      const { trigger } = await renderButton({ initial: created });
+      const { trigger } = await renderButton({ initial: [stored()] });
       await open(trigger);
       await userEvent.click(screen.getByRole('button', { name: 'Delete Link' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent(testConfig.messages.rateLimited);
-      expect(onChange).not.toHaveBeenCalled();
+      expect(onRemove).not.toHaveBeenCalled();
+      expect(onAdd).not.toHaveBeenCalled();
       expect(linkField()).toHaveValue(LINK);
       expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the link and its token when deleting fails', async () => {
+      const fetch = stubFetch({ status: 500 }, { status: 204 });
+      const { trigger } = await renderButton({ initial: [stored()] });
+      await open(trigger);
+      await userEvent.click(screen.getByRole('button', { name: 'Delete Link' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(testConfig.messages.general);
+      expect(onRemove).not.toHaveBeenCalled();
+
+      // The same token works on a second try.
+      await userEvent.click(screen.getByRole('button', { name: 'Delete Link' }));
+      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID));
+      const [, retry] = fetch.mock.calls[1] as [string, RequestInit];
+      expect(new Headers(retry.headers).get('X-Delete-Token')).toBe(TOKEN);
     });
   });
 
@@ -403,7 +593,7 @@ describe('ShareButton', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent(message);
       expect(screen.getByRole('dialog')).not.toHaveTextContent('from the server');
-      expect(onChange).not.toHaveBeenCalled();
+      expect(onAdd).not.toHaveBeenCalled();
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     });
 
@@ -431,6 +621,8 @@ describe('ShareButton', () => {
       const { trigger } = await renderButton();
       await open(trigger);
       await userEvent.click(createButton());
+      expect(createButton()).toHaveAttribute('aria-disabled', 'true');
+      expect(createButton()).toHaveAttribute('aria-busy', 'true');
       await userEvent.click(createButton());
       expect(fetch).toHaveBeenCalledTimes(1);
       await act(async () => release());
@@ -444,6 +636,18 @@ describe('ShareButton', () => {
       await userEvent.click(createButton());
       await screen.findByRole('alert');
       await userEvent.selectOptions(keepFor(), '604800');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('clears the error when the popover is closed', async () => {
+      stubFetch({ status: 503 });
+      const { trigger } = await renderButton();
+      await open(trigger);
+      await userEvent.click(createButton());
+      await screen.findByRole('alert');
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await open(trigger);
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
   });

@@ -13,15 +13,33 @@ const DELETE_HEADER = 'X-Delete-Token';
 /** The longest delete token the server accepts; real ones are 43 characters. */
 const MAX_TOKEN = 128;
 
-/**
- * A share as `POST /api/share` created it (#559). The delete token is kept in this
- * browser's memory only, and sent only in the header of `DELETE /api/share/{id}`.
- */
-export interface CreatedShare {
+/** A share as `POST /api/share` answers (#559). */
+interface ShareResponse {
   id: string;
-  /** When the link stops working, as ISO 8601. */
+  /** When the link stops working, as ISO 8601, by the server's clock. */
   expiresAt: string;
   deleteToken: string;
+}
+
+/** A share just created, with when it stops working by this browser's clock. */
+export interface CreatedShare extends ShareResponse {
+  /**
+   * When the link stops working, in milliseconds since the epoch by this browser's clock:
+   * the lifetime the server gave, counted from when its answer arrived. A browser clock
+   * that is off from the server's doesn't make a live link look expired, or the reverse.
+   */
+  deadline: number;
+}
+
+/**
+ * A link created in this browser, as the Share button keeps it. The delete token is sent
+ * only in the header of `DELETE /api/share/{id}`; it is `null` once it can no longer
+ * delete the link (the result was shared again elsewhere, which replaced it).
+ */
+export interface ShareLink extends Omit<CreatedShare, 'deleteToken'> {
+  deleteToken: string | null;
+  /** The `timestamp` of the result the link was created from. */
+  timestamp: string;
 }
 
 /** Why a share request failed, each shown with its own configured message. */
@@ -40,8 +58,12 @@ export type CreateShareOutcome =
   | { status: 'created'; share: CreatedShare }
   | { status: ShareFailure };
 
+/**
+ * `rotated`: the share still exists, but this token no longer deletes it (the same client
+ * shared the result again, which gave the share a new token).
+ */
 export type DeleteShareOutcome =
-  | { status: 'deleted' }
+  | { status: 'deleted' | 'rotated' }
   | { status: Extract<ShareFailure, 'notFound' | 'rateLimited' | 'error'> };
 
 /** The failure of each status `POST /api/share` answers with (S1). */
@@ -55,7 +77,7 @@ const CREATE_FAILURES: Record<number, ShareFailure> = {
   503: 'unavailable',
 };
 
-function isCreatedShare(value: unknown): value is CreatedShare {
+function isShareResponse(value: unknown): value is ShareResponse {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -81,6 +103,7 @@ export async function createShare(
   expiresIn: number,
   timeout: number,
 ): Promise<CreateShareOutcome> {
+  const started = Date.now();
   let response: Response;
   try {
     response = await fetchWithTimeout(
@@ -105,19 +128,27 @@ export async function createShare(
   } catch {
     return { status: 'error' };
   }
-  if (!isCreatedShare(body)) {
+  if (!isShareResponse(body)) {
     return { status: 'error' };
   }
   const { id, expiresAt, deleteToken } = body;
-  return { status: 'created', share: { id, expiresAt, deleteToken } };
+  // The lifetime by the server's clock: its `expiresAt` less its time of answer (`Date`),
+  // which is also right for a share the server reused with its first expiry. Without a
+  // `Date` header, the time asked for, counted from the request.
+  const serverNow = Date.parse(response.headers.get('date') ?? '');
+  const deadline = Number.isNaN(serverNow)
+    ? started + expiresIn * 1000
+    : Date.now() + (Date.parse(expiresAt) - serverNow);
+  return { status: 'created', share: { id, expiresAt, deleteToken, deadline } };
 }
 
 /**
- * Delete `share` with one `DELETE /api/share/{id}`, its token in the `X-Delete-Token`
- * header. A wrong token gets the same 404 as a share that is gone.
+ * Delete share `share.id` with one `DELETE /api/share/{id}`, its token in the
+ * `X-Delete-Token` header. A wrong token gets the same 404 as a share that is gone, so a
+ * 404 is followed by one `GET /api/share/{id}`, without the token, to tell them apart.
  */
 export async function deleteShare(
-  share: CreatedShare,
+  share: { id: string; deleteToken: string },
   timeout: number,
 ): Promise<DeleteShareOutcome> {
   if (!isShareId(share.id)) {
@@ -135,6 +166,37 @@ export async function deleteShare(
   }
   if (response.ok) {
     return { status: 'deleted' };
+  }
+  if (response.status === 429) {
+    return { status: 'rateLimited' };
+  }
+  if (response.status !== 404) {
+    return { status: 'error' };
+  }
+  return shareStillExists(share.id, timeout);
+}
+
+/** After a delete got 404: whether the share is gone, or exists with another token. */
+async function shareStillExists(id: string, timeout: number): Promise<DeleteShareOutcome> {
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(
+      `/api/share/${id}`,
+      {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+        // A redirect would be a second request, to wherever it points: fail instead.
+        redirect: 'error',
+      },
+      timeout,
+    );
+  } catch {
+    return { status: 'error' };
+  }
+  // 422: stored in a snapshot version this version can't read, but there.
+  if (response.ok || response.status === 422) {
+    return { status: 'rotated' };
   }
   if (response.status === 404) {
     return { status: 'notFound' };
@@ -199,46 +261,58 @@ export function keepForLabel(seconds: number, text: Config['web']['text']): stri
   return template.replaceAll('{count}', String(Number(count.toFixed(2))));
 }
 
-/** Whether `share` still works at `now`. */
-export function isLiveShare(share: CreatedShare, now: number = Date.now()): boolean {
-  return Date.parse(share.expiresAt) > now;
-}
-
-/**
- * The key of one cached result: the query response's id and the time the device ran it.
- * A result run again (a forced refresh, or after the cache expired) is another result,
- * which the server shares under another link.
- */
-export function shareKey(queryId: string, timestamp: string): string {
-  return `${queryId} ${timestamp}`;
+/** Whether `link` still works at `now`, by this browser's clock. */
+export function isLiveLink(link: Pick<ShareLink, 'deadline'>, now: number = Date.now()): boolean {
+  return link.deadline > now;
 }
 
 interface ShareLinksState {
-  /** The links created in this page, by `shareKey`. */
-  links: Record<string, CreatedShare>;
-  /** Keep `share` for the result `key`, or forget it with `null`. Drops expired links. */
-  save(key: string, share: CreatedShare | null): void;
+  /**
+   * The links created in this page, by query response `id`: one query on one device. A
+   * query run again (a forced refresh, or after its cache expired) keeps its `id` but is
+   * another result, which gets its own link; the earlier ones stay here.
+   */
+  links: Record<string, ShareLink[]>;
+  /** Keep `link` for query `queryId`, replacing one with the same id. Drops expired links. */
+  add(queryId: string, link: ShareLink): void;
+  /** Forget link `id` of query `queryId`. Drops expired links. */
+  remove(queryId: string, id: string): void;
+}
+
+/** `links` without expired links, `id`, or queries left without links. */
+function prune(
+  links: Record<string, ShareLink[]>,
+  queryId: string,
+  id: string,
+): Record<string, ShareLink[]> {
+  const now = Date.now();
+  const result: Record<string, ShareLink[]> = {};
+  for (const [query, list] of Object.entries(links)) {
+    const kept = list.filter(l => isLiveLink(l, now) && !(query === queryId && l.id === id));
+    if (kept.length > 0) {
+      result[query] = kept;
+    }
+  }
+  return result;
 }
 
 /**
  * The links created from live results, with their delete tokens, so a result's Share
- * button shows its link again while the page is open. Kept in memory only: not in web
- * storage, and not in the devtools (`withDev`), so a token never outlives the page and is
- * never written anywhere. A visitor who reloads can share the same cached result again
- * to get its link back, with a new token.
+ * button shows them again while the page is open, also after the query ran again. Kept in
+ * memory only: not in web storage, and not in the devtools (`withDev`), so a token never
+ * outlives the page and is never written anywhere. A visitor who reloads can share the
+ * same cached result again to get its link back, with a new token.
  */
 export const useShareLinks = create<ShareLinksState>()(set => ({
   links: {},
-  save(key: string, share: CreatedShare | null): void {
+  add(queryId: string, link: ShareLink): void {
     set(state => {
-      const now = Date.now();
-      const links = Object.fromEntries(
-        Object.entries(state.links).filter(([k, v]) => k !== key && isLiveShare(v, now)),
-      );
-      if (share !== null) {
-        links[key] = share;
-      }
+      const links = prune(state.links, queryId, link.id);
+      links[queryId] = [...(links[queryId] ?? []), link];
       return { links };
     });
+  },
+  remove(queryId: string, id: string): void {
+    set(state => ({ links: prune(state.links, queryId, id) }));
   },
 }));

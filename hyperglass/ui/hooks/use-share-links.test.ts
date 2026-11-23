@@ -5,60 +5,104 @@ import {
   deleteShare,
   keepForLabel,
   shareFailureMessage,
-  shareKey,
   shareLink,
   useShareLinks,
 } from './use-share-links';
 
-import type { CreatedShare, ShareFailure } from './use-share-links';
+import type { ShareFailure, ShareLink } from './use-share-links';
 
 const QUERY_ID = `hyperglass.query.${'ab'.repeat(32)}`;
+const OTHER_QUERY = `hyperglass.query.${'cd'.repeat(32)}`;
 const SHARE_ID = '0123456789abcdef0123456789abcdef';
 const TOKEN = 'tok_3x4mpl3-d3l3t3-t0k3n-n3v3r-1n-4-url-xyz';
 const DAY = 86400;
+/** This browser's clock in these tests. */
+const NOW = Date.parse('2026-11-23T08:00:00Z');
 
-const created: CreatedShare = {
-  id: SHARE_ID,
-  expiresAt: '2026-12-23T08:00:00Z',
-  deleteToken: TOKEN,
-};
+const body = { id: SHARE_ID, expiresAt: '2026-12-23T08:00:00Z', deleteToken: TOKEN };
 
-/** A `fetch` stub answering with `status` and `body` as JSON. */
-function respond(status: number, body: unknown = {}) {
-  const impl = vi.fn(
-    async () =>
-      new Response(status === 204 ? null : JSON.stringify(body), {
-        status,
-        headers: { 'content-type': 'application/json' },
-      }),
-  );
+type Answer = { status: number; body?: unknown; headers?: Record<string, string> };
+
+/** A `fetch` stub giving the answers in turn, the last one again once they run out. */
+function respond(...answers: Answer[]) {
+  let call = 0;
+  const impl = vi.fn(async (_url: string, _init?: RequestInit) => {
+    const { status, body: json = {}, headers = {} } = answers[Math.min(call, answers.length - 1)];
+    call += 1;
+    return new Response(status === 204 ? null : JSON.stringify(json), {
+      status,
+      headers: { 'content-type': 'application/json', ...headers },
+    });
+  });
   vi.stubGlobal('fetch', impl);
   return impl;
 }
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   useShareLinks.setState({ links: {} });
 });
 
 describe('createShare', () => {
   it('posts the query id and the chosen time as JSON, and returns the share', async () => {
-    const fetch = respond(201, created);
-    const outcome = await createShare(QUERY_ID, 7 * DAY, 5000);
+    const fetch = respond({ status: 201, body });
+    const outcome = await createShare(QUERY_ID, 30 * DAY, 5000);
 
-    expect(outcome).toEqual({ status: 'created', share: created });
+    expect(outcome).toEqual({
+      status: 'created',
+      share: { ...body, deadline: NOW + 30 * DAY * 1000 },
+    });
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/share');
     expect(init.method).toBe('POST');
     expect(new Headers(init.headers).get('content-type')).toBe('application/json');
-    expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn: 7 * DAY });
+    expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn: 30 * DAY });
     expect(init.cache).toBe('no-store');
   });
 
   it('takes an existing share (200) as created', async () => {
-    respond(200, created);
-    expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: 'created', share: created });
+    respond({ status: 200, body });
+    expect(await createShare(QUERY_ID, 30 * DAY, 5000)).toMatchObject({
+      status: 'created',
+      share: body,
+    });
+  });
+
+  it("counts the link's lifetime from the server's clock (Date), not this browser's", async () => {
+    // This browser is a year ahead: by its clock the link expired long ago.
+    vi.setSystemTime(Date.parse('2027-11-23T08:00:00Z'));
+    respond({ status: 201, body, headers: { date: 'Mon, 23 Nov 2026 08:00:00 GMT' } });
+    const outcome = await createShare(QUERY_ID, 7 * DAY, 5000);
+    expect(outcome).toEqual({
+      status: 'created',
+      share: { ...body, deadline: Date.parse('2027-11-23T08:00:00Z') + 30 * DAY * 1000 },
+    });
+  });
+
+  it('keeps the expiry the server gives a reused share, when it sends Date', async () => {
+    // Shared again: the server keeps the first expiry, 10 days from its now.
+    respond({
+      status: 200,
+      body: { ...body, expiresAt: '2026-12-03T08:00:00Z' },
+      headers: { date: 'Mon, 23 Nov 2026 08:00:00 GMT' },
+    });
+    const outcome = await createShare(QUERY_ID, 90 * DAY, 5000);
+    expect(outcome).toMatchObject({ share: { deadline: NOW + 10 * DAY * 1000 } });
+  });
+
+  it('counts the requested time from the request without a Date header', async () => {
+    vi.setSystemTime(Date.parse('2027-11-23T08:00:00Z'));
+    respond({ status: 201, body });
+    expect(await createShare(QUERY_ID, 7 * DAY, 5000)).toMatchObject({
+      share: { deadline: Date.parse('2027-11-23T08:00:00Z') + 7 * DAY * 1000 },
+    });
   });
 
   it.each<[number, ShareFailure]>([
@@ -72,7 +116,7 @@ describe('createShare', () => {
     [500, 'error'],
     [415, 'error'],
   ])('maps HTTP %i to %s, without reading the body', async (status, failure) => {
-    const fetch = respond(status, { output: '<b>server text</b>', level: 'danger' });
+    const fetch = respond({ status, body: { output: '<b>server text</b>', level: 'danger' } });
     expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: failure });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
@@ -89,27 +133,35 @@ describe('createShare', () => {
 
   it.each([
     ['not JSON', 'nope'],
-    ['no id', { expiresAt: created.expiresAt, deleteToken: TOKEN }],
-    ['an id that is not a share id', { ...created, id: '../../api/query' }],
-    ['no token', { id: SHARE_ID, expiresAt: created.expiresAt }],
-    ['an empty token', { ...created, deleteToken: '' }],
-    ['an expiry that is not a time', { ...created, expiresAt: 'soon' }],
-  ])('is an error for a response with %s', async (_, body) => {
+    ['no id', { expiresAt: body.expiresAt, deleteToken: TOKEN }],
+    ['an id that is not a share id', { ...body, id: '../../api/query' }],
+    ['no token', { id: SHARE_ID, expiresAt: body.expiresAt }],
+    ['an empty token', { ...body, deleteToken: '' }],
+    ['a token longer than the server accepts', { ...body, deleteToken: 'x'.repeat(129) }],
+    ['an expiry that is not a time', { ...body, expiresAt: 'soon' }],
+  ])('is an error for a response with %s', async (_, json) => {
     vi.stubGlobal(
       'fetch',
       vi.fn(
         async () =>
-          new Response(typeof body === 'string' ? body : JSON.stringify(body), { status: 201 }),
+          new Response(typeof json === 'string' ? json : JSON.stringify(json), { status: 201 }),
       ),
     );
     expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: 'error' });
   });
+
+  it('takes a token of the longest length the server accepts', async () => {
+    respond({ status: 201, body: { ...body, deleteToken: 'x'.repeat(128) } });
+    expect(await createShare(QUERY_ID, DAY, 5000)).toMatchObject({ status: 'created' });
+  });
 });
 
 describe('deleteShare', () => {
+  const link = { id: SHARE_ID, deleteToken: TOKEN };
+
   it('sends the token in the X-Delete-Token header only', async () => {
-    const fetch = respond(204);
-    expect(await deleteShare(created, 5000)).toEqual({ status: 'deleted' });
+    const fetch = respond({ status: 204 });
+    expect(await deleteShare(link, 5000)).toEqual({ status: 'deleted' });
 
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
@@ -118,23 +170,45 @@ describe('deleteShare', () => {
     expect(init.method).toBe('DELETE');
     expect(new Headers(init.headers).get('x-delete-token')).toBe(TOKEN);
     expect(init.body).toBeUndefined();
+    expect(init.cache).toBe('no-store');
   });
 
   it.each<[number, string]>([
-    [404, 'notFound'],
     [429, 'rateLimited'],
     [503, 'error'],
     [500, 'error'],
   ])('maps HTTP %i to %s', async (status, failure) => {
-    respond(status);
-    expect(await deleteShare(created, 5000)).toEqual({ status: failure });
+    const fetch = respond({ status });
+    expect(await deleteShare(link, 5000)).toEqual({ status: failure });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it.each<[number, string]>([
+    [404, 'notFound'],
+    [200, 'rotated'],
+    [422, 'rotated'],
+    [429, 'rateLimited'],
+    [500, 'error'],
+  ])(
+    'after a 404, reads the share once without the token: HTTP %i is %s',
+    async (status, outcome) => {
+      const fetch = respond({ status: 404 }, { status });
+      expect(await deleteShare(link, 5000)).toEqual({ status: outcome });
+
+      expect(fetch).toHaveBeenCalledTimes(2);
+      const [url, init] = fetch.mock.calls[1] as unknown as [string, RequestInit];
+      expect(url).toBe(`/api/share/${SHARE_ID}`);
+      expect(init.method).toBe('GET');
+      expect(new Headers(init.headers).has('x-delete-token')).toBe(false);
+      expect(JSON.stringify(init)).not.toContain(TOKEN);
+      expect(init.cache).toBe('no-store');
+      expect(init.redirect).toBe('error');
+    },
+  );
+
   it('sends nothing for an id that is not a share id', async () => {
-    const fetch = respond(204);
-    expect(await deleteShare({ ...created, id: '../query' }, 5000)).toEqual({
-      status: 'notFound',
-    });
+    const fetch = respond({ status: 204 });
+    expect(await deleteShare({ ...link, id: '../query' }, 5000)).toEqual({ status: 'notFound' });
     expect(fetch).not.toHaveBeenCalled();
   });
 });
@@ -194,41 +268,46 @@ describe('shareFailureMessage', () => {
 });
 
 describe('useShareLinks', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-11-23T08:00:00Z'));
-  });
-  afterEach(() => {
-    vi.useRealTimers();
+  const link = (overrides: Partial<ShareLink> = {}): ShareLink => ({
+    ...body,
+    deadline: NOW + DAY * 1000,
+    timestamp: '2026-11-23 07:59:00',
+    ...overrides,
   });
 
-  it('keeps a created link by result, and forgets it when set to null', () => {
-    const key = shareKey(QUERY_ID, '2026-11-23 07:59:00');
-    useShareLinks.getState().save(key, created);
-    expect(useShareLinks.getState().links[key]).toEqual(created);
+  it('keeps every link created for a query, across its results, until removed', () => {
+    const { add, remove } = useShareLinks.getState();
+    add(QUERY_ID, link());
+    // The query run again (a forced refresh): a later result, another link.
+    add(QUERY_ID, link({ id: 'f'.repeat(32), timestamp: '2026-11-23 08:05:00' }));
+    expect(useShareLinks.getState().links[QUERY_ID].map(l => l.id)).toEqual([
+      SHARE_ID,
+      'f'.repeat(32),
+    ]);
 
-    useShareLinks.getState().save(key, null);
+    remove(QUERY_ID, SHARE_ID);
+    expect(useShareLinks.getState().links[QUERY_ID].map(l => l.id)).toEqual(['f'.repeat(32)]);
+    remove(QUERY_ID, 'f'.repeat(32));
     expect(useShareLinks.getState().links).toEqual({});
   });
 
-  it('keys a result by its query id and the time it ran, so a refreshed result is another', () => {
-    expect(shareKey(QUERY_ID, '2026-11-23 07:59:00')).not.toBe(
-      shareKey(QUERY_ID, '2026-11-23 08:05:00'),
-    );
+  it('replaces a link with the same id, as when its token can no longer delete it', () => {
+    const { add } = useShareLinks.getState();
+    add(QUERY_ID, link());
+    add(QUERY_ID, link({ deleteToken: null }));
+    expect(useShareLinks.getState().links[QUERY_ID]).toEqual([link({ deleteToken: null })]);
   });
 
-  it('drops expired links whenever it saves', () => {
-    const old = shareKey(QUERY_ID, '2026-11-01 00:00:00');
+  it('drops expired links, by their deadline, whenever it changes', () => {
     useShareLinks.setState({
-      links: { [old]: { ...created, expiresAt: '2026-11-23T07:59:59Z' } },
+      links: { [OTHER_QUERY]: [link({ deadline: NOW - 1 })] },
     });
-    const key = shareKey(QUERY_ID, '2026-11-23 07:59:00');
-    useShareLinks.getState().save(key, created);
-    expect(Object.keys(useShareLinks.getState().links)).toEqual([key]);
+    useShareLinks.getState().add(QUERY_ID, link());
+    expect(Object.keys(useShareLinks.getState().links)).toEqual([QUERY_ID]);
   });
 
   it('is kept in memory only, never in web storage', () => {
-    useShareLinks.getState().save(shareKey(QUERY_ID, 't'), created);
+    useShareLinks.getState().add(QUERY_ID, link());
     const stored = [
       ...Object.keys(localStorage).map(k => localStorage.getItem(k)),
       ...Object.keys(sessionStorage).map(k => sessionStorage.getItem(k)),
