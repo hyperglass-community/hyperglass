@@ -39,7 +39,7 @@ import { CopyButton } from './copy-button';
 import { FormattedError } from './formatted-error';
 import { isFetchError, isLGError, isLGOutputOrError, isStackError } from './guards';
 import { ResultHeader } from './header';
-import { RequeryButton } from './requery-button';
+import { RequeryButton, RequeryCountdown, useRequeryCooldown } from './requery-button';
 
 import type { ErrorLevels } from '~/types';
 
@@ -85,6 +85,11 @@ export interface ResultPanelProps {
    * as `Result` does with `FormPath`.
    */
   buttons(state: ResultButtonsState): React.ReactNode;
+  /**
+   * A short line under the header, such as the requery button's countdown. Kept out of the
+   * header's row so it doesn't widen it on narrow screens.
+   */
+  notice?: React.ReactNode;
 }
 
 const AnimatedAccordionItem = motion(AccordionItem);
@@ -151,6 +156,8 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
     },
   );
 
+  const cooldown = useRequeryCooldown(query.requery, query.refreshAt);
+
   if (device === null) {
     const id = `toast-queryLocation-${index}-${queryLocation}`;
     if (!toast.isActive(id)) {
@@ -175,11 +182,18 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
       // error union, and React Query sets `error` to `null` when there is none.
       query={query as ResultQueryState}
       errorLevel={errorLevel}
+      notice={
+        cooldown.until !== null && <RequeryCountdown key={cooldown.until} until={cooldown.until} />
+      }
       buttons={({ copyValue, isQuerying, showPath }) => (
         <>
           {showPath && <FormPath device={device.id} />}
           <CopyButton copyValue={copyValue} isDisabled={isQuerying} />
-          <RequeryButton requery={query.refetch} isDisabled={isQuerying} />
+          <RequeryButton
+            requery={cooldown.requery}
+            announcement={cooldown.announcement}
+            isDisabled={isQuerying}
+          />
         </>
       )}
     />
@@ -190,7 +204,7 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
   props: ResultPanelProps,
   ref,
 ) => {
-  const { index, location, queryTarget, query, errorLevel, buttons } = props;
+  const { index, location, queryTarget, query, errorLevel, buttons, notice } = props;
   const { web, cache, messages } = useConfig();
   const { index: indices, setIndex } = useAccordionContext();
 
@@ -299,7 +313,9 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
       }}
     >
       <AccordionHeaderWrapper>
-        <AccordionButton py={2} w="unset" _hover={{}} _focus={{}} flex="1 0 auto">
+        {/* Shrinks, wrapping a long device name, so the buttons stay in view on a narrow
+        screen instead of widening the row past the results box, which clips it. */}
+        <AccordionButton py={2} w="unset" _hover={{}} _focus={{}} flex="1 1 auto" minW={0}>
           <ResultHeader
             isError={isError}
             loading={isQuerying}
@@ -318,6 +334,11 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
           })}
         </HStack>
       </AccordionHeaderWrapper>
+      {notice && (
+        <Flex px={4} pb={2} justifyContent="flex-end" textAlign="right">
+          {notice}
+        </Flex>
+      )}
       <AccordionPanel
         pb={4}
         overflowX="auto"

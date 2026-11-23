@@ -455,6 +455,89 @@ describe('Result', () => {
       expect(fetch).toHaveBeenCalledTimes(2);
       expect(useFormState.getState().responses.router_one.output).toBe('second');
     });
+
+    it('forces a fresh run when refresh is enabled, then shows the cooldown', async () => {
+      const config = makeConfig({ cache: { refresh: { enable: true } } });
+      const fetch = stubFetch(
+        vi
+          .fn()
+          .mockResolvedValueOnce({
+            json: async () => response({ output: 'first', cached: true, refresh_in: 0 }),
+          })
+          .mockResolvedValueOnce({
+            json: async () => response({ output: 'second', refresh_in: 30 }),
+          }),
+      );
+      const { container } = renderResult({ config });
+      await settled();
+
+      await userEvent.click(actionButtons()[1]);
+      await waitFor(() => expect(container.querySelector('pre')).toHaveTextContent('second'));
+      const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init.body));
+      expect(bodies.map(body => body.force)).toEqual([undefined, true]);
+      // The forced run ran on the device: the new output is the feedback, no countdown yet.
+      expect(screen.queryByText(/^Refresh available in/, { ignore: '[aria-live]' })).toBeNull();
+
+      // A second click within `refresh_in` sends nothing and says how long to wait.
+      await userEvent.click(actionButtons()[1]);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      // The visible countdown, under the header rather than in the row of buttons, so it
+      // doesn't widen that row; the live region announces the same text once.
+      const countdown = screen.getByText(/^Refresh available in (30|29)s$/, {
+        ignore: '[aria-live]',
+      });
+      expect(countdown).toBeVisible();
+      expect(countdown).toHaveAttribute('aria-hidden', 'true');
+      expect(header().parentElement?.contains(countdown)).toBe(false);
+    });
+
+    it('lets the header shrink so the buttons stay in the results box', async () => {
+      // The results box clips its overflow; a header that can't shrink pushed the buttons
+      // out of it on a narrow screen with a long device name.
+      stubFetch(answer(response()));
+      renderResult();
+      await settled();
+
+      const style = getComputedStyle(header());
+      expect(style.flexShrink).toBe('1');
+      expect(style.minWidth).toBe('0px');
+      // A name without break opportunities, such as a long hostname, wraps too.
+      expect(getComputedStyle(screen.getByText('Router One')).overflowWrap).toBe('anywhere');
+    });
+
+    it('shows the cooldown at once when a forced request is answered from the cache', async () => {
+      const config = makeConfig({ cache: { refresh: { enable: true } } });
+      const fetch = stubFetch(
+        vi
+          .fn()
+          .mockResolvedValueOnce({ json: async () => response({ output: 'first', refresh_in: 0 }) })
+          .mockResolvedValueOnce({
+            json: async () => response({ output: 'first', cached: true, refresh_in: 20 }),
+          }),
+      );
+      renderResult({ config });
+      await settled();
+
+      await userEvent.click(actionButtons()[1]);
+
+      expect(
+        await screen.findByText(/^Refresh available in (20|19)s$/, { ignore: '[aria-live]' }),
+      ).toBeVisible();
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not force a run when refresh is disabled', async () => {
+      const fetch = stubFetch(answer(response({ refresh_in: null })));
+      renderResult();
+      await settled();
+
+      await userEvent.click(actionButtons()[1]);
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(header()).toBeEnabled());
+
+      expect('force' in JSON.parse(fetch.mock.calls[1][1].body)).toBe(false);
+      expect(screen.queryByText(/^Refresh available in/)).toBeNull();
+    });
   });
 
   describe('cache indicator', () => {

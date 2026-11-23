@@ -105,6 +105,11 @@ export declare global {
     output: string | AllStructuredResponses;
     format: 'text/plain' | 'application/json';
     enrichment: 'complete' | 'pending' | 'failed';
+    /**
+     * Seconds until a request sent with `force` would run on the device; `null` when
+     * forced refresh is disabled. Only successful responses have it.
+     */
+    refresh_in?: number | null;
   };
 
   type RequiredProps<T> = { [P in keyof T]-?: Exclude<T[P], undefined> };
