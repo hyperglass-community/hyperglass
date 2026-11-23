@@ -52,7 +52,7 @@
     "string-format": "^2.0.0",
     "typescript": "^5.3.3",
     "vest": "^3.2.8",
-    "zustand": "^3.7.2"
+    "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@babel/core": "^7.29.13",

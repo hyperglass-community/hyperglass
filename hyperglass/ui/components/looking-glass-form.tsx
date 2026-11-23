@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import isEqual from 'react-fast-compare';
 import { FormProvider, useForm } from 'react-hook-form';
 import vest, { test, enforce } from 'vest';
+import { useShallow } from 'zustand/react/shallow';
 import {
   DirectiveInfoModal,
   FormField,
@@ -52,8 +53,7 @@ export const LookingGlassForm = (): JSX.Element => {
   const setTarget = useFormState(s => s.setTarget);
   const setFormValue = useFormState(s => s.setFormValue);
   const { form, filtered, selections } = useFormState(
-    useCallback(({ form, filtered, selections }) => ({ form, filtered, selections }), []),
-    isEqual,
+    useShallow(({ form, filtered, selections }) => ({ form, filtered, selections })),
   );
   // The store's own values object, compared by reference, so the mirror below also runs
   // when a reset replaces values that were already empty.

@@ -1,5 +1,5 @@
 import { Accordion } from '@chakra-ui/react';
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
@@ -167,6 +167,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unmount before resetting the store. Testing Library's own cleanup runs after this
+  // hook, and zustand 5 delivers the reset to a mounted `Result` at once: it would query
+  // the emptied form with the real `fetch`, and that request fails during the next test.
+  cleanup();
   useFormState.setState(initialFormState, true);
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
