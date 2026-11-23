@@ -97,7 +97,7 @@ afterEach(() => {
   act(() => {
     useFormState.setState(initialFormState, true);
     useQueryHistory.setState({ entries: [] });
-    useHistoryView.setState({ openId: null, returnFocusId: null });
+    useHistoryView.setState({ openId: null, returnFocusId: null, pending: null });
   });
   localStorage.clear();
   window.history.replaceState(null, '');

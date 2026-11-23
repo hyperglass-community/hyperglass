@@ -93,7 +93,7 @@ afterEach(() => {
   cleanup();
   useFormState.setState(initialFormState, true);
   useQueryHistory.setState({ entries: [] });
-  useHistoryView.setState({ openId: null, returnFocusId: null });
+  useHistoryView.setState({ openId: null, returnFocusId: null, pending: null });
   localStorage.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

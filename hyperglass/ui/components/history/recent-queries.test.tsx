@@ -86,7 +86,7 @@ beforeEach(() => {
 
 afterEach(() => {
   useQueryHistory.setState({ entries: [] });
-  useHistoryView.setState({ openId: null, returnFocusId: null });
+  useHistoryView.setState({ openId: null, returnFocusId: null, pending: null });
   localStorage.clear();
   vi.restoreAllMocks();
 });
@@ -122,7 +122,28 @@ describe('RecentQueries', () => {
     const group = screen.getByRole('group', { name: '2001:db8::/32 Router One, Router Two' });
     expect(rows()[0]).toContainElement(group);
     expect(within(group).getByRole('button', { name: text.historyOpen })).toBeInTheDocument();
+    expect(within(group).getByRole('button', { name: text.historyRerun })).toBeInTheDocument();
+    expect(within(group).getByRole('button', { name: text.historyNewTarget })).toBeInTheDocument();
     expect(within(group).getByRole('button', { name: text.historyDelete })).toBeInTheDocument();
+  });
+
+  it.each([
+    [text.historyRerun, 'rerun'],
+    [text.historyNewTarget, 'newTarget'],
+  ])('hands the query to the form with %s', async (name, mode) => {
+    seed([ipv6, ipv4]);
+    renderList();
+
+    await userEvent.click(await rowButton(rows()[1], name));
+
+    expect(useHistoryView.getState().takeReuse()).toEqual({
+      query: ipv4.query,
+      locations: ipv4.labels.locations,
+      mode,
+    });
+    // The list stays: the form fills in above it.
+    expect(useHistoryView.getState().openId).toBeNull();
+    expect(screen.getByRole('region', { name: text.historyTitle })).toBeInTheDocument();
   });
 
   it.each([
@@ -330,17 +351,21 @@ describe('RecentQueries', () => {
     seed([ipv4]);
     renderList();
     const [row] = rows();
-    await rowButton(row, text.historyOpen);
-    await rowButton(row, text.historyDelete);
+    const order = [text.historyOpen, text.historyRerun, text.historyNewTarget, text.historyDelete];
+    for (const name of order) {
+      await rowButton(row, name);
+    }
 
     await userEvent.tab();
     expect(screen.getByRole('button', { name: text.historyClearAll })).toHaveFocus();
-    await userEvent.tab();
-    expect(within(row).getByRole('button', { name: text.historyOpen })).toHaveFocus();
-    await userEvent.tab();
-    expect(within(row).getByRole('button', { name: text.historyDelete })).toHaveFocus();
+    for (const name of order) {
+      await userEvent.tab();
+      expect(within(row).getByRole('button', { name })).toHaveFocus();
+    }
 
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}{Enter}');
+    expect(useHistoryView.getState().takeReuse()?.mode).toBe('newTarget');
+    await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}{Enter}');
     expect(useHistoryView.getState().openId).toBe('v4');
   });
 
@@ -356,6 +381,8 @@ describe('RecentQueries', () => {
           historyClearConfirm: 'Tout effacer ?',
           historyClearCancel: 'Annuler',
           historySavedAt: 'Enregistrée {time}',
+          historyRerun: 'Relancer',
+          historyNewTarget: 'Nouvelle cible',
         },
       },
     });
@@ -364,6 +391,8 @@ describe('RecentQueries', () => {
     expect(screen.getByRole('heading', { name: 'Requêtes récentes' })).toBeInTheDocument();
     expect(within(rows()[0]).getByRole('button', { name: 'Ouvrir' })).toBeInTheDocument();
     expect(within(rows()[0]).getByRole('button', { name: 'Supprimer' })).toBeInTheDocument();
+    expect(within(rows()[0]).getByRole('button', { name: 'Relancer' })).toBeInTheDocument();
+    expect(within(rows()[0]).getByRole('button', { name: 'Nouvelle cible' })).toBeInTheDocument();
     expect(rows()[0]).toHaveTextContent('Enregistrée');
     await userEvent.click(screen.getByRole('button', { name: 'Tout effacer' }));
     expect(screen.getByRole('group', { name: 'Tout effacer ?' })).toBeInTheDocument();

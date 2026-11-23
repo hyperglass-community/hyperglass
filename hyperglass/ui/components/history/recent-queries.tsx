@@ -10,8 +10,9 @@ function focusTarget(): HTMLElement | null {
 }
 
 /**
- * The queries this browser saved, on the landing page: open one to see its results,
- * delete one, or delete them all after a confirmation.
+ * The queries this browser saved, on the landing page: open one to see its results, fill
+ * the form with one to run it again or with a new target, delete one, or delete them all
+ * after a confirmation.
  *
  * History lives in this browser's storage only, so the page's prerendered markup can't
  * have it. Render it from the client only (`next/dynamic` with `ssr: false`); it also
@@ -23,7 +24,7 @@ export const RecentQueries = (): JSX.Element | null => {
   const entries = useQueryHistory(s => s.entries);
   const { clear, dropUnretained, prune, remove } = useQueryHistory.getState();
   const getDevice = useDevice();
-  const { open } = useHistoryView.getState();
+  const { open, reuse } = useHistoryView.getState();
 
   const [mounted, setMounted] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -173,7 +174,13 @@ export const RecentQueries = (): JSX.Element | null => {
       )}
       <List borderWidth="1px" rounded="lg">
         {entries.map(entry => (
-          <HistoryEntryRow key={entry.id} entry={entry} onOpen={open} onDelete={handleDelete} />
+          <HistoryEntryRow
+            key={entry.id}
+            entry={entry}
+            onOpen={open}
+            onReuse={reuse}
+            onDelete={handleDelete}
+          />
         ))}
       </List>
     </Box>

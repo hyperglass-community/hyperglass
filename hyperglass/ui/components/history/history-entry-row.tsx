@@ -5,11 +5,13 @@ import { DynamicIcon } from '~/elements';
 import { useColorValue, useStrf } from '~/hooks';
 import { formatTimestamp } from '~/util';
 
-import type { HistoryEntry } from '~/hooks';
+import type { HistoryEntry, HistoryReuseMode } from '~/hooks';
 
 interface HistoryEntryRowProps {
   entry: HistoryEntry;
   onOpen(id: string): void;
+  /** Fill the form with the entry's query, and submit it (`rerun`) or not. */
+  onReuse(entry: HistoryEntry, mode: HistoryReuseMode): void;
   onDelete(id: string): void;
 }
 
@@ -41,10 +43,10 @@ const ActionButton = (props: {
 
 /**
  * One saved query in the recent queries list: what it was and when, with buttons to open
- * and delete it.
+ * it, run it again, run it with a new target, and delete it.
  */
 export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
-  const { entry, onOpen, onDelete } = props;
+  const { entry, onOpen, onReuse, onDelete } = props;
   const { web } = useConfig();
   const strF = useStrf();
   const targetId = useId();
@@ -57,11 +59,13 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
       px={3}
       py={2}
       display="flex"
+      flexWrap="wrap"
       alignItems="center"
       borderTopWidth="1px"
       _first={{ borderTopWidth: 0 }}
     >
-      <Box flex="1 1 auto" minW={0} mr={2}>
+      {/* On a phone, the buttons go under the text, which keeps the row's whole width. */}
+      <Box flex={{ base: '1 1 100%', sm: '1 1 0' }} minW={0} mr={{ base: 0, sm: 2 }}>
         <Text fontSize="sm" overflowWrap="anywhere">
           <Text as="span" fontWeight="bold">
             {labels.type}
@@ -91,12 +95,23 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
         aria-labelledby={`${targetId} ${locationsId}`}
         spacing={0}
         flex="0 0 auto"
+        ml="auto"
       >
         <ActionButton
           label={web.text.historyOpen}
           icon="FiEye"
           openId={entry.id}
           onClick={() => onOpen(entry.id)}
+        />
+        <ActionButton
+          label={web.text.historyRerun}
+          icon="FiRepeat"
+          onClick={() => onReuse(entry, 'rerun')}
+        />
+        <ActionButton
+          label={web.text.historyNewTarget}
+          icon="FiEdit"
+          onClick={() => onReuse(entry, 'newTarget')}
         />
         <ActionButton
           label={web.text.historyDelete}
