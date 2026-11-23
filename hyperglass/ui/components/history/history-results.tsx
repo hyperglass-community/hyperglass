@@ -1,54 +1,12 @@
 import { Button, Flex, HStack, Text } from '@chakra-ui/react';
-import { useEffect, useMemo, useRef } from 'react';
-import { Path, ResultPanel, ResultsView, Tags } from '~/components';
-import { CopyButton } from '~/components/results/copy-button';
+import { useEffect, useRef } from 'react';
+import { ReadOnlyResult, ResultsView, Tags } from '~/components';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import { useColorValue, useHistoryView, useQueryHistory, useStrf } from '~/hooks';
 import { formatTimestamp } from '~/util';
 
-import type { ResultQueryState } from '~/components';
-import type { HistoryReuseMode, HistoryResult } from '~/hooks';
-
-interface StoredResultProps {
-  index: number;
-  deviceId: string;
-  result: HistoryResult;
-  queryTarget: string[];
-  displayTarget: string;
-}
-
-/** One saved response, read-only: no request, no polling, no requery. */
-const StoredResult = (props: StoredResultProps): JSX.Element => {
-  const { index, deviceId, result, queryTarget, displayTarget } = props;
-  // Not shown as a cached response: the page shows when it was saved instead.
-  const query = useMemo<ResultQueryState>(
-    () => ({
-      data: { ...result.data, cached: false },
-      error: null,
-      isLoading: false,
-      isFetching: false,
-      isFetchedAfterMount: true,
-    }),
-    [result.data],
-  );
-  return (
-    <ResultPanel
-      index={index}
-      location={{ id: deviceId, name: result.name }}
-      queryTarget={queryTarget}
-      query={query}
-      errorLevel="success"
-      buttons={({ copyValue, showPath }) => (
-        <>
-          {/* Without `onEnriched`, the AS path makes no request. */}
-          {showPath && <Path response={result.data} displayTarget={displayTarget} />}
-          <CopyButton copyValue={copyValue} />
-        </>
-      )}
-    />
-  );
-};
+import type { HistoryReuseMode } from '~/hooks';
 
 /**
  * Close the opened entry. When `Layout` gave it a browser history entry, leave that entry
@@ -175,11 +133,11 @@ export const HistoryResults = (): JSX.Element | null => {
         }
       >
         {deviceIds.map((id, index) => (
-          <StoredResult
+          <ReadOnlyResult
             key={id}
             index={index}
-            deviceId={id}
-            result={results[id]}
+            location={{ id, name: results[id].name }}
+            data={results[id].data}
             queryTarget={query.queryTarget}
             displayTarget={labels.target}
           />
