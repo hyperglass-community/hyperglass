@@ -604,8 +604,8 @@ Text of the Share button on each result and of its popover, shown when [sharing]
 | `web.text.share_delete` | String | `Delete Link` | Button that deletes the link. |
 | `web.text.share_deleted` | String | `Link deleted` | Shown and announced once the link is deleted. |
 | `web.text.share_earlier_link` | String | `Link to the result from {time}` | Label of a link created for an earlier result of the same query, before it ran again (a forced refresh, or after its cache expired). `{time}` is when that result was produced, in the viewer's locale and time zone. |
-| `web.text.share_delete_scope` | String | `You can delete the link from this page until you close or reload it.` | Shown under the links this page can delete. The delete token is kept in the page's memory only. |
-| `web.text.share_delete_rotated` | String | `This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires.` | Shown in place of **Delete Link** when deleting got HTTP 404 but the link still exists: the same client shared the result again from another page or browser, which replaced the token. |
+| `web.text.share_delete_scope` | String | `You can delete the link from this browser, here or under Your shared links, until it expires.` | Shown under the links this browser can delete. The delete token is kept in this browser's storage (`hyperglass.shares`) until the link is deleted, forgotten or expires. |
+| `web.text.share_delete_rotated` | String | `This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.` | Shown in place of **Delete Link** when deleting got HTTP 404 but the link still exists: the same client shared the result again from another page or browser, which replaced the token. |
 | `web.text.share_link_expired` | String | `The link has expired.` | Announced when a link expires while the popover is open. |
 | `web.text.share_minute` | String | `{count} minute` | A time to keep the link of exactly one minute. |
 | `web.text.share_minutes` | String | `{count} minutes` | A time to keep the link in minutes, when it isn't a whole number of hours. `{count}` is the number of minutes, with decimals when it isn't whole. |
@@ -613,6 +613,20 @@ Text of the Share button on each result and of its popover, shown when [sharing]
 | `web.text.share_hours` | String | `{count} hours` | A time to keep the link in hours, when it is a whole number of hours but not of days. |
 | `web.text.share_day` | String | `{count} day` | A time to keep the link of exactly one day. |
 | `web.text.share_days` | String | `{count} days` | A time to keep the link in days, when it is a whole number of days. |
+
+#### Shared Links Text
+
+Text of "Your shared links", the share links created in this browser, and of the share links of saved queries, shown when [sharing](/configuration/config/share#your-shared-links) is enabled. Each link is copied with `web.text.copy_link` and deleted with `web.text.share_delete`; its field is labelled `web.text.share_link`, and its times use `web.text.share_result_time` and `web.text.share_expires`.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.text.shares_title` | String | `Your shared links` | Heading of the list of share links created in this browser. |
+| `web.text.shares_forget` | String | `Forget` | Button that removes a link this browser can no longer delete (its token was replaced) from the list. |
+| `web.text.shares_clear_all` | String | `Forget all` | Button that removes every link from the list, and the button that confirms it. |
+| `web.text.shares_clear_confirm` | String | `Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here.` | Question shown before every link is removed from the list. |
+| `web.text.shares_clear_cancel` | String | `Cancel` | Button that keeps the links. |
+| `web.text.history_shared` | String | `Link shared` | Shown on a saved query whose result has a share link that hasn't expired. |
+| `web.text.history_share_kept` | String | `Deleting saved queries doesn't delete their share links: they stay under Your shared links and keep working until they expire.` | Shown before every saved query is deleted, when any of them has a share link. |
 
 #### BGP/RPKI Status Text
 
@@ -1489,8 +1503,8 @@ web:
     # ({time} in the viewer's time zone), who can delete a link, the note when it
     # was shared again elsewhere, and what is announced when a link expires.
     share_earlier_link: "Link to the result from {time}"
-    share_delete_scope: "You can delete the link from this page until you close or reload it."
-    share_delete_rotated: "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_delete_scope: "You can delete the link from this browser, here or under Your shared links, until it expires."
+    share_delete_rotated: "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
     share_link_expired: "The link has expired."
     share_minute: "{count} minute"
     share_minutes: "{count} minutes"
@@ -1498,6 +1512,15 @@ web:
     share_hours: "{count} hours"
     share_day: "{count} day"
     share_days: "{count} days"
+    # Saved queries whose result has a share link, and "Your shared links", the
+    # links created in this browser.
+    history_shared: "Link shared"
+    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under Your shared links and keep working until they expire."
+    shares_title: "Your shared links"
+    shares_forget: "Forget"
+    shares_clear_all: "Forget all"
+    shares_clear_confirm: "Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here."
+    shares_clear_cancel: "Cancel"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

@@ -108,6 +108,13 @@ interface _Text {
   share_hours: string;
   share_day: string;
   share_days: string;
+  history_shared: string;
+  history_share_kept: string;
+  shares_title: string;
+  shares_forget: string;
+  shares_clear_all: string;
+  shares_clear_confirm: string;
+  shares_clear_cancel: string;
 }
 
 interface _History {

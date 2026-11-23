@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { isShareId } from './use-share';
+
+import type { ShareLink } from './use-share-links';
 
 /** The `localStorage` key of the share links created in this browser. */
 export const SHARES_KEY = 'hyperglass.shares';
@@ -34,18 +36,9 @@ export interface SavedShareLabels {
  * `X-Delete-Token` header of `DELETE /api/share/{id}`, and is `null` once it no longer
  * deletes the link (the result was shared again elsewhere, which replaced it).
  */
-export interface SavedShare {
-  /** The share's id. */
-  id: string;
+export interface SavedShare extends ShareLink {
   /** The `id` of the query response that was shared. */
   queryId: string;
-  /** The `timestamp` of the result that was shared. */
-  timestamp: string;
-  /** When the link stops working, as ISO 8601, by the server's clock. */
-  expiresAt: string;
-  /** When the link stops working, in milliseconds since the epoch by this browser's clock. */
-  deadline: number;
-  deleteToken: string | null;
   /** When the link was saved here, in milliseconds since the epoch. */
   savedAt: number;
   labels: SavedShareLabels;
@@ -209,7 +202,10 @@ function holdsDeadData(now = Date.now()): boolean {
 interface SavedSharesState {
   /** Newest first. */
   links: SavedShare[];
-  /** Keep `share`, replacing a link with its id. A malformed or expired one is not kept. */
+  /**
+   * Keep `share`, newest first, or replace the link with its id in place (keeping when it
+   * was saved), as when its token was replaced. A malformed or expired one is not kept.
+   */
   add(share: SavedShare): void;
   /** Forget link `id`: deleted, gone, or no longer wanted. */
   remove(id: string): void;
@@ -240,7 +236,14 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
       if (!isSavedShare(share) || !isLiveSavedShare(share)) {
         return;
       }
-      save([fields(share), ...storedShares().filter(l => l.id !== share.id)]);
+      const links = storedShares();
+      const existing = links.find(l => l.id === share.id);
+      if (existing === undefined) {
+        save([fields(share), ...links]);
+      } else {
+        const updated = fields({ ...share, savedAt: existing.savedAt });
+        save(links.map(l => (l.id === share.id ? updated : l)));
+      }
     },
 
     remove(id: string): void {
@@ -263,6 +266,31 @@ export const useSavedShares = create<SavedSharesState>()((set, get) => {
 /** The saved links of query response `queryId`, newest first. */
 export function savedSharesFor(links: SavedShare[], queryId: string): SavedShare[] {
   return links.filter(l => l.queryId === queryId);
+}
+
+/** A query's links, and how a Share button keeps and forgets them. */
+export interface SavedShareLinks {
+  links: ShareLink[];
+  onAdd(link: ShareLink): void;
+  onRemove(id: string): void;
+}
+
+/**
+ * The links of query response `queryId` saved in this browser, for its Share button, which
+ * saves the links it creates with `labels` (how "Your shared links" names them).
+ */
+export function useSavedShareLinks(queryId: string, labels: SavedShareLabels): SavedShareLinks {
+  const all = useSavedShares(s => s.links);
+  const add = useSavedShares(s => s.add);
+  const remove = useSavedShares(s => s.remove);
+  const { location, type, target } = labels;
+  const links = useMemo(() => savedSharesFor(all, queryId), [all, queryId]);
+  const onAdd = useCallback(
+    (link: ShareLink) =>
+      add({ ...link, queryId, savedAt: Date.now(), labels: { location, type, target } }),
+    [add, queryId, location, type, target],
+  );
+  return { links, onAdd, onRemove: remove };
 }
 
 /** The longest delay `setTimeout` takes; a longer one fires at once. */

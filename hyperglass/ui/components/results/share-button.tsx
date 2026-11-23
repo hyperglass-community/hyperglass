@@ -19,7 +19,7 @@ import {
   Tooltip,
   useDisclosure,
 } from '@chakra-ui/react';
-import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { forwardRef, useEffect, useId, useRef, useState } from 'react';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import {
@@ -30,13 +30,13 @@ import {
   shareFailureMessage,
   shareLink,
   useColorValue,
-  useShareLinks,
+  useSavedShareLinks,
   useStrf,
 } from '~/hooks';
 import { formatTimestamp } from '~/util';
 
 import type { ButtonProps } from '@chakra-ui/react';
-import type { ShareFailure, ShareLink } from '~/hooks';
+import type { SavedShareLabels, ShareFailure, ShareLink } from '~/hooks';
 
 export interface ShareButtonProps {
   /** The `id` of the query response whose cached result is shared. */
@@ -44,9 +44,8 @@ export interface ShareButtonProps {
   /** The `timestamp` of the result shown: links of other results are earlier ones. */
   timestamp: string;
   /**
-   * The links created for this query in this browser, for this result and earlier ones.
-   * The live results keep them in memory (`ResultShareButton`); a saved history entry can
-   * pass those stored with it.
+   * The links created for this query in this browser, for this result and earlier ones,
+   * as this browser's store of shared links keeps them (`useSavedShareLinks`, #562).
    */
   links: ShareLink[];
   /** Keep a created link, or replace the one with its id (its token dropped). */
@@ -54,6 +53,11 @@ export interface ShareButtonProps {
   /** Forget a link: deleted, gone, or expired. */
   onRemove(id: string): void;
   isDisabled?: boolean;
+  /**
+   * Shown under the message when the server no longer holds the result: for a saved
+   * result, a button that runs its query again.
+   */
+  resultExpiredAction?: React.ReactNode;
 }
 
 /** What the popover's live region announces. */
@@ -205,7 +209,7 @@ const LinkView = (props: LinkViewProps): JSX.Element => {
  * link or the address.
  */
 export const ShareButton = (props: ShareButtonProps): JSX.Element => {
-  const { queryId, timestamp, links, onAdd, onRemove, isDisabled } = props;
+  const { queryId, timestamp, links, onAdd, onRemove, isDisabled, resultExpiredAction } = props;
   const { share: config, web, messages, requestTimeout } = useConfig();
   const strF = useStrf();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -478,6 +482,7 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
                   {shareFailureMessage(failure, messages)}
                 </Alert>
               )}
+              {failure === 'resultExpired' && resultExpiredAction}
               {/* Always rendered, so a screen reader announces the change. */}
               <Text role="status" aria-atomic="true" fontSize="sm">
                 {announcement === 'copied'
@@ -496,25 +501,20 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
   );
 };
 
-/** No links, as one constant: a new array per render would re-render forever. */
-const NO_LINKS: ShareLink[] = [];
-
 interface ResultShareButtonProps {
   /** The response's `id`. */
   queryId: string;
   /** The response's `timestamp`, which tells this result from earlier runs of the query. */
   timestamp: string;
+  /** How "Your shared links" names a link created here. */
+  labels: SavedShareLabels;
   isDisabled?: boolean;
 }
 
-/** The Share button of a live result, whose links are kept in memory for the page. */
+/** The Share button of a live result, whose links are kept in this browser's store. */
 export const ResultShareButton = (props: ResultShareButtonProps): JSX.Element => {
-  const { queryId, timestamp, isDisabled } = props;
-  const links = useShareLinks(s => s.links[queryId] ?? NO_LINKS);
-  const add = useShareLinks(s => s.add);
-  const remove = useShareLinks(s => s.remove);
-  const onAdd = useCallback((link: ShareLink) => add(queryId, link), [queryId, add]);
-  const onRemove = useCallback((id: string) => remove(queryId, id), [queryId, remove]);
+  const { queryId, timestamp, labels, isDisabled } = props;
+  const { links, onAdd, onRemove } = useSavedShareLinks(queryId, labels);
   return (
     <ShareButton
       queryId={queryId}

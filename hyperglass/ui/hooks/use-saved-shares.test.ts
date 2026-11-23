@@ -82,9 +82,13 @@ describe('useSavedShares', () => {
   it('replaces a link with the same id, as when its token was replaced', () => {
     useSavedShares.getState().add(share());
 
-    useSavedShares.getState().add(share({ deleteToken: null }));
+    useSavedShares.getState().add(other);
+    vi.setSystemTime(NOW + 1000);
 
-    expect(stored().links).toEqual([share({ deleteToken: null })]);
+    useSavedShares.getState().add(share({ deleteToken: null, savedAt: NOW + 1000 }));
+
+    // In its place, with the time it was first saved.
+    expect(stored().links).toEqual([other, share({ deleteToken: null })]);
     expect(localStorage.getItem(SHARES_KEY)).not.toContain(TOKEN);
   });
 

@@ -217,8 +217,8 @@ class Text(HyperglassModel):
     # depends on where this browser keeps its token; the note shown when the token no
     # longer deletes it; and what is announced when a link expires while shown.
     share_earlier_link: str = "Link to the result from {time}"  # Formatted by Javascript
-    share_delete_scope: str = "You can delete the link from this page until you close or reload it."
-    share_delete_rotated: str = "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_delete_scope: str = "You can delete the link from this browser, here or under Your shared links, until it expires."
+    share_delete_rotated: str = "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
     share_link_expired: str = "The link has expired."
     share_minute: str = "{count} minute"  # Formatted by Javascript
     share_minutes: str = "{count} minutes"  # Formatted by Javascript
@@ -226,6 +226,24 @@ class Text(HyperglassModel):
     share_hours: str = "{count} hours"  # Formatted by Javascript
     share_day: str = "{count} day"  # Formatted by Javascript
     share_days: str = "{count} days"  # Formatted by Javascript
+    # The mark on a saved query whose result has a live share link, and the note in the
+    # Clear all confirmation that clearing the history doesn't delete share links.
+    history_shared: str = "Link shared"
+    history_share_kept: str = (
+        "Deleting saved queries doesn't delete their share links: they stay under Your "
+        "shared links and keep working until they expire."
+    )
+    # "Your shared links": the links created in this browser, each copied with `copy_link`
+    # and deleted with `share_delete`; `shares_forget` forgets one this browser can no
+    # longer delete, and the rest forget them all after a confirmation.
+    shares_title: str = "Your shared links"
+    shares_forget: str = "Forget"
+    shares_clear_all: str = "Forget all"
+    shares_clear_confirm: str = (
+        "Forget every shared link in this browser? The links keep working until they "
+        "expire, and can no longer be deleted from here."
+    )
+    shares_clear_cancel: str = "Cancel"
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

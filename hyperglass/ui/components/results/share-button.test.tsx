@@ -299,7 +299,7 @@ describe('ShareButton', () => {
         'Anyone with the link can see this result, including the target.',
       );
       expect(dialog).toHaveTextContent(
-        'You can delete the link from this page until you close or reload it.',
+        'You can delete the link from this browser, here or under Your shared links, until it expires.',
       );
       expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ ...created, timestamp: TS }));
       expect(window.location.href).toBe(before);
@@ -594,7 +594,7 @@ describe('ShareButton', () => {
 
       await waitFor(() =>
         expect(screen.getByRole('dialog')).toHaveTextContent(
-          "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires.",
+          "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.",
         ),
       );
       expect(linkField()).toHaveValue(LINK);
@@ -610,7 +610,7 @@ describe('ShareButton', () => {
       expect(read.method).toBe('GET');
       expect(JSON.stringify(read)).not.toContain(TOKEN);
       expect(screen.getByRole('dialog')).not.toHaveTextContent(
-        'You can delete the link from this page until you close or reload it.',
+        'You can delete the link from this browser, here or under Your shared links, until it expires.',
       );
     });
 
