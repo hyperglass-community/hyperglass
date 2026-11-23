@@ -81,3 +81,22 @@ def test_slash_in_id_is_not_a_server_error(client, state, path):
 
     assert response.status_code == 404
     assert set(response.json()) == {"output", "level", "keywords"}
+
+
+def test_other_not_found_errors_keep_400(client, state):
+    """Only a device requested by ID is a 404; query validation errors stay 400."""
+    # Project
+    from hyperglass.exceptions.public import QueryTypeNotFound, QueryLocationNotFound
+
+    assert QueryLocationNotFound(location="nonexistent").status_code == 400
+    assert QueryTypeNotFound(query_type="nonexistent").status_code == 400
+
+    response = client.post(
+        "/api/query",
+        json={
+            "queryLocation": "nonexistent",
+            "queryType": "__hyperglass_frr_bgp_route__",
+            "queryTarget": "2001:db8::/32",
+        },
+    )
+    assert response.status_code == 400
