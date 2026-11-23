@@ -1,10 +1,12 @@
 """hyperglass API."""
 
 # Standard Library
+import typing as t
 import logging
+from pathlib import Path
 
 # Third Party
-from litestar import Litestar
+from litestar import Router, Litestar, Response
 from litestar.openapi import OpenAPIConfig
 from litestar.openapi.spec import Server
 from litestar.exceptions import HTTPException, ValidationException
@@ -37,9 +39,6 @@ from .error_handlers import app_handler, http_handler, default_handler, validati
 __all__ = ("app", "create_app")
 
 STATE = use_state()
-
-UI_DIR = STATE.settings.static_path / "ui"
-IMAGES_DIR = STATE.settings.static_path / "images"
 
 
 DOCS = STATE.params.docs
@@ -79,14 +78,34 @@ if STATE.params.web.dns_provider.name == "server":
 if STATE.params.web.aspath_enrichment:
     HANDLERS.append(aspath_enrich)
 
-if not STATE.settings.disable_ui:
-    HANDLERS = [
-        *HANDLERS,
+
+def same_origin_referrer(response: Response) -> Response:
+    """Tell browsers to send the page's address only to this site.
+
+    A share link carries its id in the page address (`/?share=<id>`), which a browser
+    would otherwise send, in the `Referer` header, to other sites the page loads from or
+    links to.
+    """
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
+
+def ui_routers(static_path: Path) -> t.List[Router]:
+    """Routers serving the built UI and its images from `static_path`."""
+    return [
         create_static_files_router(
-            path="/images", directories=[IMAGES_DIR], name="images", include_in_schema=False
+            path="/images",
+            directories=[static_path / "images"],
+            name="images",
+            include_in_schema=False,
         ),
         create_static_files_router(
-            path="/", directories=[UI_DIR], name="ui", html_mode=True, include_in_schema=False
+            path="/",
+            directories=[static_path / "ui"],
+            name="ui",
+            html_mode=True,
+            include_in_schema=False,
+            after_request=same_origin_referrer,
         ),
     ]
 
@@ -112,6 +131,9 @@ def create_app() -> Litestar:
         )
         route_handlers.append(metrics_controller)
         middleware.append(prometheus_config.middleware)
+
+    if not state.settings.disable_ui:
+        route_handlers.extend(ui_routers(state.settings.static_path))
 
     return Litestar(
         route_handlers=route_handlers,
