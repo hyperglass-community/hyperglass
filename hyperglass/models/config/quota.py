@@ -1,10 +1,16 @@
 """Validation models for request quotas."""
 
+# Standard Library
+import typing as t
+
 # Third Party
-from pydantic import PositiveInt
+from pydantic import Field, PositiveInt
 
 # Local
 from ..main import HyperglassModel
+
+# Seconds in a counting window: at least 1, at most 30 days.
+Window = t.Annotated[int, Field(gt=0, le=2592000)]
 
 
 class RateQuota(HyperglassModel):
@@ -17,7 +23,7 @@ class RateQuota(HyperglassModel):
     client_limit: PositiveInt
     global_limit: PositiveInt
     # Length of the fixed counting window, in seconds.
-    window: PositiveInt
+    window: Window
 
 
 class QueryLimit(RateQuota):
@@ -26,4 +32,4 @@ class QueryLimit(RateQuota):
     enable: bool = False
     client_limit: PositiveInt = 30
     global_limit: PositiveInt = 300
-    window: PositiveInt = 60
+    window: Window = 60

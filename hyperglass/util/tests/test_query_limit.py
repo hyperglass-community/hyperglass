@@ -88,8 +88,8 @@ def device(monkeypatch) -> Device:
     return stub
 
 
-def client(address: str = "192.0.2.10"):
-    """Build a test client for `/api/query`, with the app's error handlers, from `address`."""
+def client(address: str = "192.0.2.10", route: t.Any = None):
+    """Build a test client for `route` (`/api/query`), with the app's error handlers."""
     # Project
     from hyperglass.api.routes import query
     from hyperglass.api.error_handlers import (
@@ -100,7 +100,7 @@ def client(address: str = "192.0.2.10"):
     )
 
     return create_test_client(
-        [query],
+        [route or query],
         request_class=peer(address),
         exception_handlers={
             HTTPException: http_handler,
@@ -137,6 +137,12 @@ def test_limits_must_be_positive():
     for key in ("client_limit", "global_limit", "window"):
         with pytest.raises(ValueError):
             Params(query_limit={key: 0})
+
+
+def test_window_is_bounded():
+    assert Params(query_limit={"window": 2592000}).query_limit.window == 2592000
+    with pytest.raises(ValueError):
+        Params(query_limit={"window": 2592001})
 
 
 def test_query_limit_is_not_sent_to_the_ui():
@@ -284,6 +290,91 @@ def test_other_redis_errors_are_not_swallowed(device, monkeypatch):
     assert device.calls == 0
 
 
+# Counter invariants of the shared quota script.
+
+
+def counter_keys(address: str = "192.0.2.10") -> t.Tuple[str, str]:
+    """Return the global and client counter keys of `/api/query` for `address`."""
+    # Project
+    from hyperglass.api import quota
+
+    class Connection:
+        client = Address(address, 1234)
+        headers: t.Dict[str, str] = {}
+
+    identity = quota.client_identity(Connection(), use_state("params").web.client_ip)
+    return quota._key("query", "global"), quota._key("query", f"client:{identity}")
+
+
+def test_client_identity_is_hashed_per_64():
+    # Project
+    from hyperglass.api.quota import client_identity
+
+    class Connection:
+        headers: t.Dict[str, str] = {}
+
+        def __init__(self, address):
+            self.client = Address(address, 1234)
+
+    first = client_identity(Connection("2001:db8:1:2::1"))
+    assert first == client_identity(Connection("2001:db8:1:2:ffff::9"))
+    assert first != client_identity(Connection("2001:db8:1:3::1"))
+    assert len(first) == 64 and "2001" not in first
+
+
+def test_client_over_limit_leaves_global_counter_unchanged(device):
+    global_key, _ = counter_keys()
+    with client() as test_client:
+        assert statuses(test_client, 4) == [201, 201, 429, 429]
+    assert int(use_state("redis").instance.get(global_key)) == 2
+
+
+def test_global_over_limit_creates_no_client_key(device):
+    for index in range(6):
+        with client(f"198.51.100.{index}") as test_client:
+            test_client.post("/api/query", json=body(f"192.0.2.{index}"))
+    instance = use_state("redis").instance
+    assert instance.exists(counter_keys("198.51.100.4")[1]) == 1
+    assert instance.exists(counter_keys("198.51.100.5")[1]) == 0
+    assert int(instance.get(counter_keys()[0])) == 5
+
+
+def test_later_requests_keep_the_counter_expiry(device):
+    instance = use_state("redis").instance
+    keys = counter_keys()
+    with client() as test_client:
+        statuses(test_client, 1)
+        for key in keys:
+            instance.expire(key, 10)
+        test_client.post("/api/query", json=body("198.51.100.0/24"))
+    assert all(0 < instance.ttl(key) <= 10 for key in keys)
+
+
+def test_counter_without_expiry_gets_one(device):
+    instance = use_state("redis").instance
+    global_key, client_key = counter_keys()
+    instance.set(global_key, 1)
+    instance.set(client_key, 1)
+    with client() as test_client:
+        assert statuses(test_client, 1) == [201]
+    assert all(0 < instance.ttl(key) <= 45 for key in (global_key, client_key))
+
+
+def test_rejected_query_does_not_read_the_cache(device, monkeypatch):
+    # Project
+    from hyperglass.state.redis import RedisManager
+
+    with client() as test_client:
+        statuses(test_client, 2)
+
+        def no_cache(*args, **kwargs):
+            raise AssertionError("the cache was read before the limit was checked")
+
+        monkeypatch.setattr(RedisManager, "get_map", no_cache)
+        response = test_client.post("/api/query", json=body())
+    assert response.status_code == 429
+
+
 # Server lookups keep their quota behaviour.
 
 
@@ -305,14 +396,20 @@ def test_lookup_quota_unchanged(monkeypatch):
             query_limit=LIMIT,
         ),
     )
-    with create_test_client([aspath_enrich]) as test_client:
+    with client(route=aspath_enrich) as test_client:
         first = test_client.post("/api/aspath/enrich", json={"as_path": [13335]})
         second = test_client.post("/api/aspath/enrich", json={"as_path": [13335]})
     assert first.status_code == 201
     assert second.status_code == 429
-    assert second.headers["Retry-After"] == "60"
-    assert second.json()["detail"] == "Lookup rate limit exceeded"
+    # What clients get through the app's `http_handler`, as on main: it answers with the
+    # detail as `output`, and doesn't pass the `Retry-After` header on.
+    assert second.json() == {
+        "output": "Lookup rate limit exceeded",
+        "level": "danger",
+        "keywords": [],
+    }
+    assert "retry-after" not in second.headers
     instance = use_state("redis").instance
-    keys = [key.decode() for key in instance.keys("*aspath*") if b"cache" not in key]
+    keys = [key.decode() for key in instance.keys("*quota*aspath*")]
     assert len(keys) == 2
     assert all(55 < instance.ttl(key) <= 60 for key in keys)

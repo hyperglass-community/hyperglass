@@ -83,9 +83,9 @@ Limits how many queries each client, and all clients together, can send to `POST
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `query_limit.enable` | Boolean | `false` | Count queries and answer those over the limit with HTTP 429. |
-| `query_limit.client_limit` | Integer | `30` | Queries per window from one client: an IPv4 address or an IPv6 /64. |
+| `query_limit.client_limit` | Integer | `30` | Queries per window from one client: an IPv4 address or an IPv6 /64. Each selected location is one query. |
 | `query_limit.global_limit` | Integer | `300` | Queries per window from all clients together. |
-| `query_limit.window` | Integer | `60` | Length of the counting window, in seconds. Also sent as `Retry-After`. |
+| `query_limit.window` | Integer | `60` | Length of the counting window, in seconds, up to 2592000 (30 days). Also sent as `Retry-After`. |
 
 #### Example: Query Rate Limit
 ```yaml filename="config.yaml"
@@ -844,7 +844,9 @@ query_limit:
   # Behind a reverse proxy, set web.client_ip so clients are told apart.
   # Default: false
   enable: false
-  # Queries per window from one IPv4 address or IPv6 /64. Default: 30
+  # Queries per window from one IPv4 address or IPv6 /64. Each location is a
+  # query: a submission with 10 locations sends 10, so the default allows about
+  # three such submissions a minute. Default: 30
   client_limit: 30
   # Queries per window from all clients together. Default: 300
   global_limit: 300

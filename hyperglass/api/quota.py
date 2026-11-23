@@ -26,18 +26,23 @@ if t.TYPE_CHECKING:
     from litestar.connection import ASGIConnection
 
     # Project
+    from hyperglass.models.config.web import ClientIP
     from hyperglass.models.config.params import Params
 
-__all__ = ("query_limit_guard", "quota_identity", "take_quota")
+__all__ = ("client_identity", "query_limit_guard", "quota_identity", "take_quota")
 
 # One atomic fixed window shared by every worker. Check the global budget before
 # allocating a client key, so rotating source addresses cannot create unlimited keys.
+# A request over either budget changes nothing. A counter gets its expiry when it is
+# created, and later requests don't extend it. A counter found without an expiry
+# (`TTL` -1, e.g. one written by hand) gets one, so it can't block a client forever.
 _RATE = """
 local total = tonumber(redis.call('GET', KEYS[1]) or '0')
 local client = tonumber(redis.call('GET', KEYS[2]) or '0')
 if total >= tonumber(ARGV[1]) or client >= tonumber(ARGV[2]) then return 0 end
 for _, key in ipairs(KEYS) do
-    if redis.call('INCR', key) == 1 then redis.call('EXPIRE', key, ARGV[3]) end
+    redis.call('INCR', key)
+    if redis.call('TTL', key) == -1 then redis.call('EXPIRE', key, ARGV[3]) end
 end
 return 1
 """
@@ -62,6 +67,17 @@ def quota_identity(address: str) -> str:
     return str(parsed)
 
 
+def client_identity(connection: "ASGIConnection", client_ip: t.Optional["ClientIP"] = None) -> str:
+    """Return the hashed identity of the connection's client.
+
+    The client is identified by `client_address` (forwarding headers only from trusted
+    proxies, `client_ip` or `web.client_ip`) and `quota_identity` (IPv6 per /64). The
+    result is a SHA-256 hex digest, safe to use in Redis keys and logs.
+    """
+    address = quota_identity(client_address(connection, client_ip))
+    return hashlib.sha256(address.encode()).hexdigest()
+
+
 def _key(feature: str, suffix: str) -> str:
     return f"{use_state('redis').key('quota')}:{feature}:{suffix}"
 
@@ -73,19 +89,19 @@ async def take_quota(
     client_limit: int,
     global_limit: int,
     window: int,
+    client_ip: t.Optional["ClientIP"] = None,
 ) -> bool:
     """Count one request from the connection's client against a feature's quotas.
 
     Returns `False`, without counting the request, when the client or all clients
     together have used the feature's quota for the current window of `window` seconds.
-    The client is identified by `client_address` (forwarding headers only from trusted
-    proxies) and `quota_identity`, and hashed before it is used in a key.
+    The client is identified by `client_identity`; pass `client_ip` when the caller
+    already has `web.client_ip`, to save reading the configuration again.
 
     Redis errors are raised, so each feature decides whether an unreachable Redis lets
     its requests through or refuses them.
     """
-    address = quota_identity(client_address(connection))
-    identity = hashlib.sha256(address.encode()).hexdigest()
+    identity = client_identity(connection, client_ip)
     instance = use_state("redis").instance
     allowed = await asyncio.to_thread(
         instance.eval,
@@ -117,6 +133,7 @@ async def query_limit_guard(request: "Request", params: "Params") -> None:
             client_limit=limit.client_limit,
             global_limit=limit.global_limit,
             window=limit.window,
+            client_ip=params.web.client_ip,
         )
     except REDIS_UNAVAILABLE as error:
         log.bind(error=str(error)).warning("Query rate limit skipped: Redis is unreachable")

@@ -97,6 +97,7 @@ async def lookup_guard(connection: ASGIConnection, handler: BaseRouteHandler) ->
             client_limit=quota.client_limit,
             global_limit=quota.global_limit,
             window=_LOOKUP_WINDOW,
+            client_ip=web.client_ip,
         )
     except RedisError as error:
         raise HTTPException(status_code=503, detail="Lookup service unavailable") from error

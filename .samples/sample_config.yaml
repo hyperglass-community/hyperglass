@@ -83,7 +83,9 @@ query_limit:
   # Behind a reverse proxy, set web.client_ip so clients are told apart.
   # Default: false
   enable: false
-  # Queries per window from one IPv4 address or IPv6 /64. Default: 30
+  # Queries per window from one IPv4 address or IPv6 /64. Each location is a
+  # query: a submission with 10 locations sends 10, so the default allows about
+  # three such submissions a minute. Default: 30
   client_limit: 30
   # Queries per window from all clients together. Default: 300
   global_limit: 300

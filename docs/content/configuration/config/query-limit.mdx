@@ -5,9 +5,9 @@
 | Parameter                  | Type    | Default | Description                                                                 |
 | :------------------------- | :------ | :------ | :-------------------------------------------------------------------------- |
 | `query_limit.enable`       | Boolean | `false` | Count queries and answer those over the limit with HTTP 429.                |
-| `query_limit.client_limit` | Number  | 30      | Queries per window from one client: an IPv4 address or an IPv6 /64.         |
+| `query_limit.client_limit` | Number  | 30      | Queries per window from one client: an IPv4 address or an IPv6 /64. Each selected location is one query. |
 | `query_limit.global_limit` | Number  | 300     | Queries per window from all clients together.                               |
-| `query_limit.window`       | Number  | 60      | Length of the counting window, in seconds. Also sent as `Retry-After`.      |
+| `query_limit.window`       | Number  | 60      | Length of the counting window, in seconds, up to 2592000 (30 days). Also sent as `Retry-After`. |
 
 ### Example
 
@@ -21,6 +21,7 @@ query_limit:
 
 ### What is counted
 
+- Each location is one query. The UI sends one `POST /api/query` per selected location, so a submission with 10 locations uses 10 queries of the client's quota. Size `client_limit` for the number of locations a visitor can select: with the default of 30 and 10 locations, a visitor can submit about three times a minute.
 - Every query that passes validation counts, including queries answered from the cache. Otherwise a client could get past the limit by mixing cached and uncached queries.
 - A request rejected by validation, such as a malformed body, an unknown location or query type, or an invalid target, does not count.
 - Each counter starts with the first query after the previous window ended, and is shared by all workers through Redis. The client and global counters have separate windows.
