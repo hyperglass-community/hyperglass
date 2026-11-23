@@ -23,7 +23,7 @@ class ShareQuota(RateQuota):
 
 
 class ShareReadQuota(RateQuota):
-    """Shares one client, and all clients together, can read in each window."""
+    """Share reads and delete requests from one client, and from all clients, in each window."""
 
     client_limit: PositiveInt = 60
     global_limit: PositiveInt = 1200

@@ -1,6 +1,7 @@
 """Operator commands for share snapshots (#559)."""
 
 # Third Party
+import pytest
 from typer.testing import CliRunner
 
 # Project
@@ -48,6 +49,15 @@ def test_list_skips_an_invalid_snapshot(device):  # noqa: F811
     assert "invalid" in result.output
 
 
+def test_list_shows_an_index_member_that_is_not_an_id(device):  # noqa: F811
+    raw().zadd("hyperglass.share:index", {"garbage": 9999999999})
+
+    result = invoke("list")
+
+    assert result.exit_code == 0, result.output
+    assert "garbage\t(invalid)" in result.output
+
+
 def test_delete(device):  # noqa: F811
     with client() as test_client:
         kept = shared(test_client, "192.0.2.0/24")["id"]
@@ -66,6 +76,19 @@ def test_delete_unknown(device):  # noqa: F811
 
     assert result.exit_code == 1
     assert "not found" in result.output
+
+
+@pytest.mark.parametrize("name", ("index", "stray", "*", "0" * 31))
+def test_delete_refuses_names_that_are_not_share_ids(device, name):  # noqa: F811
+    with client() as test_client:
+        share_id = shared(test_client)["id"]
+    raw().set("hyperglass.share:stray", "x")
+
+    result = invoke("delete", name)
+
+    assert result.exit_code == 1
+    assert index() == [share_id.encode()]
+    assert raw().get("hyperglass.share:stray") == b"x"
 
 
 def test_clear(device):  # noqa: F811

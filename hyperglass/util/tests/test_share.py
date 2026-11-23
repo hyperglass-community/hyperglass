@@ -11,6 +11,7 @@ from litestar import Request
 from litestar.testing import TestClient, create_test_client
 from redis.exceptions import TimeoutError as RedisTimeoutError
 from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import OutOfMemoryError
 from litestar.exceptions import HTTPException, ValidationException
 from litestar.datastructures import Address
 
@@ -687,6 +688,7 @@ def tamper(share_id: str, data: t.Any) -> None:
         lambda data: json.dumps(
             {**data, "results": [{**data["results"][0], "format": "text/html"}]}
         ),
+        lambda data: json.dumps({**data, "results": [{**data["results"][0], "runtime": "3"}]}),
     ),
     ids=(
         "bad-json",
@@ -697,6 +699,8 @@ def tamper(share_id: str, data: t.Any) -> None:
         "extra-result-field",
         "format-mismatch",
         "unknown-format",
+        # Only strict validation refuses this: lax mode would read "3" as 3.
+        "runtime-string",
     ),
 )
 def test_tampered_snapshot_is_not_served(device, change):
@@ -910,6 +914,7 @@ def test_redis_outage_is_503_on_every_route(device, monkeypatch, error):
             ),
         ]
     assert [r.status_code for r in responses] == [503, 503, 503]
+    assert all(r.headers.get("cache-control") == "no-store" for r in responses)
 
 
 def test_redis_outage_while_creating_is_503(device, monkeypatch):
@@ -1017,3 +1022,288 @@ def test_share_metrics(device):
             f"/api/share/{created['id']}", headers={DELETE_HEADER: again["deleteToken"]}
         )
     assert {key: sample(*key) - before[key] for key in expected} == expected
+
+
+# Review follow-ups
+
+
+@pytest.mark.parametrize("name", ("index", "stray", "0" * 31, "0" * 32 + ":x", "*"))
+def test_storage_refuses_names_that_are_not_share_ids(device, name):
+    # Project
+    from hyperglass import share as storage
+
+    with client() as test_client:
+        created = shared(test_client)
+    raw().set("hyperglass.share:stray", "x")
+    instance = raw()
+    assert storage.read_share(instance, name).status == "not_found"
+    assert storage.delete_share(instance, name) is False
+    assert storage.delete_share_with_token(instance, name, created["deleteToken"]) is False
+    assert index() == [created["id"].encode()]
+    assert raw().get("hyperglass.share:stray") == b"x"
+
+
+def test_index_path_is_404(device):
+    with client() as test_client:
+        created = shared(test_client)
+        read = test_client.get("/api/share/index")
+        removed = test_client.delete(
+            "/api/share/index", headers={DELETE_HEADER: created["deleteToken"]}
+        )
+    assert (read.status_code, removed.status_code) == (404, 404)
+    assert index() == [created["id"].encode()]
+
+
+def test_overlong_token_is_not_looked_up(device, monkeypatch):
+    # Project
+    from hyperglass import share as storage
+
+    tokens = []
+    real = storage.delete_share_with_token
+
+    def spy(instance: t.Any, share_id: str, token: str) -> bool:
+        tokens.append(token)
+        return real(instance, share_id, token)
+
+    monkeypatch.setattr(storage, "delete_share_with_token", spy)
+    with client() as test_client:
+        created = shared(test_client)
+        for size in (129, 128):
+            response = test_client.delete(
+                f"/api/share/{created['id']}", headers={DELETE_HEADER: "x" * size}
+            )
+            assert response.status_code == 404
+    assert tokens == ["x" * 128]
+
+
+def test_every_share_response_is_no_store(device):
+    # Three creations pass validation; the fourth is over the quota.
+    configure({"quota": {"client_limit": 3, "global_limit": 100, "window": 60}})
+    with client() as test_client:
+        query_id = run_query(test_client)
+        created = create(test_client, query_id)
+        responses = [
+            created,
+            create(test_client, query_id),
+            test_client.get(f"/api/share/{created.json()['id']}"),
+            test_client.get(f"/api/share/{'0' * 32}"),
+            test_client.post("/api/share", json={}),
+            test_client.post(
+                "/api/share",
+                content=json.dumps({"queryId": query_id}),
+                headers={"Content-Type": "text/plain"},
+            ),
+            test_client.post(
+                "/api/share",
+                content='{"queryId": "' + query_id + '"' + " " * 2000 + "}",
+                headers={"Content-Type": "application/json"},
+            ),
+            create(test_client, "hyperglass.query." + "0" * 64),
+            create(test_client, "hyperglass.query." + "1" * 64),
+            test_client.delete(f"/api/share/{'0' * 32}", headers={DELETE_HEADER: "x"}),
+            test_client.delete(
+                f"/api/share/{created.json()['id']}",
+                headers={DELETE_HEADER: created.json()["deleteToken"]},
+            ),
+        ]
+    statuses = [r.status_code for r in responses]
+    assert statuses == [201, 200, 200, 404, 400, 415, 413, 404, 429, 404, 404]
+    assert [r.headers.get("cache-control") for r in responses] == ["no-store"] * len(responses)
+
+
+def test_body_size_limit(device):
+    with client() as test_client:
+        query_id = run_query(test_client)
+        response = test_client.post(
+            "/api/share",
+            content='{"queryId": "' + query_id + '"' + " " * 1000 + "}",
+            headers={"Content-Type": "application/json"},
+        )
+    assert response.status_code == 413
+    assert index() == []
+
+
+@pytest.mark.parametrize(
+    "content_type", ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data")
+)
+def test_create_requires_json(device, content_type):
+    configure({"quota": {"client_limit": 1, "global_limit": 10, "window": 60}})
+    with client() as test_client:
+        query_id = run_query(test_client)
+        refused = test_client.post(
+            "/api/share",
+            content=json.dumps({"queryId": query_id}),
+            headers={"Content-Type": content_type},
+        )
+        # A refused request doesn't use the client's quota.
+        accepted = create(test_client, query_id)
+    assert refused.status_code == 415
+    assert accepted.status_code == 201
+
+
+def test_share_routes_are_not_in_the_openapi_schema(monkeypatch):
+    with build_app(monkeypatch, enable=True) as test_client:
+        paths = {route.path for route in test_client.app.routes}
+        assert "/api/share" in paths
+        schema = test_client.app.openapi_schema
+    assert "/api/query" in schema.paths
+    assert not any(path.startswith("/api/share") for path in schema.paths)
+
+
+def test_delete_rechecks_the_token_in_the_script(device, monkeypatch):
+    """A token replaced between the comparison and the deletion doesn't delete."""
+    # Project
+    from hyperglass import share as storage
+
+    real = storage.hmac.compare_digest
+
+    def compare_then_replace(a: t.Any, b: t.Any) -> bool:
+        result = real(a, b)
+        raw().hset(f"hyperglass.share:{created['id']}", "token", "f" * 64)
+        return result
+
+    with client() as test_client:
+        created = shared(test_client)
+        monkeypatch.setattr(storage.hmac, "compare_digest", compare_then_replace)
+        response = test_client.delete(
+            f"/api/share/{created['id']}", headers={DELETE_HEADER: created["deleteToken"]}
+        )
+    assert response.status_code == 404
+    assert stored(created["id"])[b"token"] == b"f" * 64
+    assert index() == [created["id"].encode()]
+
+
+def test_share_ids_have_full_entropy(monkeypatch):
+    # Project
+    from hyperglass import share as storage
+
+    sizes = []
+    real = storage.secrets.token_hex
+
+    def spy(nbytes: int) -> str:
+        sizes.append(nbytes)
+        return real(nbytes)
+
+    monkeypatch.setattr(storage.secrets, "token_hex", spy)
+    ids = [storage.new_share_id() for _ in range(256)]
+    assert set(sizes) == {16}
+    assert len(set(ids)) == len(ids)
+    assert all(storage.valid_share_id(share_id) for share_id in ids)
+    # Every position varies: no fixed padding or prefix.
+    assert all(len({share_id[i] for share_id in ids}) > 1 for i in range(32))
+
+
+def full(*_: t.Any, **__: t.Any) -> None:
+    raise OutOfMemoryError("command not allowed when used memory > 'maxmemory'.")
+
+
+async def full_quota(*_: t.Any, **__: t.Any) -> bool:
+    full()
+    return False
+
+
+def test_reads_and_deletes_work_when_redis_is_full(device, monkeypatch):
+    """Under `noeviction` at `maxmemory`, the quota counter can't be written: still serve."""
+    with client() as test_client:
+        created = shared(test_client)
+        monkeypatch.setattr("hyperglass.api.share.take_quota", full_quota)
+        read = test_client.get(f"/api/share/{created['id']}")
+        removed = test_client.delete(
+            f"/api/share/{created['id']}", headers={DELETE_HEADER: created["deleteToken"]}
+        )
+    assert read.status_code == 200
+    assert removed.status_code == 204
+
+
+def test_create_when_redis_is_full_is_503(device, monkeypatch):
+    async def allowed(*_: t.Any, **__: t.Any) -> bool:
+        return True
+
+    with client() as test_client:
+        query_id = run_query(test_client)
+        monkeypatch.setattr("hyperglass.api.share.take_quota", full_quota)
+        over_quota_script = create(test_client, query_id)
+        monkeypatch.setattr("hyperglass.api.share.take_quota", allowed)
+        monkeypatch.setattr(fakeredis.FakeRedis, "eval", full)
+        over_create_script = create(test_client, query_id)
+    for response in (over_quota_script, over_create_script):
+        assert response.status_code == 503
+        assert response.json()["output"] == MESSAGES["share_unavailable"]
+    assert index() == []
+
+
+def test_corrupt_existing_share_is_replaced(device):
+    with client() as test_client:
+        query_id = run_query(test_client)
+        first = create(test_client, query_id).json()
+        tamper(first["id"], "{not json")
+        again = create(test_client, query_id)
+        assert again.status_code == 201
+        second = again.json()
+        assert second["id"] != first["id"]
+        assert test_client.get(f"/api/share/{second['id']}").status_code == 200
+    assert stored(first["id"]) == {}
+    assert index() == [second["id"].encode()]
+
+
+def test_delete_counts_against_the_read_quota(device):
+    configure({"read_quota": {"client_limit": 2, "global_limit": 100, "window": 30}})
+    with client() as test_client:
+        statuses = [
+            test_client.delete(f"/api/share/{'0' * 32}", headers={DELETE_HEADER: "x"}).status_code
+            for _ in range(3)
+        ]
+    assert statuses == [404, 404, 429]
+
+
+def test_cache_entry_has_no_share_fields_when_sharing_is_off(device):
+    configure({"enable": False})
+    with client() as test_client:
+        query_id = run_query(test_client)
+    fields = raw().hkeys(use_state().redis.key(query_id))
+    assert b"output" in fields
+    assert not {b"query", b"labels", b"format", b"runtime", b"result_id"} & set(fields)
+
+
+def test_entries_evicted_by_redis_free_their_place(device):
+    """A share Redis evicted before it expired leaves an index entry; a full store prunes it."""
+    configure({"max_entries": 1})
+    with client() as test_client:
+        first = shared(test_client)["id"]
+        raw().delete(f"hyperglass.share:{first}")
+        second = create(test_client, run_query(test_client, "198.51.100.0/24"))
+    assert second.status_code == 201
+    assert index() == [second.json()["id"].encode()]
+
+
+def test_expired_ids_leave_the_index_on_create(device):
+    """Expired ids are removed by score on every create, not only when the store is full."""
+    with client() as test_client:
+        first = shared(test_client)["id"]
+        raw().delete(f"hyperglass.share:{first}")
+        raw().zadd("hyperglass.share:index", {first: 1})
+        second = shared(test_client, "198.51.100.0/24")["id"]
+    assert index() == [second.encode()]
+
+
+def test_no_key_is_named_from_a_non_id():
+    # Project
+    from hyperglass import share as storage
+
+    for name in ("index", "*", "0" * 31):
+        with pytest.raises(ValueError):
+            storage._key(name)
+
+
+def test_routes_do_not_look_up_non_ids(device, monkeypatch):
+    # Project
+    from hyperglass import share as storage
+
+    looked_up = []
+    monkeypatch.setattr(storage, "read_share", lambda *args: looked_up.append(args))
+    monkeypatch.setattr(storage, "delete_share_with_token", lambda *args: looked_up.append(args))
+    with client() as test_client:
+        read = test_client.get("/api/share/index")
+        removed = test_client.delete("/api/share/index", headers={DELETE_HEADER: "x" * 43})
+    assert (read.status_code, removed.status_code) == (404, 404)
+    assert looked_up == []

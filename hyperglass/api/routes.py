@@ -73,13 +73,22 @@ __all__ = (
 
 
 def _cache_share_fields(
-    pipeline: t.Any, cache_key: str, data: "Query", *, json_output: bool, runtime: int
+    pipeline: t.Any,
+    cache_key: str,
+    data: "Query",
+    *,
+    enabled: bool,
+    json_output: bool,
+    runtime: int,
 ) -> None:
     """Cache what a share copies with the result, so a share copies only server data (#559).
 
-    `result_id` tells this result from a later result of the same query. A share made
-    from this result is recorded on this entry, so it ends with it.
+    Only with `share.enable`: otherwise the cache entry is unchanged. `result_id` tells
+    this result from a later result of the same query. A share made from this result is
+    recorded on this entry, so it ends with it.
     """
+    if not enabled:
+        return
     fields = {
         "query": {
             "location": data.device.id,
@@ -444,7 +453,14 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
             if enrichment_generation is not None:
                 pipeline.set_map_item(cache_key, "enrichment_generation", enrichment_generation)
-            _cache_share_fields(pipeline, cache_key, data, json_output=json_output, runtime=runtime)
+            _cache_share_fields(
+                pipeline,
+                cache_key,
+                data,
+                enabled=params.share.enable,
+                json_output=json_output,
+                runtime=runtime,
+            )
             pipeline.expire(cache_key, expire_in=params.cache.timeout)
 
         _log.bind(cache_timeout=params.cache.timeout).debug("Response cached")

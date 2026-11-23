@@ -92,7 +92,9 @@ _CHANGED, _CREATED, _REUSED, _FULL, _TAKEN = range(5)
 # A cached result that was replaced or has expired since it was copied is not shared
 # (and `HSET` must not recreate it without an expiry). A share this client already made
 # of this result is returned, with a new token hash. Expired ids are removed from the
-# index before it is counted, and a full index refuses the share.
+# index before it is counted. A full index is checked for ids whose share Redis deleted
+# before it expired (a `volatile-*` eviction policy); if it is still full, the share is
+# refused. Nothing that exists is deleted to make room.
 _CREATE = """
 if redis.call('HGET', KEYS[1], 'result_id') ~= ARGV[1] then return {0} end
 local existing = redis.call('HGET', KEYS[1], ARGV[2])
@@ -104,7 +106,12 @@ if existing then
     end
 end
 redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', ARGV[7])
-if redis.call('ZCARD', KEYS[3]) >= tonumber(ARGV[8]) then return {3} end
+if redis.call('ZCARD', KEYS[3]) >= tonumber(ARGV[8]) then
+    for _, id in ipairs(redis.call('ZRANGE', KEYS[3], 0, -1)) do
+        if redis.call('EXISTS', ARGV[9] .. id) == 0 then redis.call('ZREM', KEYS[3], id) end
+    end
+    if redis.call('ZCARD', KEYS[3]) >= tonumber(ARGV[8]) then return {3} end
+end
 if redis.call('EXISTS', KEYS[2]) == 1 then return {4} end
 redis.call('HSET', KEYS[2], 'snapshot', ARGV[4], 'token', ARGV[5])
 redis.call('EXPIREAT', KEYS[2], ARGV[6])
@@ -124,6 +131,9 @@ return 1
 
 
 def _key(share_id: str) -> str:
+    # The callers check the id first; this is the last line before a key is named.
+    if not valid_share_id(share_id):
+        raise ValueError("Not a share id")
     return f"{PREFIX}{share_id}"
 
 
@@ -236,6 +246,7 @@ def create_share(
     client: str,
     token: str,
     max_entries: int,
+    retry: bool = True,
 ) -> Created:
     """Store a snapshot of `result`, or return the share `client` already made of it.
 
@@ -264,7 +275,24 @@ def create_share(
         return Created("created", share_id, expires_at)
     if code == _REUSED:
         existing = reply[1].decode()
-        snapshot = Snapshot.model_validate_json(reply[2])
+        try:
+            snapshot = Snapshot.model_validate_json(reply[2] or b"")
+        except ValidationError:
+            if not retry:
+                raise
+            # A share that can't be read can't be served either: replace it.
+            log.bind(share=existing).error("Stored share is invalid and is replaced")
+            delete_share(instance, existing)
+            return create_share(
+                instance,
+                result,
+                snapshot_json=snapshot_json,
+                expires_at=expires_at,
+                client=client,
+                token=token,
+                max_entries=max_entries,
+                retry=False,
+            )
         return Created("reused", existing, snapshot.expires_at)
     if code == _FULL:
         return Created("full")
@@ -307,6 +335,8 @@ def _parse(fields: t.Dict[bytes, bytes]) -> StoredShare:
 
 def read_share(instance: "Redis", share_id: str) -> StoredShare:
     """Read and validate a stored share. Only a valid snapshot of this version is returned."""
+    if not valid_share_id(share_id):
+        return StoredShare("not_found")
     stored = _parse(instance.hgetall(_key(share_id)))
     if stored.status == "invalid":
         log.bind(share=share_id).error("Stored share is invalid and is not served")
@@ -317,6 +347,8 @@ def read_share(instance: "Redis", share_id: str) -> StoredShare:
 
 def delete_share_with_token(instance: "Redis", share_id: str, token: str) -> bool:
     """Delete a share if `token` is its delete token."""
+    if not valid_share_id(share_id):
+        return False
     stored = instance.hget(_key(share_id), "token")
     # Compare in constant time, also for a missing share, so neither the answer nor its
     # timing tells a wrong token from a missing share.
@@ -330,6 +362,9 @@ def delete_share_with_token(instance: "Redis", share_id: str, token: str) -> boo
 
 def delete_share(instance: "Redis", share_id: str) -> bool:
     """Delete a share whatever its token; for the operator."""
+    # Only a share: never the index or another key under the prefix.
+    if not valid_share_id(share_id):
+        return False
     with instance.pipeline(transaction=True) as pipeline:
         deleted, _ = pipeline.delete(_key(share_id)).zrem(INDEX, share_id).execute()
     return bool(deleted)
@@ -339,10 +374,14 @@ def list_shares(instance: "Redis") -> t.List[t.Tuple[str, StoredShare]]:
     """List live shares, oldest expiry first, after removing expired ids from the index."""
     now, _ = instance.time()
     instance.zremrangebyscore(INDEX, "-inf", now)
-    return [
-        (share_id.decode(), _parse(instance.hgetall(_key(share_id.decode()))))
-        for share_id in instance.zrange(INDEX, 0, -1)
-    ]
+    shares = []
+    for member in instance.zrange(INDEX, 0, -1):
+        share_id = member.decode(errors="replace")
+        if valid_share_id(share_id):
+            shares.append((share_id, _parse(instance.hgetall(_key(share_id)))))
+        else:
+            shares.append((share_id, StoredShare("invalid")))
+    return shares
 
 
 def clear_shares(instance: "Redis") -> int:
