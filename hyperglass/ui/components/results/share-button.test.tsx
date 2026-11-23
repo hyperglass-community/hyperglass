@@ -96,7 +96,12 @@ const Harness = (props: { initial: ShareLink[]; timestamp: string }): JSX.Elemen
       links={links}
       onAdd={link => {
         onAdd(link);
-        setLinks(current => [...current.filter(l => l.id !== link.id), link]);
+        // Newest first, a link with the same id replaced in place, as the store keeps them.
+        setLinks(current =>
+          current.some(l => l.id === link.id)
+            ? current.map(l => (l.id === link.id ? link : l))
+            : [link, ...current],
+        );
       }}
       onRemove={id => {
         onRemove(id);
@@ -738,5 +743,31 @@ describe('ShareButton', () => {
       await open(trigger);
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
+  });
+});
+
+// Links come newest first, as this browser's store keeps them (#562).
+describe('ShareButton link order', () => {
+  it("shows the newest link of the result shown, then the others, newest first", async () => {
+    const id = (c: string) => c.repeat(32);
+    const at = (t: string) => `${window.location.origin}${window.location.pathname}?share=${t}`;
+    const shown = '2026-11-23 08:10:00';
+    const { trigger } = await renderButton({
+      timestamp: shown,
+      initial: [
+        stored({ id: id('a'), timestamp: shown }),
+        stored({ id: id('b'), timestamp: shown }),
+        stored({ id: id('c'), timestamp: LATER }),
+        stored({ id: id('d'), timestamp: TS }),
+      ],
+    });
+
+    await open(trigger);
+
+    expect(linkField()).toHaveValue(at(id('a')));
+    const fields = within(screen.getByRole('dialog'))
+      .getAllByRole('textbox')
+      .map(f => (f as HTMLInputElement).value);
+    expect(fields).toEqual([at(id('a')), at(id('b')), at(id('c')), at(id('d'))]);
   });
 });

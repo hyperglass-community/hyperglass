@@ -45,7 +45,8 @@ export interface ShareButtonProps {
   timestamp: string;
   /**
    * The links created for this query in this browser, for this result and earlier ones,
-   * as this browser's store of shared links keeps them (`useSavedShareLinks`, #562).
+   * newest first, as this browser's store of shared links keeps them (`useSavedShareLinks`,
+   * #562).
    */
   links: ShareLink[];
   /** Keep a created link, or replace the one with its id (its token dropped). */
@@ -120,7 +121,7 @@ interface LinkViewProps {
   onDelete(): void;
 }
 
-/** One link: its field, copy, expiry, and delete while this page has its token. */
+/** One link: its field, copy, expiry, and delete while this browser has its token. */
 const LinkView = (props: LinkViewProps): JSX.Element => {
   const { link, label, fieldRef, busy, disabled, onCopied, onDelete } = props;
   const { web } = useConfig();
@@ -236,9 +237,11 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
   const openRef = useRef(isOpen);
   openRef.current = isOpen;
 
+  // Newest first, as this browser's store keeps them: the newest link of the result shown
+  // is its current one, and the others follow, newest first.
   const live = links.filter(l => isLiveLink(l));
-  const current = [...live].reverse().find(l => l.timestamp === timestamp) ?? null;
-  const earlier = live.filter(l => l !== current).reverse();
+  const current = live.find(l => l.timestamp === timestamp) ?? null;
+  const earlier = live.filter(l => l !== current);
 
   // Forget links when they expire: at once those that have, the next one at its deadline
   // (when that is within `setTimeout`'s range; a later one is caught on a later render).
@@ -348,7 +351,7 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
         setFocusNext('auto');
         return;
       case 'rotated':
-        // Still there, with a token this page doesn't have: keep the link, drop the token.
+        // Still there, with a token this browser doesn't have: keep the link, drop the token.
         onAdd({ ...link, deleteToken: null });
         setFocusNext({ link: link.id });
         return;
