@@ -32,6 +32,7 @@ from hyperglass.models.config.params import Params, APIParams
 from hyperglass.models.config.devices import Devices, APIDevice
 
 # Local
+from .quota import query_limit_guard
 from .state import get_state, get_params, get_devices
 from .tasks import enrich_query_output, send_webhook
 from .client_address import client_address
@@ -317,6 +318,10 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     _log = log.bind(query=data.summary())
     set_query_labels(request, data)
+
+    # After validation, so rejected requests don't count, and before the cache, so
+    # cached answers do: mixing cached and uncached queries can't get past the limit.
+    await query_limit_guard(request, _state.params)
 
     _log.info("Starting query execution")
 

@@ -1,0 +1,49 @@
+## Query Rate Limit
+
+`POST /api/query` needs no authentication, and a query that is not in the cache runs on a device. A client can send any number of queries, and varying the target or query type keeps them out of the cache. `query_limit` limits how many queries each client, and all clients together, can send. It is off by default.
+
+| Parameter                  | Type    | Default | Description                                                                 |
+| :------------------------- | :------ | :------ | :-------------------------------------------------------------------------- |
+| `query_limit.enable`       | Boolean | `false` | Count queries and answer those over the limit with HTTP 429.                |
+| `query_limit.client_limit` | Number  | 30      | Queries per window from one client: an IPv4 address or an IPv6 /64.         |
+| `query_limit.global_limit` | Number  | 300     | Queries per window from all clients together.                               |
+| `query_limit.window`       | Number  | 60      | Length of the counting window, in seconds. Also sent as `Retry-After`.      |
+
+### Example
+
+```yaml filename="config.yaml"
+query_limit:
+    enable: true
+    client_limit: 30
+    global_limit: 300
+    window: 60
+```
+
+### What is counted
+
+- Every query that passes validation counts, including queries answered from the cache. Otherwise a client could get past the limit by mixing cached and uncached queries.
+- A request rejected by validation, such as a malformed body, an unknown location or query type, or an invalid target, does not count.
+- Each counter starts with the first query after the previous window ended, and is shared by all workers through Redis. The client and global counters have separate windows.
+- A query over the limit is not counted and never reaches a device or the cache.
+
+### Over the limit
+
+The query gets HTTP 429 with a `Retry-After` header set to `window`, which is the longest a client waits for its counter to restart. The body has the same shape as other errors, so the UI shows it in the result like any other error:
+
+```json
+{ "output": "Too many requests. Please try again later.", "level": "warning", "keywords": [] }
+```
+
+The text is [`messages.rate_limited`](/configuration/config/messages). With [metrics](/configuration/config/monitoring) enabled, each rejected query counts in `hyperglass_query_errors_total` with `reason="rate_limited"`.
+
+If Redis is unreachable, the limit is not checked and the query goes on. It then gets the 503 that every request gets while Redis is down; the limit does not turn an outage into 429s.
+
+### How clients are identified
+
+A client is the address the request comes from, with IPv6 addresses counted per /64, because a host usually controls its whole /64 and could otherwise multiply its quota by changing addresses. An IPv4 address carried in IPv6 (`::ffff:192.0.2.1`) counts as the IPv4 address. Addresses are hashed before they are stored in Redis.
+
+Behind a reverse proxy or CDN, every request comes from the proxy, so all visitors would share one client quota. List the proxy in `web.client_ip.trusted_proxies`, and set `web.client_ip.header` if a CDN is in front of it, so Hyperglass reads the visitor's address from the forwarding header. Hyperglass reads forwarding headers only from those proxies; a client that connects directly cannot choose its identity with a header. See [Client Address](/configuration/config/web-ui#client-address).
+
+### Other routes
+
+`query_limit` covers `POST /api/query` only, because it is the only route that reaches devices. To limit the other routes (`/api/info`, `/api/devices`, `/api/queries` and the UI's static files), use the rate limiting of your [reverse proxy](/installation/reverse-proxy), such as `limit_req` in NGINX or the third-party `rate_limit` module for Caddy. The server-side lookups `/api/dns` and `/api/aspath/enrich` have their own limits, in `web.server_lookups`.

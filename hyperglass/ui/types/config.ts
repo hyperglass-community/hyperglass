@@ -15,6 +15,7 @@ interface _Messages {
   connection_error: string;
   authentication_error: string;
   no_output: string;
+  rate_limited: string;
 }
 
 interface _ThemeConfig {

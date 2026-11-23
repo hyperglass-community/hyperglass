@@ -452,6 +452,24 @@ def test_invalid_location_counted_without_untrusted_labels(metrics_client):
     assert "attacker-chosen" not in metrics_client.get("/metrics").text
 
 
+def test_rate_limited_query_counted(monkeypatch):
+    labels = {**LABELS, "reason": "rate_limited"}
+    before = sample("hyperglass_query_errors_total", **labels)
+    errors = sample("hyperglass_queries_total", **LABELS, status="error")
+
+    with build_client(
+        monkeypatch,
+        fake_output=True,
+        metrics={"enable": True},
+        query_limit={"enable": True, "client_limit": 1},
+    ) as client:
+        assert client.post("/api/query", json=QUERY).status_code == 201
+        assert client.post("/api/query", json=QUERY).status_code == 429
+
+    assert sample("hyperglass_query_errors_total", **labels) == before + 1
+    assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
+
+
 def test_malformed_request_counted(metrics_client):
     labels = {"device": "unknown", "query_type": "unknown", "reason": "invalid_request"}
     before = sample("hyperglass_query_errors_total", **labels)

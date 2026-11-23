@@ -95,6 +95,7 @@ def app_handler(request: Request, exc: BaseException) -> Response:
     return Response(
         {"output": exc.message, "level": exc.level, "keywords": exc.keywords},
         status_code=exc.status_code,
+        headers=exc.headers,
     )
 
 

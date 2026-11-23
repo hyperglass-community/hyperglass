@@ -231,6 +231,7 @@
     "noOutput": "The query completed, but no matching results were found.",
     "noResponse": "No response.",
     "notFound": "{type} '{name}' not found.",
+    "rateLimited": "Too many requests. Please try again later.",
     "requestTimeout": "Request timed out.",
     "targetNotAllowed": "{target} is not allowed."
   },

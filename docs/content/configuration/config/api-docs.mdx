@@ -12,6 +12,8 @@ Hyperglass generates documentation for the REST API from its OpenAPI schema and 
 
 When `cache.refresh.enable` is `true`, a `POST /api/query` request can set `"force": true` to run the query on the device again instead of answering from the cache. Each successful response's `refresh_in` field gives the seconds until a forced query would run, or `null` when forced refresh is disabled. See [Forced refresh](/configuration/config/caching#forced-refresh).
 
+When `query_limit.enable` is `true`, a `POST /api/query` request over the limit gets HTTP 429 with a `Retry-After` header, in seconds. See [Query Rate Limit](/configuration/config/query-limit).
+
 ### Endpoint Parameters
 
 The `devices`, `info`, `queries` and `query` sections each take a `title`, `description` and `summary` string. `title` is the section heading the endpoint is grouped under, `summary` is shown beside the endpoint path, and `description` is shown in the endpoint's detail. If you set one of these sections, set all three keys.
