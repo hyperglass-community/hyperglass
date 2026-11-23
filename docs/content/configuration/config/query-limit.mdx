@@ -5,9 +5,9 @@
 | Parameter                  | Type    | Default | Description                                                                 |
 | :------------------------- | :------ | :------ | :-------------------------------------------------------------------------- |
 | `query_limit.enable`       | Boolean | `false` | Count queries and answer those over the limit with HTTP 429.                |
-| `query_limit.client_limit` | Number  | 30      | Queries per window from one client: an IPv4 address or an IPv6 /64. Each selected location is one query. |
-| `query_limit.global_limit` | Number  | 300     | Queries per window from all clients together.                               |
-| `query_limit.window`       | Number  | 60      | Length of the counting window, in seconds, up to 2592000 (30 days). Also sent as `Retry-After`. |
+| `query_limit.client_limit` | Integer | 30      | Queries per window from one client: an IPv4 address or an IPv6 /64. Each selected location is one query. |
+| `query_limit.global_limit` | Integer | 300     | Queries per window from all clients together.                               |
+| `query_limit.window`       | Integer | 60      | Length of the counting window, in seconds, up to 2592000 (30 days). Also sent as `Retry-After`. |
 
 ### Example
 
