@@ -386,7 +386,6 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
         isOpen={tooltipOpen && !isOpen}
         onOpen={() => {
           const closed = closedAt.current;
-          closedAt.current = null;
           if (closed !== null && performance.now() - closed < FOCUS_RETURN) {
             return;
           }
