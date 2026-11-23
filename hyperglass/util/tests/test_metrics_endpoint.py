@@ -402,7 +402,8 @@ class TestForcedRefresh:
 
             response = client.post("/api/query", json=self.payload())
 
-        assert response.status_code == 500
+        # Redis being unreachable is temporary, so it is answered with 503.
+        assert response.status_code == 503
         assert len(device) == 1
         assert sample("hyperglass_queries_total", **LABELS, status="success") == successes
         assert sample("hyperglass_queries_total", **LABELS, status="error") == errors + 1
@@ -475,6 +476,80 @@ def test_state_unavailable_counted(metrics_client, monkeypatch):
 
     assert metrics_client.post("/api/query", json=QUERY).status_code == 503
     assert sample("hyperglass_query_errors_total", **labels) == before + 1
+
+
+@pytest.mark.parametrize(
+    ("where", "labels"),
+    [
+        # Redis is unreachable before the query is validated, in the state hook.
+        ("state_hook", {"device": "unknown", "query_type": "unknown"}),
+        # Redis is lost after validation, at the query cache read.
+        ("cache_read", LABELS),
+    ],
+)
+@pytest.mark.parametrize("error", ["connection", "timeout"])
+def test_redis_outage_counted(metrics_client, monkeypatch, where, labels, error):
+    """A query answered with 503 because Redis is unreachable is a failed query."""
+    # Third Party
+    from redis.exceptions import TimeoutError as RedisTimeoutError
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    # Project
+    from hyperglass.state import HyperglassState
+    from hyperglass.state.redis import RedisManager
+    from hyperglass.state.store import STATE_UNAVAILABLE
+
+    exc = {"connection": RedisConnectionError, "timeout": RedisTimeoutError}[error]
+
+    def unreachable(*_, **__):
+        raise exc("Error 111 connecting to redis:6379. Connection refused.")
+
+    async def unreachable_hook(_):
+        unreachable()
+
+    if where == "state_hook":
+        monkeypatch.setattr(HyperglassState, "ensure_ready", unreachable_hook)
+    else:
+        monkeypatch.setattr(RedisManager, "get_map", unreachable)
+    errors = sample("hyperglass_queries_total", **labels, status="error")
+    reason = sample("hyperglass_query_errors_total", **labels, reason="internal_error")
+
+    response = metrics_client.post("/api/query", json={**QUERY, "queryTarget": "2001:db8::/32"})
+
+    assert response.status_code == 503
+    assert response.json()["output"] == STATE_UNAVAILABLE
+    assert sample("hyperglass_queries_total", **labels, status="error") == errors + 1
+    assert sample("hyperglass_query_errors_total", **labels, reason="internal_error") == (
+        reason + 1
+    )
+
+
+def test_redis_down_query_counted(metrics_client):
+    """With every Redis command failing, the error is still recorded and answered with 503.
+
+    Recording the error must not read Redis, or the handler would fail in turn.
+    """
+    # Project
+    from hyperglass.state import use_state
+    from hyperglass.state.store import STATE_UNAVAILABLE
+
+    labels = {"device": "unknown", "query_type": "unknown"}
+    errors = sample("hyperglass_queries_total", **labels, status="error")
+    reason = sample("hyperglass_query_errors_total", **labels, reason="internal_error")
+    server = use_state("redis").instance.connection_pool.connection_kwargs["server"]
+
+    server.connected = False
+    try:
+        response = metrics_client.post("/api/query", json=QUERY)
+    finally:
+        server.connected = True
+
+    assert response.status_code == 503
+    assert response.json()["output"] == STATE_UNAVAILABLE
+    assert sample("hyperglass_queries_total", **labels, status="error") == errors + 1
+    assert sample("hyperglass_query_errors_total", **labels, reason="internal_error") == (
+        reason + 1
+    )
 
 
 def test_non_query_errors_not_counted(metrics_client):

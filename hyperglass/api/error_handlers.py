@@ -123,6 +123,7 @@ def unavailable_handler(request: Request, exc: BaseException) -> Response:
     log.bind(method=request.method, path=request.url.path, detail=str(exc)).critical(
         "Redis Unavailable"
     )
+    record_query_error(request, exc)
     return Response(
         {"output": STATE_UNAVAILABLE, "level": "danger", "keywords": []},
         status_code=503,
