@@ -85,6 +85,13 @@ describe('Shared result page, a result that fails to render', () => {
     const section = await screen.findByRole('region', { name: text.shareTitle }, IMPORT_WAIT);
     expect(await within(section).findByRole('alert')).toHaveTextContent(text.shareError);
     expect(screen.queryByText(/reading 'map'/)).not.toBeInTheDocument();
+    // Nothing from the result that failed: no Run this query, no time of the result.
+    expect(
+      within(section).queryByRole('button', { name: text.shareRunQuery }),
+    ).not.toBeInTheDocument();
+    expect(within(section).queryByText(/^Result from/)).not.toBeInTheDocument();
+    // The link's own expiry stays.
+    expect(within(section).getByText(/^Link expires/)).toBeInTheDocument();
 
     await userEvent.click(within(section).getByRole('button', { name: text.shareNewQuery }));
     expect(await screen.findAllByText('Router One', undefined, IMPORT_WAIT)).not.toHaveLength(0);

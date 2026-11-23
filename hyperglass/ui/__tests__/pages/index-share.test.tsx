@@ -318,6 +318,22 @@ describe('Shared result page', () => {
     expect(urls()).toEqual([`/api/share/${ID}`]);
   });
 
+  it('shows a route whose next hop is on an exchange, as the enrichment stores it', async () => {
+    answer(
+      200,
+      snapshot(bgpResult([route({ next_hop_asn: 'ASIXP', next_hop_org: 'Example IX' })])),
+    );
+    openPage(`/?share=${ID}`);
+
+    const section = await sharedSection();
+    const nextHop = await within(section).findByText('2001:db8::1', undefined, IMPORT_WAIT);
+    expect(within(section).queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.hover(nextHop);
+    expect(await screen.findByRole('tooltip', undefined, IMPORT_WAIT)).toHaveTextContent(
+      'IXP - Example IX',
+    );
+  });
+
   it('shows the targets of a query with several, IPv4 and IPv6', async () => {
     answer(200, snapshot(textResult(['192.0.2.1', '2001:db8::1'])));
     openPage(`/?share=${ID}`);
@@ -330,17 +346,17 @@ describe('Shared result page', () => {
 
   it.each([
     [
-      'a community and an AS path',
+      'a community and an AS name',
       bgpResult(
         [
           route({
             communities: ['<img src="x" onerror="window.pwned=1">', '65000:2,<b>name</b>'],
-            as_path: ['<b>65000</b>' as never, 64999],
+            as_path: [65000, 64999],
           }),
         ],
         { '64999': { name: '<script>window.pwned=1</script>' } },
       ),
-      ['<img src="x" onerror="window.pwned=1">', '<b>65000</b>'],
+      ['<img src="x" onerror="window.pwned=1">', '65000:2 - <b>name</b>'],
     ],
     [
       'a reverse DNS name',

@@ -86,7 +86,9 @@ When the deployment has [sharing](/configuration/config/share) on, each successf
 
 The popover shows the link, ready to copy with **Copy Link** (or to copy yourself from its field when the browser can't), and when it expires. Anyone with the link can see the result, including the target you queried. The link is to this result as it is now: the same output whenever it is opened, until it expires.
 
-**Delete Link** removes the link at once. It works only from the page you created the link on, and only until you close or reload that page: the key that allows it is kept in the page and never stored. Sharing the same result again while it is still cached gives you the same link back, with a new key.
+**Delete Link** removes the link at once. It works only from the page you created the link on, and only until you close or reload that page: the key that allows it is kept in the page and never stored. Sharing the same result again while it is still cached gives you the same link back, with a new key. That new key replaces the old one: if the result was shared again from another page or browser on your network, the first page can no longer delete the link, and says so; the link keeps working until it expires.
+
+When you run the query again, the new result can get its own link. Links you made from the earlier results stay in the popover, labelled with the time of their result, so you can still copy or delete them.
 
 ## Open a shared result
 

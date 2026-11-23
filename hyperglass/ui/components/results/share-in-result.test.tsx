@@ -1,10 +1,11 @@
 import { Accordion } from '@chakra-ui/react';
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
 import { useShareLinks } from '~/hooks/use-share-links';
+import { formatTimestamp } from '~/util';
 import { Result } from './individual';
 
 import type { Config } from '~/types';
@@ -188,6 +189,76 @@ describe('Result Share button', () => {
     expect(shareButton()).toBeInTheDocument();
   });
 
+  it('is disabled while the query runs again', async () => {
+    let release: () => void = () => undefined;
+    let queries = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url !== '/api/query') {
+          return new Response('{}', { status: 404 });
+        }
+        queries += 1;
+        if (queries === 1) {
+          return { ok: true, json: async () => response(), statusText: 'OK' } as Response;
+        }
+        return new Promise<Response>(resolve => {
+          release = () =>
+            resolve({
+              ok: true,
+              json: async () => response({ timestamp: '2026-11-23 08:05:00' }),
+              statusText: 'OK',
+            } as Response);
+        });
+      }),
+    );
+    await renderResult();
+    expect(shareButton()).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Reload Query' }));
+    await waitFor(() => expect(shareButton()).toBeDisabled());
+    await act(async () => release());
+    await waitFor(() => expect(shareButton()).toBeEnabled());
+  });
+
+  it('keeps a link to the result from before a forced refresh reachable', async () => {
+    let queries = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === '/api/share') {
+          return new Response(
+            JSON.stringify({ id: SHARE_ID, expiresAt: '2026-12-23T08:00:00Z', deleteToken: TOKEN }),
+            { status: 201 },
+          );
+        }
+        queries += 1;
+        const timestamp = queries === 1 ? '2026-11-23 08:00:00' : '2026-11-23 08:05:00';
+        return {
+          ok: true,
+          json: async () => response({ timestamp }),
+          statusText: 'OK',
+        } as Response;
+      }),
+    );
+    await renderResult();
+    await userEvent.click(shareButton() as HTMLElement);
+    await userEvent.click(await screen.findByRole('button', { name: 'Create Link' }));
+    await screen.findByRole('textbox', { name: 'Link to this result' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reload Query' }));
+    await waitFor(() => expect(queries).toBe(2));
+    await waitFor(() => expect(shareButton()).toBeEnabled());
+    await userEvent.click(shareButton() as HTMLElement);
+    expect(
+      await screen.findByRole('textbox', {
+        name: `Link to the result from ${formatTimestamp('2026-11-23 08:00:00')}`,
+      }),
+    ).toHaveValue(`${window.location.origin}/?share=${SHARE_ID}`);
+    expect(screen.getByRole('button', { name: 'Create Link' })).toBeInTheDocument();
+  });
+
   it('shares the response by its id, and keeps the link for this page', async () => {
     const fetch = stubFetch();
     await renderResult();
@@ -200,7 +271,11 @@ describe('Result Share button', () => {
     const shares = fetch.mock.calls.filter(([url]) => url === '/api/share');
     expect(shares).toHaveLength(1);
     const [, init] = shares[0] as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn: 2592000 });
+    expect(JSON.parse(init.body as string)).toEqual({
+      queryId: QUERY_ID,
+      timestamp: '2026-11-23 08:00:00',
+      expiresIn: 2592000,
+    });
 
     // Closed and opened again: the same link, without another request.
     await userEvent.keyboard('{Escape}');
