@@ -433,6 +433,14 @@ export const LookingGlassForm = (): JSX.Element => {
         textAlign="left"
         maxW={{ base: '100%', lg: '75%' }}
         onSubmit={handleSubmit(submitHandler)}
+        onKeyDown={event => {
+          // A held Enter repeats its keydown on whatever has focus. After a shared query
+          // fills the form (Run this query), focus moves to Submit while the key may
+          // still be down: only a new press submits, never a repeat.
+          if (event.key === 'Enter' && event.repeat) {
+            event.preventDefault();
+          }
+        }}
       >
         <FormRow>
           <FormField
