@@ -272,6 +272,22 @@ describe('ShareButton', () => {
       expect(keepFor()).toBeInTheDocument();
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     });
+    it('never shows an expired link, even when the parent keeps passing it', async () => {
+      const fetch = stubFetch({ status: 201, body: created });
+      renderWithProviders(
+        <ShareButton
+          queryId={QUERY_ID}
+          share={{ ...created, expiresAt: '2020-01-01T00:00:00Z' }}
+          onChange={onChange}
+        />,
+        { config: enabled() },
+      );
+      await open(screen.getByRole('button', { name: 'Share Result' }));
+      expect(keepFor()).toBeInTheDocument();
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Delete Link' })).not.toBeInTheDocument();
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('copy', () => {
