@@ -55,7 +55,8 @@ const CREATE_FAILURES: Record<number, ShareFailure> = {
   503: 'unavailable',
 };
 
-function isCreatedShare(value: unknown): value is CreatedShare {
+/** Whether `value` has the shape of a created share, as `POST /api/share` returns it. */
+export function isCreatedShare(value: unknown): value is CreatedShare {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -73,13 +74,17 @@ function isCreatedShare(value: unknown): value is CreatedShare {
 
 /**
  * Share the cached result of query response `queryId` for `expiresIn` seconds, with one
- * `POST /api/share`. Only the status of an error response is read: the visitor sees the
- * configured message for it, never the response's text. Nothing is retried.
+ * `POST /api/share`. With the response's `timestamp`, the server shares only that result,
+ * not a newer one the query's cache entry holds once the query has run again (a saved
+ * history entry's result, #562). Only the status of an error response is read: the
+ * visitor sees the configured message for it, never the response's text. Nothing is
+ * retried.
  */
 export async function createShare(
   queryId: string,
   expiresIn: number,
   timeout: number,
+  timestamp?: string,
 ): Promise<CreateShareOutcome> {
   let response: Response;
   try {
@@ -88,7 +93,7 @@ export async function createShare(
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ queryId, expiresIn }),
+        body: JSON.stringify({ queryId, expiresIn, timestamp }),
         cache: 'no-store',
       },
       timeout,

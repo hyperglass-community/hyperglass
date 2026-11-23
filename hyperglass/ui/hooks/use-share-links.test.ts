@@ -56,6 +56,18 @@ describe('createShare', () => {
     expect(init.cache).toBe('no-store');
   });
 
+  it("sends the response's timestamp, when given, for the server to share that result only", async () => {
+    const fetch = respond(201, created);
+    await createShare(QUERY_ID, DAY, 5000, '2026-11-20 08:00:00');
+
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      queryId: QUERY_ID,
+      expiresIn: DAY,
+      timestamp: '2026-11-20 08:00:00',
+    });
+  });
+
   it('takes an existing share (200) as created', async () => {
     respond(200, created);
     expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: 'created', share: created });

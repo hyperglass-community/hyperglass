@@ -1,27 +1,36 @@
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { withDev } from '~/util';
 import { historyStorage } from '~/util/history-storage';
+import { isCreatedShare, isLiveShare } from './use-share-links';
 
 import type { Device } from '~/types';
 import type { FormPrefill } from './use-form-state';
+import type { CreatedShare } from './use-share-links';
 
 /** The `localStorage` key of the query history. */
 export const HISTORY_KEY = 'hyperglass.history';
 
 /**
- * The version of the stored value. Whoever changes the format and adds version 2 must add
- * a `migrate` for version 1, and should stop older code from writing over a value of a
- * higher version: this version deletes another version's value on load (see below) and
- * replaces it on its next save.
+ * The version of the stored value. Version 2 (#562) adds an optional `share` to each
+ * result; version 1 (#556) entries are version 2 entries without one, and are read as
+ * such (see `readStored`).
  *
- * There is deliberately no `migrate` here to quiet zustand's "couldn't be migrated"
- * error for an unknown version: zustand stores the migrated state right away, so a
- * `migrate` would also overwrite a value another tab of another version stores, on that
- * tab's `storage` event.
+ * A value of any other version, older or newer, is deleted on load (see below) and
+ * replaced on the next save. A newer one too: after a downgrade, nothing else would ever
+ * show or delete it, and the history must not keep what the visitor can't see.
+ *
+ * Version 1 is migrated when it is read, not with zustand's `migrate`: zustand stores the
+ * migrated state right away, so a `migrate` would also overwrite a value another tab of
+ * another version stores, on that tab's `storage` event. There is deliberately no
+ * `migrate` to quiet zustand's "couldn't be migrated" error for an unknown version either.
  */
-const HISTORY_VERSION = 1;
+const HISTORY_VERSION = 2;
+
+/** The versions whose stored value this version reads. */
+const READABLE_VERSIONS: readonly unknown[] = [1, HISTORY_VERSION];
 
 /** The query a history entry was submitted with, as sent to `/api/query`. */
 export interface HistoryQuery {
@@ -51,6 +60,11 @@ export interface HistoryResult {
   /** The response's query ID. */
   queryId: string;
   data: QueryResponse;
+  /**
+   * The link created from this result in this browser (#562), with its delete token, so
+   * the visitor can copy or delete it later. Dropped once it has expired.
+   */
+  share?: CreatedShare;
 }
 
 /** One submission of the query form. */
@@ -97,6 +111,15 @@ interface QueryHistoryState {
    * a response. `retains` gets the entry's query and the response's location ID.
    */
   dropUnretained(retains: (query: HistoryQuery, deviceId: string) => boolean): void;
+  /**
+   * Keep `share`, created from the result of location `deviceId` in entry `id`, with that
+   * result; or forget it with `null`. Returns whether it was saved: nothing is saved for
+   * an entry or a result that isn't stored (deleted in another tab, or too large for the
+   * storage) or for a malformed share.
+   */
+  setShare(id: string, deviceId: string, share: CreatedShare | null): boolean;
+  /** Drop the shares that have expired. Writes only when one has. */
+  dropExpiredShares(): void;
 }
 
 /**
@@ -198,8 +221,83 @@ function isHistoryResult(value: unknown): value is HistoryResult {
     isObject(value) &&
     typeof value.name === 'string' &&
     typeof value.queryId === 'string' &&
-    isRenderableResponse(value.data)
+    isRenderableResponse(value.data) &&
+    (value.share === undefined || isCreatedShare(value.share))
   );
+}
+
+/** Whether any result of `entry` has a share that still works at `now`. */
+export function hasLiveShare(entry: HistoryEntry, now: number = Date.now()): boolean {
+  return Object.values(entry.results).some(r => r.share !== undefined && isLiveShare(r.share, now));
+}
+
+/** Whether `result` has a share that is malformed or has expired at `now`. */
+function hasDeadShare(result: unknown, now: number): boolean {
+  if (!isObject(result) || result.share === undefined) {
+    return false;
+  }
+  return !(isCreatedShare(result.share) && isLiveShare(result.share, now));
+}
+
+/**
+ * A stored entry without the shares that are malformed or have expired: the entry is
+ * kept, and a delete token that can no longer delete anything is not.
+ */
+function withoutDeadShares(value: unknown, now: number = Date.now()): unknown {
+  if (!isObject(value) || !isObject(value.results)) {
+    return value;
+  }
+  const results = value.results;
+  if (!Object.values(results).some(r => hasDeadShare(r, now))) {
+    return value;
+  }
+  return {
+    ...value,
+    results: Object.fromEntries(
+      Object.entries(results).map(([deviceId, result]) => {
+        if (!hasDeadShare(result, now)) {
+          return [deviceId, result];
+        }
+        const { share: _, ...rest } = result as Record<string, unknown>;
+        return [deviceId, rest];
+      }),
+    ),
+  };
+}
+
+/** The entries of a stored list this version can show, without dead shares. */
+function readableEntries(entries: unknown[]): HistoryEntry[] {
+  const now = Date.now();
+  return entries.map(e => withoutDeadShares(e, now)).filter(isHistoryEntry);
+}
+
+/**
+ * The share fields of `share` only, or `undefined` for a share that is malformed: what is
+ * stored is what the history checks on reading.
+ */
+function shareFields(share: CreatedShare): CreatedShare | undefined {
+  if (!isCreatedShare(share)) {
+    return undefined;
+  }
+  const { id, expiresAt, deleteToken } = share;
+  return { id, expiresAt, deleteToken };
+}
+
+/**
+ * The result of a location as saved again: it keeps its share when it is the same result
+ * (the same response, updated by enrichment), not when another one replaces it, as a run
+ * of the query again does: the link is to the result it was created from.
+ */
+function replaceResult(previous: HistoryResult | undefined, next: HistoryResult): HistoryResult {
+  const { share: _, ...result } = next;
+  if (
+    previous?.share !== undefined &&
+    previous.data.id === next.data.id &&
+    previous.data.timestamp === next.data.timestamp
+  ) {
+    return { ...result, share: previous.share };
+  }
+  return result;
 }
 
 /**
@@ -239,6 +337,26 @@ interface StoredHistory {
 }
 
 /**
+ * A stored value, parsed, as this version reads it: a version 1 value is read as
+ * version 2, which only adds an optional field.
+ */
+function readStored(value: string): StoredHistory | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  if (!isObject(parsed)) {
+    return null;
+  }
+  if (parsed.version === 1) {
+    return { ...(parsed as unknown as StoredHistory), version: HISTORY_VERSION };
+  }
+  return parsed as unknown as StoredHistory;
+}
+
+/**
  * `persist`'s storage, as JSON. A value that isn't JSON reads as nothing stored, so
  * the store shows no entries rather than keeping the ones it had.
  */
@@ -248,11 +366,7 @@ const jsonStorage: PersistStorage<{ entries: HistoryEntry[] }> = {
     if (value === null) {
       return null;
     }
-    try {
-      return JSON.parse(value);
-    } catch {
-      return null;
-    }
+    return readStored(value);
   },
   setItem(name: string, value: StorageValue<{ entries: HistoryEntry[] }>): void {
     historyStorage.setItem(name, JSON.stringify(value));
@@ -263,15 +377,22 @@ const jsonStorage: PersistStorage<{ entries: HistoryEntry[] }> = {
 };
 
 /**
- * Whether `value` is a stored history this version reads in full: nothing in it is left
- * out when loading.
+ * Whether `value` is a stored history of this version that is read in full: nothing in it
+ * is left out when loading, and it holds no share that is malformed or has expired.
  */
 function isFullyReadable(value: string): boolean {
   try {
     const parsed = JSON.parse(value) as Partial<StoredHistory> | null;
     const entries = parsed?.state?.entries;
+    const now = Date.now();
     return (
-      parsed?.version === HISTORY_VERSION && Array.isArray(entries) && entries.every(isHistoryEntry)
+      parsed?.version === HISTORY_VERSION &&
+      Array.isArray(entries) &&
+      entries.every(
+        e =>
+          isHistoryEntry(e) &&
+          !Object.values((e as HistoryEntry).results).some(r => hasDeadShare(r, now)),
+      )
     );
   } catch {
     return false;
@@ -280,23 +401,24 @@ function isFullyReadable(value: string): boolean {
 
 /**
  * The entries in storage now, which another tab may have changed since this tab last
- * read them. An entry another tab deleted must not come back when this tab saves.
- * Nothing stored, a value that isn't JSON or one stored by another version: no entries.
+ * read them. An entry or a share another tab deleted must not come back when this tab
+ * saves. Nothing stored, a value that isn't JSON or one stored by a version this one
+ * doesn't read: no entries. Expired shares are left out, so every save drops them.
  */
 function storedEntries(): HistoryEntry[] {
   const value = historyStorage.getItem(HISTORY_KEY);
   if (typeof value !== 'string') {
     return [];
   }
-  try {
-    const parsed = JSON.parse(value);
-    if (parsed?.version !== HISTORY_VERSION || !Array.isArray(parsed?.state?.entries)) {
-      return [];
-    }
-    return parsed.state.entries.filter(isHistoryEntry);
-  } catch {
+  const parsed = readStored(value);
+  if (
+    parsed === null ||
+    !READABLE_VERSIONS.includes(parsed.version) ||
+    !Array.isArray(parsed.state?.entries)
+  ) {
     return [];
   }
+  return readableEntries(parsed.state.entries);
 }
 
 export const useQueryHistory = create<QueryHistoryState>()(
@@ -321,7 +443,13 @@ export const useQueryHistory = create<QueryHistoryState>()(
             existing === undefined
               ? { id: submissionId, savedAt: Date.now(), query, labels, results: {} }
               : existing;
-          const updated = { ...entry, results: { ...entry.results, [deviceId]: result } };
+          const updated = {
+            ...entry,
+            results: {
+              ...entry.results,
+              [deviceId]: replaceResult(entry.results[deviceId], result),
+            },
+          };
           // Save only what the history can read back and show.
           if (!isHistoryEntry(updated)) {
             return;
@@ -369,6 +497,54 @@ export const useQueryHistory = create<QueryHistoryState>()(
             });
           }
         },
+
+        setShare(id: string, deviceId: string, share: CreatedShare | null): boolean {
+          const fields = share === null ? undefined : shareFields(share);
+          if (share !== null && fields === undefined) {
+            return false;
+          }
+          // Only an entry as stored: one in this tab's memory only may have been deleted in
+          // another tab, and saving it would bring it back.
+          const entries = storedEntries();
+          const entry = entries.find(e => e.id === id);
+          const result = entry?.results[deviceId];
+          if (entry === undefined || result === undefined) {
+            return false;
+          }
+          const { share: _, ...rest } = result;
+          const updated: HistoryEntry = {
+            ...entry,
+            results: {
+              ...entry.results,
+              [deviceId]: fields === undefined ? rest : { ...rest, share: fields },
+            },
+          };
+          set({ entries: entries.map(e => (e.id === id ? updated : e)) });
+          return true;
+        },
+
+        dropExpiredShares(): void {
+          const now = Date.now();
+          const anyDead = (entries: unknown[]): boolean =>
+            entries.some(
+              e =>
+                isObject(e) &&
+                isObject(e.results) &&
+                Object.values(e.results).some(r => hasDeadShare(r, now)),
+            );
+          // Also when only storage has one, as another tab stored it: this tab's copy
+          // leaves dead shares out on reading.
+          const value = historyStorage.getItem(HISTORY_KEY);
+          const stored = typeof value === 'string' ? readStored(value) : null;
+          const inStorage =
+            stored !== null &&
+            READABLE_VERSIONS.includes(stored.version) &&
+            Array.isArray(stored.state?.entries) &&
+            anyDead(stored.state.entries);
+          if (inStorage || anyDead(get().entries)) {
+            set({ entries: storedEntries() });
+          }
+        },
       }),
       'useQueryHistory',
     ),
@@ -384,12 +560,56 @@ export const useQueryHistory = create<QueryHistoryState>()(
         const entries = isObject(persisted) ? persisted.entries : undefined;
         return {
           ...current,
-          entries: Array.isArray(entries) ? entries.filter(isHistoryEntry) : [],
+          entries: Array.isArray(entries) ? readableEntries(entries) : [],
         };
       },
     },
   ),
 );
+
+/** The longest delay `setTimeout` takes; a longer one fires at once. */
+const MAX_DELAY = 2 ** 31 - 1;
+
+/** When the first of the entries' shares that still work expires, if any. */
+function nextExpiry(entries: HistoryEntry[], now: number): number | null {
+  let next: number | null = null;
+  for (const entry of entries) {
+    for (const result of Object.values(entry.results)) {
+      const at = result.share === undefined ? Number.NaN : Date.parse(result.share.expiresAt);
+      if (at > now && (next === null || at < next)) {
+        next = at;
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * While the history shows (the list or an opened entry), drop the shares that have
+ * expired, with their delete tokens: those already expired (it writes only then), and each
+ * one when it expires, which also removes its mark. An expiry beyond `setTimeout`'s range
+ * is left to a later change.
+ */
+export function useDropExpiredShares(enable: boolean): void {
+  const entries = useQueryHistory(s => s.entries);
+  const dropExpiredShares = useQueryHistory(s => s.dropExpiredShares);
+  // Counts the timer's runs, to check again: a timer can fire a little before the clock
+  // reaches the expiry, and then nothing has expired yet.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!enable || entries.length === 0) {
+      return undefined;
+    }
+    dropExpiredShares();
+    const now = Date.now();
+    const next = nextExpiry(entries, now);
+    if (next === null || next - now > MAX_DELAY) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setTick(t => t + 1), next - now);
+    return () => clearTimeout(timer);
+  }, [enable, entries, dropExpiredShares, tick]);
+}
 
 /**
  * Which entry is open. Kept apart from the entries, so opening and closing one never

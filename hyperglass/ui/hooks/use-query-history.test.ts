@@ -191,13 +191,13 @@ describe('useQueryHistory', () => {
     expect(useHistoryView.getState().openId).toBeNull();
   });
 
-  it(`stores the entries under ${HISTORY_KEY}, version 1`, () => {
+  it(`stores the entries under ${HISTORY_KEY}, version 2`, () => {
     useQueryHistory.getState().record(input(), 10);
     useHistoryView.getState().open('s1');
 
     expect(stored()).toEqual({
       state: { entries: useQueryHistory.getState().entries },
-      version: 1,
+      version: 2,
     });
   });
 
@@ -339,7 +339,7 @@ describe('useQueryHistory rehydration', () => {
   it('reads the stored entries', async () => {
     localStorage.setItem(
       HISTORY_KEY,
-      JSON.stringify({ state: { entries: [entry('b'), entry('a')] }, version: 1 }),
+      JSON.stringify({ state: { entries: [entry('b'), entry('a')] }, version: 2 }),
     );
 
     const store = await freshStore();
@@ -350,20 +350,20 @@ describe('useQueryHistory rehydration', () => {
   it('leaves out stored entries that are malformed', async () => {
     localStorage.setItem(
       HISTORY_KEY,
-      JSON.stringify({ state: { entries: [entry('b'), { id: 'x' }, 'y'] }, version: 1 }),
+      JSON.stringify({ state: { entries: [entry('b'), { id: 'x' }, 'y'] }, version: 2 }),
     );
 
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([entry('b')]);
     // Stored again with only what can be shown, and deleted.
-    expect(stored()).toEqual({ state: { entries: [entry('b')] }, version: 1 });
+    expect(stored()).toEqual({ state: { entries: [entry('b')] }, version: 2 });
   });
 
   it('removes a stored value with nothing it can read', async () => {
     localStorage.setItem(
       HISTORY_KEY,
-      JSON.stringify({ state: { entries: [{ id: 'x' }, withData({ output: 42 })] }, version: 1 }),
+      JSON.stringify({ state: { entries: [{ id: 'x' }, withData({ output: 42 })] }, version: 2 }),
     );
 
     const store = await freshStore();
@@ -383,7 +383,7 @@ describe('useQueryHistory rehydration', () => {
             withData({ format: 'application/json', output: { routes: 'x' } }),
           ],
         },
-        version: 1,
+        version: 2,
       }),
     );
 
@@ -393,7 +393,7 @@ describe('useQueryHistory rehydration', () => {
   });
 
   it('does not read history stored by another version, and removes it', async () => {
-    const newer = JSON.stringify({ state: { entries: [entry('b')], other: 1 }, version: 2 });
+    const newer = JSON.stringify({ state: { entries: [entry('b')], other: 1 }, version: 3 });
     localStorage.setItem(HISTORY_KEY, newer);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
@@ -414,7 +414,7 @@ describe('useQueryHistory rehydration', () => {
   });
 
   it('leaves a readable stored value as it is', async () => {
-    const value = JSON.stringify({ state: { entries: [entry('b')] }, version: 1 });
+    const value = JSON.stringify({ state: { entries: [entry('b')] }, version: 2 });
     localStorage.setItem(HISTORY_KEY, value);
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
 
@@ -427,7 +427,7 @@ describe('useQueryHistory rehydration', () => {
   it("does not read hyperglass-ng's history", async () => {
     localStorage.setItem(
       'hyperglass.queryHistory',
-      JSON.stringify({ state: { entries: [entry('old')] }, version: 1 }),
+      JSON.stringify({ state: { entries: [entry('old')] }, version: 2 }),
     );
 
     const store = await freshStore();
@@ -460,7 +460,7 @@ describe("useQueryHistory and hyperglass-ng's history", () => {
   });
 
   it('leaves the other keys alone', async () => {
-    const current = JSON.stringify({ state: { entries: [entry('b')] }, version: 1 });
+    const current = JSON.stringify({ state: { entries: [entry('b')] }, version: 2 });
     const greeting = JSON.stringify({ state: { ack: true }, version: 0 });
     localStorage.setItem(FORK_KEY, forkHistory);
     localStorage.setItem(HISTORY_KEY, current);
@@ -512,7 +512,7 @@ describe('useQueryHistory across tabs', () => {
   beforeEach(() => {
     localStorage.setItem(
       HISTORY_KEY,
-      JSON.stringify({ state: { entries: [entry('b'), entry('a')] }, version: 1 }),
+      JSON.stringify({ state: { entries: [entry('b'), entry('a')] }, version: 2 }),
     );
   });
 
@@ -572,7 +572,7 @@ describe('useQueryHistory across tabs', () => {
   it('does not remove a value another tab stores under another version', async () => {
     const two = await tab();
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const newer = JSON.stringify({ state: { entries: [entry('b')] }, version: 2 });
+    const newer = JSON.stringify({ state: { entries: [entry('b')] }, version: 3 });
 
     localStorage.setItem(HISTORY_KEY, newer);
     window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
@@ -585,12 +585,12 @@ describe('useQueryHistory across tabs', () => {
     const two = await tab();
     localStorage.setItem(
       HISTORY_KEY,
-      JSON.stringify({ state: { entries: [entry('newer')] }, version: 2 }),
+      JSON.stringify({ state: { entries: [entry('newer')] }, version: 3 }),
     );
 
     two.getState().record(input({ submissionId: 'c' }), 10);
 
-    expect(stored()).toEqual({ state: { entries: two.getState().entries }, version: 1 });
+    expect(stored()).toEqual({ state: { entries: two.getState().entries }, version: 2 });
     expect(two.getState().entries.map(e => e.id)).toEqual(['c']);
   });
 
@@ -773,5 +773,350 @@ describe('historyPrefill', () => {
   it('has no target unless the query had exactly one', () => {
     expect(historyPrefill({ ...query, queryTarget: [] }, getDevice).queryTarget).toBeNull();
     expect(historyPrefill({ ...query, queryTarget: ['a', 'b'] }, getDevice).queryTarget).toBeNull();
+  });
+});
+
+// A share created from a saved result (#562): its id, expiry and delete token are kept
+// with the result, where the visitor sees the link and can delete it.
+describe('useQueryHistory shares', () => {
+  const TOKEN = 'h1st0ry-d3l3t3-t0k3n_n0t-1n-th3-url-0r-l0gs-x';
+  const live = {
+    id: '00112233445566778899aabbccddeeff',
+    expiresAt: '2026-12-21T10:00:00Z',
+    deleteToken: TOKEN,
+  };
+  const expired = {
+    ...live,
+    id: 'ffeeddccbbaa99887766554433221100',
+    expiresAt: '2026-11-21T09:59:59Z',
+  };
+
+  function shared(id: string, share: unknown = live): HistoryEntry {
+    const value = entry(id);
+    return {
+      ...value,
+      results: { router_one: { ...value.results.router_one, share } },
+    } as HistoryEntry;
+  }
+
+  function seedStorage(entries: unknown[], version = 2): void {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify({ state: { entries }, version }));
+  }
+
+  async function freshStore() {
+    vi.resetModules();
+    return (await import('./use-query-history')).useQueryHistory;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('setShare', () => {
+    it("stores a share with the saved result, and only the share's fields", () => {
+      useQueryHistory.getState().record(input(), 10);
+
+      useQueryHistory.getState().setShare('s1', 'router_one', { ...live, other: 'x' } as never);
+
+      expect(useQueryHistory.getState().entries[0].results.router_one.share).toEqual(live);
+      expect(stored().state.entries[0].results.router_one.share).toEqual(live);
+    });
+
+    it('forgets the share with null', () => {
+      useQueryHistory.getState().record(input(), 10);
+      useQueryHistory.getState().setShare('s1', 'router_one', live);
+
+      useQueryHistory.getState().setShare('s1', 'router_one', null);
+
+      expect(useQueryHistory.getState().entries[0].results.router_one).not.toHaveProperty('share');
+      expect(localStorage.getItem(HISTORY_KEY)).not.toContain(TOKEN);
+    });
+
+    it('keeps the shares of the other results', () => {
+      useQueryHistory.getState().record(input(), 10);
+      const two = { name: 'Router Two', queryId: 'beef', data: response({ id: 'beef' }) };
+      useQueryHistory.getState().record(input({ deviceId: 'router_two', result: two }), 10);
+      const other = { ...live, id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' };
+
+      useQueryHistory.getState().setShare('s1', 'router_one', live);
+      useQueryHistory.getState().setShare('s1', 'router_two', other);
+
+      const { results } = stored().state.entries[0];
+      expect(results.router_one.share).toEqual(live);
+      expect(results.router_two.share).toEqual(other);
+    });
+
+    it.each([
+      ['an entry that is not saved', 'nope', 'router_one'],
+      ['a location the entry has no result for', 's1', 'router_two'],
+    ])('saves nothing for %s', (_, id, deviceId) => {
+      useQueryHistory.getState().record(input(), 10);
+      const before = localStorage.getItem(HISTORY_KEY);
+
+      useQueryHistory.getState().setShare(id, deviceId, live);
+
+      expect(localStorage.getItem(HISTORY_KEY)).toBe(before);
+    });
+
+    it('does not keep a share that is malformed', () => {
+      useQueryHistory.getState().record(input(), 10);
+
+      useQueryHistory.getState().setShare('s1', 'router_one', { ...live, id: '../x' });
+
+      expect(stored().state.entries[0].results.router_one).not.toHaveProperty('share');
+    });
+
+    it('saves nothing for an entry storage could not hold, and says so', () => {
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      });
+      useQueryHistory.getState().record(input(), 10);
+
+      const saved = useQueryHistory.getState().setShare('s1', 'router_one', live);
+
+      expect(saved).toBe(false);
+      expect(useQueryHistory.getState().entries[0].results.router_one).not.toHaveProperty('share');
+    });
+
+    it('says when it saved', () => {
+      useQueryHistory.getState().record(input(), 10);
+
+      expect(useQueryHistory.getState().setShare('s1', 'router_one', live)).toBe(true);
+      expect(useQueryHistory.getState().setShare('s1', 'router_one', null)).toBe(true);
+      expect(useQueryHistory.getState().setShare('nope', 'router_one', live)).toBe(false);
+    });
+  });
+
+  describe('record', () => {
+    it('keeps the share when the same result is saved again, as enrichment does', () => {
+      useQueryHistory.getState().record(input(), 10);
+      useQueryHistory.getState().setShare('s1', 'router_one', live);
+      const enriched = response({ enrichment: 'complete', output: 'enriched' });
+
+      useQueryHistory
+        .getState()
+        .record(input({ result: { name: 'Router One', queryId: 'c0ffee', data: enriched } }), 10);
+
+      const result = stored().state.entries[0].results.router_one;
+      expect(result.data.output).toBe('enriched');
+      expect(result.share).toEqual(live);
+    });
+
+    it('drops the share when another result replaces it: the link is not to that result', () => {
+      useQueryHistory.getState().record(input(), 10);
+      useQueryHistory.getState().setShare('s1', 'router_one', live);
+      const newer = response({ timestamp: '2026-11-21 09:00:00' });
+
+      useQueryHistory
+        .getState()
+        .record(input({ result: { name: 'Router One', queryId: 'c0ffee', data: newer } }), 10);
+
+      expect(stored().state.entries[0].results.router_one).not.toHaveProperty('share');
+    });
+  });
+
+  describe('expired shares', () => {
+    it('are dropped with every change', () => {
+      useQueryHistory.getState().record(input({ submissionId: 'a' }), 10);
+      useQueryHistory.getState().setShare('a', 'router_one', live);
+      vi.setSystemTime(new Date('2026-12-21T10:00:01Z'));
+
+      useQueryHistory.getState().record(input({ submissionId: 'b' }), 10);
+
+      expect(localStorage.getItem(HISTORY_KEY)).not.toContain(TOKEN);
+      expect(useQueryHistory.getState().entries[1].results.router_one).not.toHaveProperty('share');
+    });
+
+    it('are dropped by dropExpiredShares, which writes only when one has expired', () => {
+      useQueryHistory.getState().record(input(), 10);
+      useQueryHistory.getState().setShare('s1', 'router_one', live);
+      const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+      useQueryHistory.getState().dropExpiredShares();
+      expect(setItem).not.toHaveBeenCalled();
+
+      vi.setSystemTime(new Date('2026-12-21T10:00:00Z'));
+      useQueryHistory.getState().dropExpiredShares();
+
+      expect(setItem).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem(HISTORY_KEY)).not.toContain(TOKEN);
+      expect(stored().state.entries.map(e => e.id)).toEqual(['s1']);
+    });
+  });
+
+  it.each([
+    ['deleting the entry', () => useQueryHistory.getState().remove('s1')],
+    ['clearing the history', () => useQueryHistory.getState().clear()],
+  ])("forgets the token when %s, and doesn't delete the link", (_, change) => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    useQueryHistory.getState().record(input(), 10);
+    useQueryHistory.getState().setShare('s1', 'router_one', live);
+
+    change();
+
+    expect(localStorage.getItem(HISTORY_KEY) ?? '').not.toContain(TOKEN);
+    expect(JSON.stringify(useQueryHistory.getState().entries)).not.toContain(TOKEN);
+    expect(fetch).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  describe('isHistoryEntry', () => {
+    it('accepts a result with a share', () => {
+      expect(isHistoryEntry(shared('a'))).toBe(true);
+    });
+
+    it.each([
+      ['null', null],
+      ['an id that is not a share id', { ...live, id: '../../api/query' }],
+      ['no token', { id: live.id, expiresAt: live.expiresAt }],
+      ['an empty token', { ...live, deleteToken: '' }],
+      ['an expiry that is not a time', { ...live, expiresAt: 'soon' }],
+    ])('rejects a share that is %s', (_, share) => {
+      expect(isHistoryEntry(shared('a', share))).toBe(false);
+    });
+  });
+
+  describe('on load', () => {
+    it('reads a stored share, and leaves the value as it is', async () => {
+      seedStorage([shared('a')]);
+      const value = localStorage.getItem(HISTORY_KEY);
+      const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+      const store = await freshStore();
+
+      expect(store.getState().entries[0].results.router_one.share).toEqual(live);
+      expect(setItem).not.toHaveBeenCalled();
+      expect(localStorage.getItem(HISTORY_KEY)).toBe(value);
+    });
+
+    it('drops an expired share, keeps its entry, and stores the history again without it', async () => {
+      seedStorage([shared('a', expired), shared('b')]);
+
+      const store = await freshStore();
+
+      const [a, b] = store.getState().entries;
+      expect(a.results.router_one).not.toHaveProperty('share');
+      expect(b.results.router_one.share).toEqual(live);
+      expect(stored().state.entries[0].results.router_one).not.toHaveProperty('share');
+      expect(localStorage.getItem(HISTORY_KEY)).toContain(TOKEN);
+      expect(localStorage.getItem(HISTORY_KEY)).not.toContain(expired.id);
+    });
+
+    it('drops a malformed share and keeps its entry', async () => {
+      seedStorage([shared('a', { id: 'x', deleteToken: 42 })]);
+
+      const store = await freshStore();
+
+      expect(store.getState().entries.map(e => e.id)).toEqual(['a']);
+      expect(stored().state.entries[0].results.router_one).not.toHaveProperty('share');
+    });
+  });
+
+  // Version 1 (#556) stored the same entries, without shares.
+  describe('migration from version 1', () => {
+    it('reads version 1 entries and stores them as version 2', async () => {
+      seedStorage([entry('b'), entry('a')], 1);
+
+      const store = await freshStore();
+
+      expect(store.getState().entries).toEqual([entry('b'), entry('a')]);
+      expect(stored()).toEqual({ state: { entries: [entry('b'), entry('a')] }, version: 2 });
+    });
+
+    it('leaves out malformed version 1 entries', async () => {
+      seedStorage([entry('b'), { id: 'x' }], 1);
+
+      const store = await freshStore();
+
+      expect(store.getState().entries).toEqual([entry('b')]);
+      expect(stored()).toEqual({ state: { entries: [entry('b')] }, version: 2 });
+    });
+
+    it('starts from version 1 entries another tab stored when saving', async () => {
+      const store = await freshStore();
+      seedStorage([entry('a')], 1);
+
+      store.getState().record(input({ submissionId: 'b' }), 10);
+
+      expect(stored().version).toBe(2);
+      expect(stored().state.entries.map(e => e.id)).toEqual(['b', 'a']);
+    });
+
+    it('shows the version 1 entries another tab stores', async () => {
+      const store = await freshStore();
+
+      seedStorage([entry('a')], 1);
+      window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
+      await vi.waitFor(() => expect(store.getState().entries.map(e => e.id)).toEqual(['a']));
+    });
+  });
+
+  describe('across tabs', () => {
+    it('shows a share another tab created', async () => {
+      seedStorage([entry('a')]);
+      const one = await freshStore();
+      const two = await freshStore();
+
+      one.getState().setShare('a', 'router_one', live);
+      window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
+
+      await vi.waitFor(() =>
+        expect(two.getState().entries[0].results.router_one.share).toEqual(live),
+      );
+    });
+
+    it('does not bring back a share another tab deleted when saving', async () => {
+      seedStorage([shared('a')]);
+      const one = await freshStore();
+      const two = await freshStore();
+
+      one.getState().setShare('a', 'router_one', null);
+      two.getState().record(input({ submissionId: 'c' }), 10);
+
+      expect(localStorage.getItem(HISTORY_KEY)).not.toContain(TOKEN);
+    });
+
+    it('does not undo a share another tab created when saving', async () => {
+      seedStorage([entry('a')]);
+      const one = await freshStore();
+      const two = await freshStore();
+
+      one.getState().setShare('a', 'router_one', live);
+      two.getState().record(input({ submissionId: 'c' }), 10);
+
+      expect(stored().state.entries[1].results.router_one.share).toEqual(live);
+    });
+
+    it('does not bring back an entry another tab deleted when sharing', async () => {
+      seedStorage([entry('a'), entry('b')]);
+      const one = await freshStore();
+      const two = await freshStore();
+
+      one.getState().remove('b');
+      two.getState().setShare('a', 'router_one', live);
+
+      expect(stored().state.entries.map(e => e.id)).toEqual(['a']);
+    });
+  });
+});
+
+describe('hasLiveShare', () => {
+  it('tells whether any of an entry results has a live share', async () => {
+    const { hasLiveShare } = await import('./use-query-history');
+    const value = entry('a');
+    const withShare = (expiresAt: string): HistoryEntry => ({
+      ...value,
+      results: {
+        router_one: {
+          ...value.results.router_one,
+          share: { id: '0'.repeat(32), expiresAt, deleteToken: 't' },
+        },
+      },
+    });
+
+    expect(hasLiveShare(value)).toBe(false);
+    expect(hasLiveShare(withShare('2026-11-21T10:00:01Z'))).toBe(true);
+    expect(hasLiveShare(withShare('2026-11-21T10:00:00Z'))).toBe(false);
   });
 });
