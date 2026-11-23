@@ -200,7 +200,14 @@ afterEach(() => {
   // A delete token is never logged.
   for (const spy of consoleSpies) {
     for (const args of spy.mock.calls) {
-      expect(JSON.stringify(args.map(String))).not.toContain(TOKEN);
+      const text = args.map((arg: unknown) => {
+        try {
+          return typeof arg === 'string' ? arg : JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      });
+      expect(text.join(' ')).not.toContain(TOKEN);
     }
   }
   useQueryHistory.setState({ entries: [] });
