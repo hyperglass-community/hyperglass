@@ -311,6 +311,9 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     # Initialize cache
     cache = _state.redis
+    # Each read of `_state.params` deserializes it from Redis: read it once, so nothing
+    # reads Redis after the query is recorded as a success (#582).
+    params = _state.params
 
     # Use hashed `data` string as key for for k/v cache store so
     # each command output value is unique.
@@ -321,7 +324,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     # After validation, so rejected requests don't count, and before the cache, so
     # cached answers do: mixing cached and uncached queries can't get past the limit.
-    await query_limit_guard(request, _state.params)
+    await query_limit_guard(request, params)
 
     _log.info("Starting query execution")
 
@@ -330,7 +333,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     if (
         cache_response
         and cached_enrichment_status is None
-        and _state.params.structured.is_async_enrichment_enabled(cache_response)
+        and params.structured.is_async_enrichment_enabled(cache_response)
     ):
         _log.bind(cache_key=cache_key).debug(
             "Discarding legacy cache entry without enrichment state"
@@ -340,7 +343,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     # A forced query runs again only when no other request's forced run of it holds the
     # lease and no cooldown is running; otherwise it is answered from the cache.
-    refresh = ForcedRefresh(cache, cache_key, _state.params)
+    refresh = ForcedRefresh(cache, cache_key, params)
     cache_response = refresh.check(cache_response, force=data.force)
 
     json_output = False
@@ -357,7 +360,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         record_query_cache("hit")
 
         # If a cached response exists, reset the expiration time.
-        cache.expire(cache_key, expire_in=_state.params.cache.timeout)
+        cache.expire(cache_key, expire_in=params.cache.timeout)
 
         cached = True
         runtime = 0
@@ -374,7 +377,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         starttime = time.time()
 
         with refresh.run():
-            if _state.params.fake_output:
+            if params.fake_output:
                 # Return fake, static data for development purposes, if enabled.
                 output = await fake_output(
                     query_type=data.query_type,
@@ -389,7 +392,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         _log.debug("Runtime: {!s} seconds", elapsedtime)
 
         if output is None:
-            raise HyperglassError(message=_state.params.messages.general, alert="danger")
+            raise HyperglassError(message=params.messages.general, alert="danger")
 
         json_output = is_type(output, OutputDataModel)
 
@@ -401,7 +404,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         else:
             raw_output = str(output)
 
-        if _state.params.structured.is_async_enrichment_enabled(output):
+        if params.structured.is_async_enrichment_enabled(output):
             enrichment_status = "pending"
             enrichment_output = output
             enrichment_generation = uuid4().hex
@@ -413,9 +416,9 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
             if enrichment_generation is not None:
                 pipeline.set_map_item(cache_key, "enrichment_generation", enrichment_generation)
-            pipeline.expire(cache_key, expire_in=_state.params.cache.timeout)
+            pipeline.expire(cache_key, expire_in=params.cache.timeout)
 
-        _log.bind(cache_timeout=_state.params.cache.timeout).debug("Response cached")
+        _log.bind(cache_timeout=params.cache.timeout).debug("Response cached")
 
         runtime = int(round(elapsedtime, 0))
 
@@ -456,7 +459,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             enrichment_generation=enrichment_generation,
             cache=cache,
             cache_key=cache_key,
-            params=_state.params,
+            params=params,
             data=data,
             request=request,
             timestamp=timestamp,

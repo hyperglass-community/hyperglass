@@ -689,3 +689,37 @@ def test_start_prepares_metrics_dir_only_when_enabled(monkeypatch, enable):
     main.start(log_level="INFO", workers=1)
 
     assert prepared == ([True] if enable else [])
+
+
+def test_query_not_counted_as_success_and_error(metrics_client, monkeypatch):
+    """Nothing reads Redis once the success is recorded (#582)."""
+    # Third Party
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    # Project
+    from hyperglass.api import routes
+    from hyperglass.state import HyperglassState
+
+    recorded = []
+    record = routes.record_query_success
+    read = HyperglassState.params.fget
+
+    def record_success(request):
+        record(request)
+        recorded.append(True)
+
+    def params(self):
+        if recorded:
+            raise RedisConnectionError("Error 111 connecting to redis:6379. Connection refused.")
+        return read(self)
+
+    monkeypatch.setattr(routes, "record_query_success", record_success)
+    monkeypatch.setattr(HyperglassState, "params", property(params))
+    successes = sample("hyperglass_queries_total", **LABELS, status="success")
+    errors = sample("hyperglass_queries_total", **LABELS, status="error")
+
+    response = metrics_client.post("/api/query", json={**QUERY, "queryTarget": "192.0.2.128/25"})
+
+    assert response.status_code == 201
+    assert sample("hyperglass_queries_total", **LABELS, status="success") == successes + 1
+    assert sample("hyperglass_queries_total", **LABELS, status="error") == errors
