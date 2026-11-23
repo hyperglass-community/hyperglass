@@ -196,6 +196,26 @@ describe('ShareButton', () => {
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     });
 
+    it('shows the tooltip on the next focus after a close that moved focus elsewhere', async () => {
+      const { trigger } = await renderButton();
+      await open(trigger);
+      // Closed by a click outside: focus doesn't come back to the button.
+      const outside = document.createElement('button');
+      outside.textContent = 'elsewhere';
+      document.body.appendChild(outside);
+      try {
+        await userEvent.click(outside);
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        outside.focus();
+        await act(() => new Promise(resolve => setTimeout(resolve, 200)));
+        // Reached with the keyboard later: its tooltip shows as usual.
+        trigger.focus();
+        expect(await screen.findByRole('tooltip', { name: 'Share Result' })).toBeInTheDocument();
+      } finally {
+        outside.remove();
+      }
+    });
+
     it('has no button with fixed English text', async () => {
       const { trigger } = await renderButton({ initial: [stored()] });
       const dialog = await open(trigger);
@@ -251,7 +271,11 @@ describe('ShareButton', () => {
         const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
         expect(url).toBe('/api/share');
         expect(init.method).toBe('POST');
-        expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn });
+        expect(JSON.parse(init.body as string)).toEqual({
+          queryId: QUERY_ID,
+          timestamp: TS,
+          expiresIn,
+        });
       },
     );
   });
@@ -357,7 +381,7 @@ describe('ShareButton', () => {
       await open(trigger);
       await waitFor(() => expect(linkField()).toHaveFocus());
 
-      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID), { timeout: 4000 });
+      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID), { timeout: 10_000 });
       await waitFor(() => expect(status()).toHaveTextContent('The link has expired.'));
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       // Focus stays in the popover.
@@ -388,6 +412,24 @@ describe('ShareButton', () => {
       expect(screen.queryByRole('textbox')).toBeNull();
     });
 
+    it('groups each link with its buttons, named by its label', async () => {
+      const { trigger } = await renderButton({
+        initial: [stored(), stored({ id: 'abcdefabcdefabcdefabcdefabcdefab', timestamp: LATER })],
+        timestamp: LATER,
+      });
+      await open(trigger);
+      const current = screen.getByRole('group', { name: 'Link to this result' });
+      const before = screen.getByRole('group', {
+        name: `Link to the result from ${formatTimestamp(TS)}`,
+      });
+      for (const group of [current, before]) {
+        expect(within(group).getByRole('button', { name: 'Copy Link' })).toBeInTheDocument();
+        expect(within(group).getByRole('button', { name: 'Delete Link' })).toBeInTheDocument();
+        expect(within(group).getAllByRole('textbox')).toHaveLength(1);
+      }
+      expect(within(before).getByRole('textbox')).toHaveValue(LINK);
+    });
+
     it('keeps the link to the earlier result after a requery, next to a new one', async () => {
       const other = 'abcdefabcdefabcdefabcdefabcdefab';
       stubFetch({ status: 201, body: created }, { status: 201, body: { ...created, id: other } });
@@ -405,17 +447,40 @@ describe('ShareButton', () => {
       expect(earlierField()).toHaveValue(LINK);
     });
 
+    it('creates the link for the result shown when the query ran again after opening', async () => {
+      const fetch = stubFetch({ status: 201, body: created });
+      const { trigger, requery } = await renderButton();
+      await open(trigger);
+      requery(LATER);
+      await userEvent.click(createButton());
+      await waitFor(() => expect(linkField()).toBeInTheDocument());
+      const [, init] = fetch.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toMatchObject({ timestamp: LATER });
+      expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ timestamp: LATER }));
+    });
+
+    it('says the result is gone when the server holds a newer one (404)', async () => {
+      const fetch = stubFetch({ status: 404, body: { output: 'server text' } });
+      const { trigger } = await renderButton();
+      await open(trigger);
+      await userEvent.click(createButton());
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        testConfig.messages.shareResultExpired,
+      );
+      const [, init] = fetch.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toMatchObject({ timestamp: TS });
+      expect(onAdd).not.toHaveBeenCalled();
+    });
+
     it('files a link created while the query ran again under the result it was made from', async () => {
       let release: () => void = () => undefined;
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(
-          () =>
-            new Promise<Response>(resolve => {
-              release = () => resolve(new Response(JSON.stringify(created), { status: 201 }));
-            }),
-        ),
+      const fetch = vi.fn(
+        (_url: string, _init: RequestInit) =>
+          new Promise<Response>(resolve => {
+            release = () => resolve(new Response(JSON.stringify(created), { status: 201 }));
+          }),
       );
+      vi.stubGlobal('fetch', fetch);
       const { trigger, requery } = await renderButton();
       await open(trigger);
       await userEvent.click(createButton());
@@ -427,6 +492,8 @@ describe('ShareButton', () => {
           expect.objectContaining({ id: SHARE_ID, timestamp: TS }),
         ),
       );
+      // Sent for the result shown when it was pressed, not the newer one.
+      expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toMatchObject({ timestamp: TS });
       expect(earlierField()).toHaveValue(LINK);
       expect(keepFor()).toBeInTheDocument();
       expect(screen.queryByRole('textbox', { name: 'Link to this result' })).toBeNull();
@@ -558,6 +625,27 @@ describe('ShareButton', () => {
       expect(onAdd).not.toHaveBeenCalled();
       expect(linkField()).toHaveValue(LINK);
       expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks Delete busy while it runs, and sends one request', async () => {
+      let release: () => void = () => undefined;
+      const fetch = vi.fn(
+        () =>
+          new Promise<Response>(resolve => {
+            release = () => resolve(new Response(null, { status: 204 }));
+          }),
+      );
+      vi.stubGlobal('fetch', fetch);
+      const { trigger } = await renderButton({ initial: [stored()] });
+      await open(trigger);
+      const remove = screen.getByRole('button', { name: 'Delete Link' });
+      await userEvent.click(remove);
+      expect(remove).toHaveAttribute('aria-disabled', 'true');
+      expect(remove).toHaveAttribute('aria-busy', 'true');
+      await userEvent.click(remove);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      await act(async () => release());
+      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID));
     });
 
     it('keeps the link and its token when deleting fails', async () => {

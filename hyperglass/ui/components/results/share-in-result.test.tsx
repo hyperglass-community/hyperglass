@@ -271,7 +271,11 @@ describe('Result Share button', () => {
     const shares = fetch.mock.calls.filter(([url]) => url === '/api/share');
     expect(shares).toHaveLength(1);
     const [, init] = shares[0] as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn: 2592000 });
+    expect(JSON.parse(init.body as string)).toEqual({
+      queryId: QUERY_ID,
+      timestamp: '2026-11-23 08:00:00',
+      expiresIn: 2592000,
+    });
 
     // Closed and opened again: the same link, without another request.
     await userEvent.keyboard('{Escape}');

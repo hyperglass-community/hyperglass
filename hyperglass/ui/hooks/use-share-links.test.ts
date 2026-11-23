@@ -18,6 +18,10 @@ const TOKEN = 'tok_3x4mpl3-d3l3t3-t0k3n-n3v3r-1n-4-url-xyz';
 const DAY = 86400;
 /** This browser's clock in these tests. */
 const NOW = Date.parse('2026-11-23T08:00:00Z');
+/** The `timestamp` of the query response shared. */
+const TS = '2026-11-23 07:59:00';
+/** The request timeout, and the longest lifetime offered (90 days). */
+const LIMITS = { timeout: 5000, maxLifetime: 90 * DAY * 1000 };
 
 const body = { id: SHARE_ID, expiresAt: '2026-12-23T08:00:00Z', deleteToken: TOKEN };
 
@@ -52,7 +56,10 @@ afterEach(() => {
 describe('createShare', () => {
   it('posts the query id and the chosen time as JSON, and returns the share', async () => {
     const fetch = respond({ status: 201, body });
-    const outcome = await createShare(QUERY_ID, 30 * DAY, 5000);
+    const outcome = await createShare(
+      { queryId: QUERY_ID, timestamp: TS, expiresIn: 30 * DAY },
+      LIMITS,
+    );
 
     expect(outcome).toEqual({
       status: 'created',
@@ -63,13 +70,20 @@ describe('createShare', () => {
     expect(url).toBe('/api/share');
     expect(init.method).toBe('POST');
     expect(new Headers(init.headers).get('content-type')).toBe('application/json');
-    expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn: 30 * DAY });
+    // The timestamp names the result shown: a newer result of the query isn't shared.
+    expect(JSON.parse(init.body as string)).toEqual({
+      queryId: QUERY_ID,
+      timestamp: TS,
+      expiresIn: 30 * DAY,
+    });
     expect(init.cache).toBe('no-store');
   });
 
   it('takes an existing share (200) as created', async () => {
     respond({ status: 200, body });
-    expect(await createShare(QUERY_ID, 30 * DAY, 5000)).toMatchObject({
+    expect(
+      await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: 30 * DAY }, LIMITS),
+    ).toMatchObject({
       status: 'created',
       share: body,
     });
@@ -79,7 +93,10 @@ describe('createShare', () => {
     // This browser is a year ahead: by its clock the link expired long ago.
     vi.setSystemTime(Date.parse('2027-11-23T08:00:00Z'));
     respond({ status: 201, body, headers: { date: 'Mon, 23 Nov 2026 08:00:00 GMT' } });
-    const outcome = await createShare(QUERY_ID, 7 * DAY, 5000);
+    const outcome = await createShare(
+      { queryId: QUERY_ID, timestamp: TS, expiresIn: 7 * DAY },
+      LIMITS,
+    );
     expect(outcome).toEqual({
       status: 'created',
       share: { ...body, deadline: Date.parse('2027-11-23T08:00:00Z') + 30 * DAY * 1000 },
@@ -93,16 +110,46 @@ describe('createShare', () => {
       body: { ...body, expiresAt: '2026-12-03T08:00:00Z' },
       headers: { date: 'Mon, 23 Nov 2026 08:00:00 GMT' },
     });
-    const outcome = await createShare(QUERY_ID, 90 * DAY, 5000);
+    const outcome = await createShare(
+      { queryId: QUERY_ID, timestamp: TS, expiresIn: 90 * DAY },
+      LIMITS,
+    );
     expect(outcome).toMatchObject({ share: { deadline: NOW + 10 * DAY * 1000 } });
   });
 
   it('counts the requested time from the request without a Date header', async () => {
     vi.setSystemTime(Date.parse('2027-11-23T08:00:00Z'));
     respond({ status: 201, body });
-    expect(await createShare(QUERY_ID, 7 * DAY, 5000)).toMatchObject({
+    expect(
+      await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: 7 * DAY }, LIMITS),
+    ).toMatchObject({
       share: { deadline: Date.parse('2027-11-23T08:00:00Z') + 7 * DAY * 1000 },
     });
+  });
+
+  it.each([
+    ['in the past', 'Wed, 23 Dec 2026 08:00:01 GMT'],
+    ['the expiry itself', 'Wed, 23 Dec 2026 08:00:00 GMT'],
+    ['longer than any choice', 'Mon, 23 Nov 2020 08:00:00 GMT'],
+  ])(
+    'ignores a Date header that gives a lifetime %s, counting the requested time instead',
+    async (_, date) => {
+      respond({ status: 201, body, headers: { date } });
+      expect(
+        await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: 7 * DAY }, LIMITS),
+      ).toMatchObject({ share: { deadline: NOW + 7 * DAY * 1000 } });
+    },
+  );
+
+  it('takes a Date header that gives exactly the longest choice', async () => {
+    respond({
+      status: 201,
+      body: { ...body, expiresAt: '2027-02-21T08:00:00Z' },
+      headers: { date: 'Mon, 23 Nov 2026 08:00:00 GMT' },
+    });
+    expect(
+      await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: 7 * DAY }, LIMITS),
+    ).toMatchObject({ share: { deadline: NOW + 90 * DAY * 1000 } });
   });
 
   it.each<[number, ShareFailure]>([
@@ -117,7 +164,9 @@ describe('createShare', () => {
     [415, 'error'],
   ])('maps HTTP %i to %s, without reading the body', async (status, failure) => {
     const fetch = respond({ status, body: { output: '<b>server text</b>', level: 'danger' } });
-    expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: failure });
+    expect(await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: DAY }, LIMITS)).toEqual(
+      { status: failure },
+    );
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -128,7 +177,9 @@ describe('createShare', () => {
         throw new TypeError('Failed to fetch');
       }),
     );
-    expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: 'error' });
+    expect(await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: DAY }, LIMITS)).toEqual(
+      { status: 'error' },
+    );
   });
 
   it.each([
@@ -147,12 +198,16 @@ describe('createShare', () => {
           new Response(typeof json === 'string' ? json : JSON.stringify(json), { status: 201 }),
       ),
     );
-    expect(await createShare(QUERY_ID, DAY, 5000)).toEqual({ status: 'error' });
+    expect(await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: DAY }, LIMITS)).toEqual(
+      { status: 'error' },
+    );
   });
 
   it('takes a token of the longest length the server accepts', async () => {
     respond({ status: 201, body: { ...body, deleteToken: 'x'.repeat(128) } });
-    expect(await createShare(QUERY_ID, DAY, 5000)).toMatchObject({ status: 'created' });
+    expect(
+      await createShare({ queryId: QUERY_ID, timestamp: TS, expiresIn: DAY }, LIMITS),
+    ).toMatchObject({ status: 'created' });
   });
 });
 

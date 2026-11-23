@@ -19,7 +19,7 @@ import {
   Tooltip,
   useDisclosure,
 } from '@chakra-ui/react';
-import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import {
@@ -61,6 +61,12 @@ type Announcement = 'copied' | 'deleted' | 'expired' | null;
 
 /** Where focus goes after the change an action makes. */
 type FocusNext = { link: string } | 'auto' | null;
+
+/**
+ * Milliseconds after the popover closes within which the button getting focus is the
+ * popover returning it (Chakra does so on the next frame), not the visitor.
+ */
+const FOCUS_RETURN = 100;
 
 /** The longest delay `setTimeout` takes; a longer one fires at once. */
 const MAX_DELAY = 2 ** 31 - 1;
@@ -119,6 +125,7 @@ const LinkView = (props: LinkViewProps): JSX.Element => {
   const field = useRef<HTMLInputElement | null>(null);
   const [copied, setCopied] = useState(false);
   const url = shareLink(link.id, window.location);
+  const labelId = useId();
 
   async function handleCopy(): Promise<void> {
     try {
@@ -136,9 +143,13 @@ const LinkView = (props: LinkViewProps): JSX.Element => {
   }
 
   return (
-    <Flex direction="column" gap={2}>
+    // A group named by the link's label, so its Copy and Delete buttons are told apart
+    // from those of another link.
+    <Flex role="group" aria-labelledby={labelId} direction="column" gap={2}>
       <FormControl>
-        <FormLabel fontSize="sm">{label}</FormLabel>
+        <FormLabel id={labelId} fontSize="sm">
+          {label}
+        </FormLabel>
         <Input
           ref={element => {
             field.current = element;
@@ -214,8 +225,10 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
   // The result shown now, for a create that resolves after the query ran again.
   const latest = useRef(timestamp);
   latest.current = timestamp;
-  // Set on close: focus coming back to the button doesn't open its tooltip.
-  const skipTooltip = useRef(false);
+  // When the popover last closed: focus coming back to the button right after doesn't
+  // open its tooltip over the page. Only right after: a close that sent focus elsewhere
+  // leaves nothing that would swallow a later focus or hover.
+  const closedAt = useRef<number | null>(null);
   const openRef = useRef(isOpen);
   openRef.current = isOpen;
 
@@ -279,7 +292,7 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
     setFailure(null);
     setAnnouncement(null);
     setFocusNext(null);
-    skipTooltip.current = true;
+    closedAt.current = performance.now();
     onClose();
   }
 
@@ -292,7 +305,11 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
     setBusy('create');
     setFailure(null);
     setAnnouncement(null);
-    const outcome = await createShare(queryId, expiresIn, requestTimeout * 1000);
+    const outcome = await createShare(
+      // The result shown: never a newer one the query's cache entry holds by now.
+      { queryId, timestamp: forResult, expiresIn },
+      { timeout: requestTimeout * 1000, maxLifetime: Math.max(...config.timeoutChoices) * 1000 },
+    );
     inFlight.current = false;
     setBusy(null);
     if (outcome.status !== 'created') {
@@ -368,8 +385,9 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
         placement="top"
         isOpen={tooltipOpen && !isOpen}
         onOpen={() => {
-          if (skipTooltip.current) {
-            skipTooltip.current = false;
+          const closed = closedAt.current;
+          closedAt.current = null;
+          if (closed !== null && performance.now() - closed < FOCUS_RETURN) {
             return;
           }
           setTooltipOpen(true);
@@ -381,7 +399,7 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
           isDisabled={isDisabled}
           // A pointer coming over the button wants the tooltip, after a close too.
           onPointerEnter={() => {
-            skipTooltip.current = false;
+            closedAt.current = null;
           }}
         />
       </Tooltip>

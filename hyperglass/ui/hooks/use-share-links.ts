@@ -93,16 +93,41 @@ function isShareResponse(value: unknown): value is ShareResponse {
   );
 }
 
+/** What `createShare` shares: one result of a query response. */
+export interface ShareRequest {
+  /** The query response's `id`: the query's cache entry. */
+  queryId: string;
+  /**
+   * The query response's `timestamp`: the result shown. The cache entry holds a newer
+   * result once the query has run again; the server then answers 404, rather than share
+   * a result the visitor hasn't seen.
+   */
+  timestamp: string;
+  /** Seconds to keep the share: one of `share.timeout_choices`. */
+  expiresIn: number;
+}
+
+export interface ShareLimits {
+  /** Milliseconds to wait for the answer. */
+  timeout: number;
+  /**
+   * The longest lifetime a link can have, in milliseconds: the longest of
+   * `share.timeout_choices`. A lifetime from the `Date` header outside (0, this] is not
+   * believed (a broken or misconfigured clock); the requested time is used instead.
+   */
+  maxLifetime: number;
+}
+
 /**
- * Share the cached result of query response `queryId` for `expiresIn` seconds, with one
- * `POST /api/share`. Only the status of an error response is read: the visitor sees the
- * configured message for it, never the response's text. Nothing is retried.
+ * Share the cached result `request` names, with one `POST /api/share`. Only the status of
+ * an error response is read: the visitor sees the configured message for it, never the
+ * response's text. Nothing is retried.
  */
 export async function createShare(
-  queryId: string,
-  expiresIn: number,
-  timeout: number,
+  request: ShareRequest,
+  limits: ShareLimits,
 ): Promise<CreateShareOutcome> {
+  const { queryId, timestamp, expiresIn } = request;
   const started = Date.now();
   let response: Response;
   try {
@@ -111,10 +136,10 @@ export async function createShare(
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ queryId, expiresIn }),
+        body: JSON.stringify({ queryId, timestamp, expiresIn }),
         cache: 'no-store',
       },
-      timeout,
+      limits.timeout,
     );
   } catch {
     return { status: 'error' };
@@ -134,11 +159,13 @@ export async function createShare(
   const { id, expiresAt, deleteToken } = body;
   // The lifetime by the server's clock: its `expiresAt` less its time of answer (`Date`),
   // which is also right for a share the server reused with its first expiry. Without a
-  // `Date` header, the time asked for, counted from the request.
-  const serverNow = Date.parse(response.headers.get('date') ?? '');
-  const deadline = Number.isNaN(serverNow)
-    ? started + expiresIn * 1000
-    : Date.now() + (Date.parse(expiresAt) - serverNow);
+  // `Date` header, or with one that gives a lifetime no share can have, the time asked
+  // for, counted from the request.
+  const lifetime = Date.parse(expiresAt) - Date.parse(response.headers.get('date') ?? '');
+  const deadline =
+    lifetime > 0 && lifetime <= limits.maxLifetime
+      ? Date.now() + lifetime
+      : started + expiresIn * 1000;
   return { status: 'created', share: { id, expiresAt, deleteToken, deadline } };
 }
 
