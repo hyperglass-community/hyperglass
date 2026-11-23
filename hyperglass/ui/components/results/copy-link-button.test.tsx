@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
@@ -103,6 +103,47 @@ describe('CopyLinkButton', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('Link copied');
     expect(alert).not.toHaveBeenCalled();
     expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it('focuses the field and selects the link again on each failed copy', async () => {
+    setClipboard(undefined);
+    const { button } = await renderButton();
+
+    await userEvent.click(button);
+    const field = await waitFor(() => {
+      const found = fallbackField();
+      expect(found).toHaveFocus();
+      return found as HTMLInputElement;
+    });
+    // The user moves the cursor in the field, then tries the button again.
+    field.setSelectionRange(3, 3);
+    await userEvent.click(button);
+
+    await waitFor(() => expect(field).toHaveFocus());
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, LINK.length]);
+  });
+
+  it('selects the link when the field is focused again', async () => {
+    setClipboard(undefined);
+    const { button } = await renderButton();
+    await userEvent.click(button);
+    const field = await waitFor(() => {
+      const found = fallbackField();
+      expect(found).toHaveFocus();
+      return found as HTMLInputElement;
+    });
+    act(() => button.focus());
+    field.setSelectionRange(3, 3);
+    // `setSelectionRange`, not `select()`: on iOS Safari, `select()` doesn't select the
+    // text of a read-only field. jsdom selects either way, so check the call.
+    const setSelectionRange = vi.spyOn(field, 'setSelectionRange');
+
+    // Plain `focus()`: user-event's Tab would select the text on its own.
+    act(() => field.focus());
+
+    expect(field).toHaveFocus();
+    expect(setSelectionRange).toHaveBeenCalledWith(0, LINK.length);
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, LINK.length]);
   });
 
   it('can be reached and pressed with the keyboard', async () => {

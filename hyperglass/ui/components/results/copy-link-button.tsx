@@ -11,6 +11,14 @@ interface CopyLinkButtonProps {
 type CopyState = 'idle' | 'copied' | 'failed';
 
 /**
+ * Select all of a field's text. `setSelectionRange` rather than `select()`, which doesn't
+ * select the text of a read-only field on iOS Safari.
+ */
+function selectAll(input: HTMLInputElement): void {
+  input.setSelectionRange(0, input.value.length);
+}
+
+/**
  * Copies a link to the submitted query. When the clipboard is missing (outside a secure
  * context) or refuses the link, the link is shown in a read-only field to copy by hand.
  * The browser's own clipboard API is used rather than Chakra's `useClipboard`, whose
@@ -20,14 +28,16 @@ export const CopyLinkButton = (props: CopyLinkButtonProps): JSX.Element => {
   const { link } = props;
   const { web } = useConfig();
   const [state, setState] = useState<CopyState>('idle');
+  // Failed copies so far: each one focuses the field again, also when it already shows
+  // from an earlier failure. Focusing it selects the link (`onFocus`).
+  const [failures, setFailures] = useState(0);
   const field = useRef<HTMLInputElement>(null);
 
-  // Focus the field once it shows; focusing it selects the link, ready to copy by hand.
   useEffect(() => {
-    if (state === 'failed') {
-      field.current?.focus();
+    if (failures > 0 && field.current !== null) {
+      field.current.focus();
     }
-  }, [state]);
+  }, [failures]);
 
   async function copy(): Promise<void> {
     try {
@@ -36,6 +46,7 @@ export const CopyLinkButton = (props: CopyLinkButtonProps): JSX.Element => {
       setState('copied');
     } catch {
       setState('failed');
+      setFailures(n => n + 1);
     }
   }
 
@@ -69,7 +80,7 @@ export const CopyLinkButton = (props: CopyLinkButtonProps): JSX.Element => {
             isReadOnly
             value={link}
             fontFamily="mono"
-            onFocus={e => e.currentTarget.select()}
+            onFocus={e => selectAll(e.currentTarget)}
           />
         </FormControl>
       )}
