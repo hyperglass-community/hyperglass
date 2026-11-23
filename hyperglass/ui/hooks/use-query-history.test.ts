@@ -1,0 +1,295 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HISTORY_KEY, isHistoryEntry, useQueryHistory } from './use-query-history';
+
+import type { HistoryEntry, RecordInput } from './use-query-history';
+
+function response(overrides: Partial<QueryResponse> = {}): QueryResponse {
+  return {
+    id: 'c0ffee',
+    random: 'r4nd0m',
+    cached: false,
+    runtime: 2,
+    level: 'success',
+    timestamp: '2026-11-20 08:00:00',
+    keywords: [],
+    output: 'show route 2001:db8::/32',
+    format: 'text/plain',
+    enrichment: 'complete',
+    ...overrides,
+  };
+}
+
+function input(overrides: Partial<RecordInput> = {}): RecordInput {
+  return {
+    submissionId: 's1',
+    query: {
+      queryLocation: ['router_one', 'router_two'],
+      queryType: '__hyperglass_juniper_bgp_route__',
+      queryTypeName: 'BGP Route',
+      queryTarget: ['2001:db8::/32'],
+      queryVariables: {},
+    },
+    labels: {
+      locations: ['Router One', 'Router Two'],
+      type: 'BGP Route',
+      target: '2001:db8::/32',
+      variables: [],
+    },
+    deviceId: 'router_one',
+    result: { name: 'Router One', queryId: 'c0ffee', data: response() },
+    ...overrides,
+  };
+}
+
+function entry(id: string, savedAt = 0): HistoryEntry {
+  const { query, labels, deviceId, result } = input();
+  return { id, savedAt, query, labels, results: { [deviceId]: result } };
+}
+
+function stored(): { state: { entries: HistoryEntry[] }; version: number } {
+  return JSON.parse(localStorage.getItem(HISTORY_KEY) as string);
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-21T10:00:00Z'));
+});
+
+afterEach(() => {
+  useQueryHistory.setState({ entries: [], openId: null });
+  localStorage.clear();
+  vi.useRealTimers();
+});
+
+describe('useQueryHistory', () => {
+  it('records a submission as an entry, with the time it was saved', () => {
+    useQueryHistory.getState().record(input(), 10);
+
+    const { query, labels, result } = input();
+    expect(useQueryHistory.getState().entries).toEqual([
+      {
+        id: 's1',
+        savedAt: Date.parse('2026-11-21T10:00:00Z'),
+        query,
+        labels,
+        results: { router_one: result },
+      },
+    ]);
+  });
+
+  it('adds the newest entry first', () => {
+    const { record } = useQueryHistory.getState();
+    record(input({ submissionId: 'a' }), 10);
+    record(input({ submissionId: 'b' }), 10);
+
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('adds the other locations of a submission to its entry', () => {
+    const { record } = useQueryHistory.getState();
+    record(input(), 10);
+    record(input({ submissionId: 'later' }), 10);
+    vi.setSystemTime(new Date('2026-11-21T10:05:00Z'));
+    const two = { name: 'Router Two', queryId: 'beef', data: response({ id: 'beef' }) };
+    record(input({ deviceId: 'router_two', result: two }), 10);
+
+    const { entries } = useQueryHistory.getState();
+    expect(entries.map(e => e.id)).toEqual(['later', 's1']);
+    expect(entries[1].results).toEqual({ router_one: input().result, router_two: two });
+    // The entry keeps its time and place.
+    expect(entries[1].savedAt).toBe(Date.parse('2026-11-21T10:00:00Z'));
+  });
+
+  it('updates a location response, as enrichment does', () => {
+    const { record } = useQueryHistory.getState();
+    record(input(), 10);
+    const enriched = response({ output: 'enriched', enrichment: 'complete' });
+    record(input({ result: { name: 'Router One', queryId: 'c0ffee', data: enriched } }), 10);
+
+    const { entries } = useQueryHistory.getState();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].results.router_one.data.output).toBe('enriched');
+  });
+
+  it('keeps at most `limit` entries, dropping the oldest', () => {
+    const { record } = useQueryHistory.getState();
+    for (const id of ['a', 'b', 'c', 'd']) {
+      record(input({ submissionId: id }), 3);
+    }
+
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['d', 'c', 'b']);
+  });
+
+  it('prunes the entries beyond a lower limit', () => {
+    useQueryHistory.setState({ entries: [entry('c'), entry('b'), entry('a')] });
+
+    useQueryHistory.getState().prune(2);
+
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['c', 'b']);
+  });
+
+  it('deletes an entry', () => {
+    useQueryHistory.setState({ entries: [entry('b'), entry('a')] });
+
+    useQueryHistory.getState().remove('b');
+
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['a']);
+    expect(stored().state.entries.map(e => e.id)).toEqual(['a']);
+  });
+
+  it('clears every entry', () => {
+    useQueryHistory.setState({ entries: [entry('b'), entry('a')] });
+
+    useQueryHistory.getState().clear();
+
+    expect(useQueryHistory.getState().entries).toEqual([]);
+    expect(stored().state.entries).toEqual([]);
+  });
+
+  it('opens and closes an entry', () => {
+    useQueryHistory.setState({ entries: [entry('a')] });
+    const { open, close } = useQueryHistory.getState();
+
+    open('a');
+    expect(useQueryHistory.getState().openId).toBe('a');
+    close();
+    expect(useQueryHistory.getState().openId).toBeNull();
+  });
+
+  it.each([
+    ['deleting it', () => useQueryHistory.getState().remove('a')],
+    ['clearing the history', () => useQueryHistory.getState().clear()],
+  ])('closes the opened entry when %s', (_, act) => {
+    useQueryHistory.setState({ entries: [entry('a')], openId: 'a' });
+
+    act();
+
+    expect(useQueryHistory.getState().openId).toBeNull();
+  });
+
+  it(`stores the entries under ${HISTORY_KEY}, version 1, without the opened entry`, () => {
+    useQueryHistory.getState().record(input(), 10);
+    useQueryHistory.getState().open('s1');
+
+    expect(stored()).toEqual({
+      state: { entries: useQueryHistory.getState().entries },
+      version: 1,
+    });
+  });
+
+  it('keeps every entry in memory when storage is full', () => {
+    const full = new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw full;
+    });
+    const { record } = useQueryHistory.getState();
+    record(input({ submissionId: 'a' }), 10);
+    record(input({ submissionId: 'b' }), 10);
+    setItem.mockRestore();
+
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('drops the oldest stored entries when storage is full', () => {
+    const { record } = useQueryHistory.getState();
+    record(input({ submissionId: 'a' }), 10);
+    const capacity = (localStorage.getItem(HISTORY_KEY) as string).length;
+    const { setItem } = Storage.prototype;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key, value) {
+      if (value.length > capacity) {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      }
+      setItem.call(this, key, value);
+    });
+
+    record(input({ submissionId: 'b' }), 10);
+    vi.restoreAllMocks();
+
+    expect(stored().state.entries.map(e => e.id)).toEqual(['b']);
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('works without storage when using it throws', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('The operation is insecure.', 'SecurityError');
+    });
+
+    useQueryHistory.getState().record(input(), 10);
+
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['s1']);
+    vi.restoreAllMocks();
+  });
+});
+
+describe('isHistoryEntry', () => {
+  it('accepts an entry', () => {
+    expect(isHistoryEntry(entry('a'))).toBe(true);
+  });
+
+  it.each([
+    ['null', null],
+    ['an entry without results', { ...entry('a'), results: {} }],
+    ['an entry with a malformed result', { ...entry('a'), results: { r: { name: 'R' } } }],
+    ['an entry without a time', { ...entry('a'), savedAt: 'yesterday' }],
+    ['an entry with a time out of range', { ...entry('a'), savedAt: 1e20 }],
+    ['an entry without its query', { ...entry('a'), query: undefined }],
+    [
+      'an entry with a malformed variable',
+      { ...entry('a'), query: { ...entry('a').query, queryVariables: { vrf: 1 } } },
+    ],
+    ['an entry without labels', { ...entry('a'), labels: null }],
+  ])('rejects %s', (_, value) => {
+    expect(isHistoryEntry(value)).toBe(false);
+  });
+});
+
+describe('useQueryHistory rehydration', () => {
+  // The store reads storage when it is created, at import, so each test seeds storage
+  // first and then imports a fresh copy of the module.
+  async function freshStore() {
+    vi.resetModules();
+    return (await import('./use-query-history')).useQueryHistory;
+  }
+
+  it('reads the stored entries', async () => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({ state: { entries: [entry('b'), entry('a')] }, version: 1 }),
+    );
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([entry('b'), entry('a')]);
+    expect(store.getState().openId).toBeNull();
+  });
+
+  it('leaves out stored entries that are malformed', async () => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({ state: { entries: [entry('b'), { id: 'x' }, 'y'] }, version: 1 }),
+    );
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([entry('b')]);
+  });
+
+  it('starts empty when the stored value is not JSON', async () => {
+    localStorage.setItem(HISTORY_KEY, '{');
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([]);
+  });
+
+  it("does not read hyperglass-ng's history", async () => {
+    localStorage.setItem(
+      'hyperglass.queryHistory',
+      JSON.stringify({ state: { entries: [entry('old')] }, version: 1 }),
+    );
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([]);
+  });
+});
