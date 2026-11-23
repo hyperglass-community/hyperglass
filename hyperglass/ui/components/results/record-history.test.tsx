@@ -360,6 +360,20 @@ describe('Result query history with retain: false', () => {
     },
   );
 
+  it("saves nothing for a query type the location doesn't list", async () => {
+    // Neither the ID nor the name is one of Router One's directives.
+    const unknown: Directive = { ...directive, id: 'unlisted', name: 'Unlisted' };
+    useFormState.setState({
+      form: { ...form, queryType: unknown.id },
+      filtered: { types: [unknown], groups: [] },
+    });
+    stubFetch(vi.fn(async () => jsonResponse(response())));
+    renderResults();
+    await settled();
+
+    expect(entries()).toEqual([]);
+  });
+
   it('shows nothing about history or sharing for such a directive', async () => {
     stubFetch(vi.fn(async () => jsonResponse(response())));
 

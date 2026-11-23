@@ -605,6 +605,23 @@ describe('useQueryHistory retain', () => {
       expect(stored().state.entries).toEqual([]);
     });
 
+    it('starts from the stored entries, so one another tab deleted does not come back', () => {
+      const { record } = useQueryHistory.getState();
+      record(input({ submissionId: 'a' }), 10);
+      record(input({ submissionId: 'a', deviceId: 'router_two', result: two }), 10);
+      record(input({ submissionId: 'b' }), 10);
+      // Another tab deleted 'b'; this tab hasn't seen the change yet.
+      const value = stored();
+      value.state.entries = value.state.entries.filter(e => e.id !== 'b');
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(value));
+
+      useQueryHistory.getState().dropUnretained((_, deviceId) => deviceId !== 'router_two');
+
+      const { entries } = useQueryHistory.getState();
+      expect(entries.map(e => e.id)).toEqual(['a']);
+      expect(Object.keys(entries[0].results)).toEqual(['router_one']);
+    });
+
     it('does not write to storage when every result is retained', () => {
       seed();
       const setItem = vi.spyOn(Storage.prototype, 'setItem');

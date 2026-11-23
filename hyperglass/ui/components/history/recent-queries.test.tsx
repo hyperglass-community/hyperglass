@@ -207,6 +207,23 @@ describe('RecentQueries', () => {
       );
     });
 
+    it('drops such results that another tab, on the configuration from before, saves', async () => {
+      seed([]);
+      renderList(unretained(juniperRoute));
+
+      act(() => {
+        localStorage.setItem(
+          HISTORY_KEY,
+          JSON.stringify({ state: { entries: [ipv4] }, version: 1 }),
+        );
+        window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
+      });
+
+      await waitFor(() => expect(useQueryHistory.getState().entries).toEqual([]));
+      expect(screen.queryByRole('list')).not.toBeInTheDocument();
+      expect(JSON.parse(localStorage.getItem(HISTORY_KEY) as string).state.entries).toEqual([]);
+    });
+
     it('removes the history when nothing is left', () => {
       seed([ipv6, ipv4]);
 

@@ -12,9 +12,12 @@ import type { HistoryQuery } from './use-query-history';
  * `null` when the device has no such directive.
  *
  * The query type is one location's directive ID. Another location runs its own directive
- * of the same name, as the backend resolves it (`resolve_directive_by_name`), so a query
- * of several locations can have directives that differ in `retain`. When the device has
- * no directive with the ID and several with the name, all of them must retain.
+ * of the same name (`resolve_directive_by_name` on the backend), so a query of several
+ * locations can have directives that differ in `retain`. The lookup is at least as strict
+ * as the backend's: when the device has no directive with the ID and several with the
+ * name, all of them must retain. For example, a device with a built-in BGP Route and a
+ * custom `retain: false` directive also named BGP Route, queried with another vendor's
+ * ID: the backend runs the built-in, but nothing is saved. It fails closed.
  */
 export function directiveRetains(
   device: Device,
@@ -31,8 +34,9 @@ export function directiveRetains(
 
 /**
  * Save a location's response to the query history while the results show, when history
- * is enabled, the response is a success and the location's directive retains its results. The response is saved again each time it
- * changes (enrichment, or the query run again), in the same entry.
+ * is enabled, the response is a success and the location's directive retains its results.
+ * The response is saved again each time it changes (enrichment, or the query run again),
+ * in the same entry.
  *
  * @param deviceId The location's device ID.
  * @param data The location's response.

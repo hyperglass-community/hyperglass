@@ -63,3 +63,16 @@ def test_retain_reaches_the_ui_parameters(retain):
     exported = group.export_dict(by_alias=True)
 
     assert exported["locations"][0]["directives"][0]["retain"] is retain
+
+
+def test_a_ui_directive_without_retain_is_rejected():
+    """A directive can't reach `hyperglass.json` without the flag: it never defaults to retain."""
+    (directive,) = Directives.new(_raw())
+    exported = directive.frontend()
+    del exported["retain"]
+
+    with pytest.raises(ValidationError, match="retain"):
+        UIDevices(
+            group="Europe",
+            locations=[{"id": "router", "name": "Router", "directives": [exported]}],
+        )

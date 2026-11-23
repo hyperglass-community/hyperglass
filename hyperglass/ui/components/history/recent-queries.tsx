@@ -47,17 +47,25 @@ export const RecentQueries = (): JSX.Element | null => {
       }
       useQueryHistory.persist.clearStorage();
     } else {
-      // A directive may have been set to `retain: false` since its results were saved.
-      // Keep the results of a location or query type no longer configured: nothing says
-      // they may not be kept, and the visitor can still see and delete them.
-      dropUnretained((query, deviceId) => {
-        const device = getDevice(deviceId);
-        return device === null || directiveRetains(device, query) !== false;
-      });
       // The limit may have been lowered since the entries were saved.
       prune(limit);
     }
-  }, [enable, limit, clear, dropUnretained, prune, getDevice]);
+  }, [enable, limit, clear, prune]);
+
+  // A directive may have been set to `retain: false` since its results were saved, here or
+  // by a tab still running the configuration from before (its entries arrive by `storage`
+  // event). Checked on load and whenever the entries change; it writes only when something
+  // is dropped. Keep the results of a location or query type no longer configured: nothing
+  // says they may not be kept, and the visitor can still see and delete them.
+  useEffect(() => {
+    if (!enable || entries.length === 0) {
+      return;
+    }
+    dropUnretained((query, deviceId) => {
+      const device = getDevice(deviceId);
+      return device === null || directiveRetains(device, query) !== false;
+    });
+  }, [enable, entries, dropUnretained, getDevice]);
 
   // Back from an opened entry: return focus to its Open button, or to the list if it is
   // gone. Once the list has rendered.
