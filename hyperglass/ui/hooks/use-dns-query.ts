@@ -19,8 +19,6 @@ const query: QueryFunction<DnsOverHttps.Response, DNSQueryKey> = async (
 ) => {
   const [url, { target, family }] = ctx.queryKey;
 
-  const controller = new AbortController();
-
   let json = undefined;
   const type = family === 4 ? 'A' : family === 6 ? 'AAAA' : '';
 
@@ -32,7 +30,6 @@ const query: QueryFunction<DnsOverHttps.Response, DNSQueryKey> = async (
         mode: 'cors',
       },
       5000,
-      controller,
     );
 
     json = await res.json();

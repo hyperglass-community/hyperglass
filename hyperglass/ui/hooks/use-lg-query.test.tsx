@@ -229,29 +229,76 @@ describe('useLGQuery timeout', () => {
     expect(error.message.toLowerCase().startsWith('timeout')).toBe(false);
   });
 
-  it('fails a refetch once the first request timeout has passed', async () => {
-    // Current behaviour, likely a bug: the hook keeps one AbortController for its life,
-    // and `fetchWithTimeout` never clears its timer. The timer aborts that controller
-    // even after the request succeeded, so every later refetch fails at once.
-    const delay = testConfig.requestTimeout * 1000;
-    const timer = captureTimeout(delay);
-    fetchMock.mockImplementationOnce(async () => jsonResponse(success));
+  it('gives each request its own signal', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
     const { result } = renderQuery();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    act(() => timer.fire());
     await act(async () => {
       await result.current.refetch();
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(true);
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect((result.current.error as DOMException).name).toBe('AbortError');
+    expect(fetchMock.mock.calls[1][1].signal).not.toBe(fetchMock.mock.calls[0][1].signal);
+  });
+});
+
+describe('useLGQuery timeout with a running clock', () => {
+  // Fake timers that also follow the real clock, so Testing Library's `waitFor` still runs.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not abort a finished request when its timeout passes', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
+    const { result } = renderQuery();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    act(() => {
+      vi.advanceTimersByTime(testConfig.requestTimeout * 1000 + 1);
+    });
+
+    expect(firstRequest()[1].signal?.aborted).toBe(false);
+  });
+
+  it('refetches after the first request timeout has passed', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
+    const { result } = renderQuery();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    act(() => {
+      vi.advanceTimersByTime(testConfig.requestTimeout * 1000 + 1);
+    });
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(false);
+    expect(result.current.isSuccess).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+});
+
+describe('useLGQuery cancellation', () => {
+  /** Answer every request with a promise that rejects when its signal aborts, as `fetch` does. */
+  function hangUntilAborted(): void {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('This operation was aborted', 'AbortError')),
+          );
+        }),
+    );
+  }
+
   it('aborts a running request on unmount', async () => {
-    captureTimeout(testConfig.requestTimeout * 1000);
+    hangUntilAborted();
     const { unmount } = renderQuery();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
 

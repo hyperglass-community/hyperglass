@@ -60,7 +60,6 @@ async function lookup(url: string): Promise<WtfIndividual> {
       mode: 'cors',
     },
     5000,
-    new AbortController(),
   );
   if (!res.ok) {
     throw new Error(`${url} returned ${res.status}`);
