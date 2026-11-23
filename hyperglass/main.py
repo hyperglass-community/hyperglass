@@ -13,12 +13,18 @@ from pathlib import Path
 
 # Third Party
 import uvicorn
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 # Local
 from .log import LibInterceptHandler, init_logger, configure_syslog, enable_file_logging
 from .util import get_node_version, remove_ipv6_networks_from_no_proxy
 from .settings import Settings
 from .constants import MIN_NODE_VERSION, MIN_PYTHON_VERSION, __version__
+
+# Same as `hyperglass.api.metrics.REDIS_UNAVAILABLE`, which can't be imported here:
+# importing `hyperglass.api` reads state from Redis.
+REDIS_UNREACHABLE = (RedisConnectionError, RedisTimeoutError)
 
 # Ensure the Python version meets the minimum requirements.
 pretty_version = ".".join(tuple(str(v) for v in MIN_PYTHON_VERSION))
@@ -197,7 +203,11 @@ def run(workers: int = None):
         log.bind(version=__version__).critical("Stopping hyperglass")
     except Exception as error:
         log.critical(error)
-        # Handle app exceptions.
+        # Handle app exceptions. Clearing state and unregistering plugins both write
+        # to Redis, so skip them when Redis is unreachable rather than wait on it
+        # again; the next start clears state anyway.
+        if isinstance(error, REDIS_UNREACHABLE):
+            raise error
         if not Settings.dev_mode:
             state = use_state()
             state.clear()
