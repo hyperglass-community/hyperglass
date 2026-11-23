@@ -330,17 +330,17 @@ describe('Shared result page', () => {
 
   it.each([
     [
-      'a community and an AS path',
+      'a community and an AS name',
       bgpResult(
         [
           route({
             communities: ['<img src="x" onerror="window.pwned=1">', '65000:2,<b>name</b>'],
-            as_path: ['<b>65000</b>' as never, 64999],
+            as_path: [65000, 64999],
           }),
         ],
         { '64999': { name: '<script>window.pwned=1</script>' } },
       ),
-      ['<img src="x" onerror="window.pwned=1">', '<b>65000</b>'],
+      ['<img src="x" onerror="window.pwned=1">', '65000:2 - <b>name</b>'],
     ],
     [
       'a reverse DNS name',

@@ -105,7 +105,18 @@ const isString = (value: unknown): value is string => typeof value === 'string';
 const isNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
-const isScalar = (value: unknown): boolean => isString(value) || isNumber(value);
+const isInteger = (value: unknown): value is number => Number.isSafeInteger(value);
+
+/**
+ * An ASN as text: digits only. The tables and the AS path look ASNs up in
+ * `asn_organizations`, where a name an object already has (`__proto__`, `constructor`)
+ * would reach Object's own members.
+ */
+const isAsnText = (value: unknown): boolean => isString(value) && /^\d{1,10}$/.test(value);
+
+/** A traceroute hop's ASN as the server writes it: digits, `IXP`, `None`, or `null`. */
+const isHopAsn = (value: unknown): boolean =>
+  value === null || value === undefined || value === 'IXP' || value === 'None' || isAsnText(value);
 
 /** `value` passes `check`, or is `null` or absent: a field the tables show as blank. */
 function orNull(check: (value: unknown) => boolean): (value: unknown) => boolean {
@@ -125,16 +136,17 @@ const ROUTE_FIELDS: Record<string, (v: unknown) => boolean> = {
   weight: isNumber,
   med: isNumber,
   local_preference: isNumber,
-  as_path: v => Array.isArray(v) && v.every(isScalar),
+  as_path: v => Array.isArray(v) && v.every(isInteger),
   communities: v => Array.isArray(v) && v.every(isString),
   next_hop: isString,
-  source_as: isScalar,
+  source_as: isInteger,
   source_rid: isString,
   peer_rid: isString,
   // An index into the RPKI icons and colours.
   rpki_state: v => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 3,
   filtered: orNull(isBoolean),
-  next_hop_asn: orNull(isScalar),
+  // The server writes it as `AS<number>` (`BGPRouteTable` enrichment).
+  next_hop_asn: orNull(v => isString(v) && /^AS\d{1,10}$/.test(v)),
   next_hop_org: orNull(isString),
   next_hop_country: orNull(isString),
 };
@@ -157,7 +169,7 @@ const HOP_FIELDS: Record<string, (v: unknown) => boolean> = {
   avg_rtt: NULLABLE_NUMBER,
   best_rtt: NULLABLE_NUMBER,
   worst_rtt: NULLABLE_NUMBER,
-  asn: orNull(isScalar),
+  asn: isHopAsn,
   org: NULLABLE_STRING,
   prefix: NULLABLE_STRING,
   country: NULLABLE_STRING,
@@ -169,8 +181,9 @@ const HOP_FIELDS: Record<string, (v: unknown) => boolean> = {
 const isAsnOrganizations = orNull(
   v =>
     isObject(v) &&
-    Object.values(v).every(org =>
-      hasFields(org, { name: NULLABLE_STRING, country: NULLABLE_STRING }),
+    Object.entries(v).every(
+      ([asn, org]) =>
+        isAsnText(asn) && hasFields(org, { name: NULLABLE_STRING, country: NULLABLE_STRING }),
     ),
 );
 
