@@ -11,7 +11,9 @@ A visitor can copy a result from the query cache into a snapshot: a copy kept on
 | Parameter                       | Type    | Default  | Description |
 | :------------------------------ | :------ | :------- | :---------- |
 | `share.enable`                  | Boolean | `false`  | Register `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}`. With `false`, none of them exist. |
-| `share.timeout`                 | Integer | `604800` | Seconds a snapshot is kept, from `60` to `2592000` (30 days). Reading it doesn't extend it. |
+| `share.timeout`                 | Integer | `2592000` | Seconds a snapshot is kept when the request doesn't choose (no `expiresIn`). Must be one of `timeout_choices`. Reading a snapshot doesn't extend it. |
+| `share.max_timeout`             | Integer | `7776000` | The longest a visitor can choose, from `60` to `31536000` (1 year). `timeout_choices` above it are dropped. |
+| `share.timeout_choices`         | List of Integers | `[604800, 2592000, 7776000]` | Times, in seconds, a visitor can choose to keep a snapshot for: 7, 30 and 90 days. Sorted and without duplicates once validated. With `timeout`, sent to the UI for its choice. |
 | `share.max_entries`             | Integer | `1000`   | Live snapshots from all clients together. When full, a new share gets HTTP 503. Existing snapshots are never deleted to make room. |
 | `share.max_size`                | Integer | `262144` | Bytes of one stored snapshot. A larger result gets HTTP 413. |
 | `share.quota.client_limit`      | Integer | `10`     | Shares one client can create per window: an IPv4 address or an IPv6 /64. |
@@ -26,7 +28,9 @@ A visitor can copy a result from the query cache into a snapshot: a copy kept on
 ```yaml filename="config.yaml"
 share:
     enable: true
-    timeout: 604800
+    timeout: 2592000
+    max_timeout: 7776000
+    timeout_choices: [604800, 2592000, 7776000]
     max_entries: 1000
     max_size: 262144
     quota:
@@ -41,6 +45,7 @@ Snapshots are kept in Redis under `hyperglass.share:`, outside the state Hypergl
 
 - **Worst case:** `max_entries × max_size`, 256 MiB with the defaults, plus a few hundred bytes per snapshot. Size Redis for it, or lower either value.
 - **Snapshot size:** a structured BGP result takes roughly 350 to 500 bytes per route, so the default `max_size` holds a result of about 500 routes. Larger results get HTTP 413 with [`messages.share_too_large`](/configuration/config/messages).
+- **Lifetime:** a snapshot lives as long as the visitor chose, up to `max_timeout` (90 days by default). The longer snapshots live, the more a restart of Redis without persistence loses, and the longer a full store stays full.
 - **Restarts of Redis:** snapshots survive a restart of Redis only if Redis persists its data (RDB snapshots or an append-only file) to a volume. The shipped `compose.yaml` runs Redis (Valkey) without a volume, so restarting that container deletes every snapshot. Add a volume for `/data` to keep them.
 - **Memory limits:** if Redis has a `maxmemory` limit, use the `noeviction` policy or a `volatile-*` policy; `allkeys-*` policies can also delete Hyperglass's configuration state.
   - With `noeviction`, a full Redis refuses writes. New shares then get HTTP 503 with `messages.share_unavailable`; existing snapshots can still be read and deleted, without being counted against `read_quota`. Queries are affected too: a query that is not in the cache fails with HTTP 500 when its result can't be written to the cache, and with [`query_limit`](/configuration/config/query-limit) enabled every query does, because its counter can't be written.
@@ -54,16 +59,18 @@ All three routes need `share.enable: true`. Their error bodies have the same sha
 #### `POST /api/share`
 
 ```json
-{ "queryId": "hyperglass.query.<64 hex characters>" }
+{ "queryId": "hyperglass.query.<64 hex characters>", "expiresIn": 2592000 }
 ```
+
+`expiresIn` is optional: absent or `null`, the snapshot is kept for `timeout` seconds. Otherwise it must be one of `timeout_choices` (after the `max_timeout` cap), as an integer.
 
 `queryId` is the `id` of a `POST /api/query` response. The result must still be in the query cache: the server copies the result, its query (location, query type ID and name, validated target, variables), its labels, format, time and runtime from the cache entry, never from the request.
 
 | Status | Meaning |
 | :----- | :------ |
 | 201    | Created. The body is `{"id": …, "expiresAt": …, "deleteToken": …}`. |
-| 200    | This client already shared this cached result: the same `id` and `expiresAt`, and a new `deleteToken`. The previous token no longer works. A result refreshed with `force`, or run again after its cache entry expired, gets a new ID. |
-| 400    | The body is not `{"queryId": …}` with a query ID. |
+| 200    | This client already shared this cached result: the same `id` and `expiresAt`, whatever `expiresIn` says, and a new `deleteToken`. The previous token no longer works. A result refreshed with `force`, or run again after its cache entry expired, gets a new ID. |
+| 400    | The body is not `{"queryId": …}` with a query ID, or `expiresIn` is not one of `timeout_choices` (with `messages.share_invalid_expiry`). |
 | 413    | The body is larger than 1024 bytes. |
 | 415    | The body is not sent as `application/json`. A page on another site can make a browser send a form or `text/plain` post without asking, which would use up its visitor's quota; a JSON post needs a CORS preflight, which only the origins in `cors_origins` pass. |
 | 403    | The result's directive has `retain: false`. |
@@ -106,7 +113,7 @@ hyperglass share clear        # delete every snapshot (asks first; --yes skips t
 Creating shares is cheap to refuse but can be used to deny sharing to others:
 
 - Every create request that passes validation counts toward `quota`, including requests refused with 403, 404, 409 or 413. A client can use up its own quota, and clients with many addresses or /64s can use up `quota.global_limit` for a window.
-- A full store (`max_entries`) refuses new shares until snapshots expire, after `timeout` seconds. With the defaults, filling it takes at least 10 windows of the global quota (10 hours). Lower `timeout`, or remove snapshots with `hyperglass share delete <id>` or `hyperglass share clear`.
+- A full store (`max_entries`) refuses new shares until snapshots expire, which can take up to `max_timeout` (90 days by default) if the store was filled with the longest choice. With the defaults, filling it takes at least 10 windows of the global quota (10 hours). Lower `max_timeout`, or remove snapshots with `hyperglass share delete <id>` or `hyperglass share clear`.
 - `hyperglass_share_requests_total` shows these as `rate_limited` and `full` results.
 
 ### How Clients Are Identified

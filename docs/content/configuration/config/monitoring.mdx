@@ -103,7 +103,7 @@ A forced run is otherwise counted like any other run: its outcome in `hyperglass
 
 | `operation` | `result`                                                                                                                                  |
 | :---------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`    | `created`, `reused` (the client's existing share), `not_found` (result no longer cached), `pending`, `not_allowed`, `too_large`, `full` (also when Redis is full), `rate_limited` |
+| `create`    | `created`, `reused` (the client's existing share), `invalid_expiry`, `not_found` (result no longer cached), `pending`, `not_allowed`, `too_large`, `full` (also when Redis is full), `rate_limited` |
 | `read`      | `found`, `not_found`, `hidden` (directive removed or `retain: false`), `invalid`, `unsupported`, `rate_limited`                         |
 | `delete`    | `deleted`, `not_found` (no such share, or a wrong token), `rate_limited`                                                                                   |
 
