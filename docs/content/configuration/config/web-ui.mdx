@@ -316,6 +316,16 @@ web:
     <br /> If your organization's policy allows, and you don't mind, I request that you keep `credit` enabled. Remember: my goal for this project is get more networks to use looking glasses to make all of our lives easier. Because it's primarily other network operators who will use this tool to begin with, I'd love for any operators that use your looking glass to know where they can get their own.
 </Callout>
 
+### Requery button
+
+Each result has a requery button that runs its query again. With [`cache.refresh.enable`](/configuration/config/caching#forced-refresh) set to `false`, the default, the server answers it from the cache while the result is cached, so the output is the same.
+
+With `cache.refresh.enable: true`, the button sends that one request with `force`, so the query runs on the device again and the result is replaced. Every successful response says when the next forced run is allowed (`refresh_in`), counted from when the response arrived in the browser. A press before then sends no request: `web.text.refresh_cooldown` appears under the result's header, counting down to zero. Screen readers announce the time left once per press, not on every second. The button stays enabled during the cooldown, so it keeps its tooltip and can say why nothing happened.
+
+If a press is answered from the cache because the server's cooldown is still running (another visitor refreshed the same query, or an earlier forced run failed), the countdown appears at once.
+
+A failed response carries no cooldown, so the next press after a failure sends a forced request.
+
 ### Text
 
 Most of the text in the Hyperglass UI can be overridden to suit your needs.
@@ -348,6 +358,7 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.ip_lookup_confirm` | String | Look up my IP | Button that confirms the external My IP lookup. |
 | `web.text.copy_output` | String | Copy Output | Tooltip and accessible name of the button that copies a result. |
 | `web.text.reload_query` | String | Reload Query | Tooltip and accessible name of the button that runs a query again. |
+| `web.text.refresh_cooldown` | String | Refresh available in \{seconds\}s | Shown under a result's header when its requery button is pressed before a forced refresh is allowed, counting down to zero, and announced once to screen readers. `{seconds}` is the time left. Used only with `cache.refresh.enable`. |
 | `web.text.view_as_path` | String | View AS Path | Tooltip and accessible name of the button that opens the AS path chart. |
 | `web.text.copy_link` | String | Copy Link | Tooltip and accessible name of the button that copies a link to the submitted query. |
 | `web.text.link_copied` | String | Link copied | Confirmation shown and announced after the link is copied. |

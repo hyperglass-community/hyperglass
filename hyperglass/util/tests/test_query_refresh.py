@@ -382,13 +382,16 @@ def test_refresh_interval_must_be_positive():
         Params(cache={"refresh": {"enable": True, "min_interval": 0}})
 
 
-def test_refresh_config_is_not_sent_to_the_ui():
+@pytest.mark.parametrize("enable", [True, False])
+def test_only_refresh_enable_is_sent_to_the_ui(enable):
     # Project
     from hyperglass.configuration.validate import init_ui_params
 
-    params = Params(cache={"timeout": 60, "refresh": {"enable": True, "min_interval": 20}})
+    params = Params(cache={"timeout": 60, "refresh": {"enable": enable, "min_interval": 20}})
     devices = Devices()
 
     exported = json.loads(init_ui_params(params=params, devices=devices).export_json(by_alias=True))
 
-    assert exported["cache"] == {"timeout": 60, "showText": True}
+    # The UI needs `enable` to decide whether the requery button forces a refresh; the
+    # interval reaches it as `refresh_in` on each response.
+    assert exported["cache"] == {"timeout": 60, "showText": True, "refresh": {"enable": enable}}

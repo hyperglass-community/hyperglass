@@ -61,7 +61,7 @@ Controls how Hyperglass caches query responses to improve performance.
 | :-------- | :--- | :------ | :---------- |
 | `cache.timeout` | Integer | `120` | Cache timeout in seconds. How long responses are cached. |
 | `cache.show_text` | Boolean | `true` | Whether to show cache timeout countdown to users. |
-| `cache.refresh.enable` | Boolean | `false` | Let a query sent with `force` run a cached query on the device again. See [Forced refresh](/configuration/config/caching#forced-refresh). |
+| `cache.refresh.enable` | Boolean | `false` | Let a query sent with `force` run a cached query on the device again. The UI's requery button then sends `force`. See [Forced refresh](/configuration/config/caching#forced-refresh). |
 | `cache.refresh.min_interval` | Integer | `30` | Minimum seconds between runs of one query through `force`. Must be greater than 0 and less than `cache.timeout` when refresh is enabled. |
 
 #### Example: Cache Configuration
@@ -540,6 +540,7 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.complete_time` | String | `Completed in {seconds}` | Tooltip showing query completion time. |
 | `web.text.copy_output` | String | `Copy Output` | Tooltip and accessible name of the button that copies a result. |
 | `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
+| `web.text.refresh_cooldown` | String | `Refresh available in {seconds}s` | Shown under a result's header when its requery button is pressed before a forced refresh is allowed, counting down to zero, and announced once to screen readers. `{seconds}` is the time left. Used only with `cache.refresh.enable`. |
 | `web.text.view_as_path` | String | `View AS Path` | Tooltip and accessible name of the button that opens the AS path chart. |
 | `web.text.copy_link` | String | `Copy Link` | Tooltip and accessible name of the button that copies a link to the submitted query. |
 | `web.text.link_copied` | String | `Link copied` | Confirmation shown and announced after the link is copied. |
@@ -1374,6 +1375,7 @@ web:
     # Icon-only result buttons: tooltip and screen reader name.
     copy_output: "Copy Output"
     reload_query: "Reload Query"
+    refresh_cooldown: "Refresh available in {seconds}s"
     view_as_path: "View AS Path"
     # Results view: copy a link to the query, its confirmation, and the label of the
     # field that shows the link when the clipboard isn't available.

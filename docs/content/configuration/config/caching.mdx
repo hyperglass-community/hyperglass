@@ -41,4 +41,6 @@ Every successful `/api/query` response includes `refresh_in`: the number of seco
 
 With the default `cache.timeout` of 120 and `min_interval` of 30, a result can be refreshed from 30 seconds after it ran until it expires. After it expires, any request runs the query again.
 
+In the UI, the requery button of a result sends `force` when `cache.refresh.enable` is `true`, and shows how long to wait when pressed during the cooldown. See [Requery button](/configuration/config/web-ui#requery-button).
+
 With [metrics](/configuration/config/monitoring#cache-results) enabled, a forced run counts as `bypass` in `hyperglass_query_cache_total`, and a forced query answered from the cache counts as `hit`.

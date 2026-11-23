@@ -557,6 +557,7 @@ web:
     # Icon-only result buttons: tooltip and screen reader name.
     copy_output: "Copy Output"
     reload_query: "Reload Query"
+    refresh_cooldown: "Refresh available in {seconds}s"
     view_as_path: "View AS Path"
     # Results view: copy a link to the query, its confirmation, and the label of the
     # field that shows the link when the clipboard isn't available.
