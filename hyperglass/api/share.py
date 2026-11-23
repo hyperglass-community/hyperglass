@@ -33,6 +33,7 @@ from hyperglass.exceptions.public import (
     ShareNotAllowed,
     ShareUnavailable,
     ShareUnsupported,
+    ShareInvalidExpiry,
     ShareResultExpired,
 )
 
@@ -47,6 +48,7 @@ if t.TYPE_CHECKING:
 
     # Project
     from hyperglass.models.config.quota import RateQuota
+    from hyperglass.models.config.share import Share
     from hyperglass.models.config.params import Params
     from hyperglass.models.config.devices import Devices
 
@@ -129,6 +131,15 @@ async def _take_quota(
         raise RateLimited(retry_after=quota.window)
 
 
+def _expires_in(data: ShareRequest, config: "Share") -> int:
+    """Return the seconds to keep the share: one of `timeout_choices`, else 400."""
+    expires_in = config.timeout if data.expires_in is None else data.expires_in
+    if expires_in not in config.timeout_choices:
+        record_share("create", "invalid_expiry")
+        raise ShareInvalidExpiry()
+    return expires_in
+
+
 def _check_shareable(result: t.Optional[storage.CachedResult], devices: "Devices") -> None:
     """Raise the error for a cached result that can't be shared."""
     if result is None:
@@ -165,6 +176,7 @@ async def share_create(_state: HyperglassState, request: Request, data: ShareReq
     """Copy a cached query result into a share, or return this client's existing one."""
     params = _state.params
     config = params.share
+    expires_in = _expires_in(data, config)
     # Before anything is read, so a refused request costs one script.
     await _take_quota(request, params, "share", config.quota, "create")
     client = client_identity(request, params.web.client_ip)
@@ -172,7 +184,7 @@ async def share_create(_state: HyperglassState, request: Request, data: ShareReq
     result = await asyncio.to_thread(storage.read_cached_result, _state.redis, data.query_id)
     _check_shareable(result, _state.devices)
 
-    snapshot = storage.build_snapshot(result, config.timeout)
+    snapshot = storage.build_snapshot(result, expires_in)
     snapshot_json = snapshot.model_dump_json(by_alias=True)
     if len(snapshot_json.encode()) > config.max_size:
         record_share("create", "too_large")

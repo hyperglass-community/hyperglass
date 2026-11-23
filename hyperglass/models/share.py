@@ -9,7 +9,7 @@ Redis by hand, or written by another version, is refused instead of being return
 import typing as t
 
 # Third Party
-from pydantic import Field, BaseModel, ConfigDict, AwareDatetime, model_validator
+from pydantic import Field, BaseModel, ConfigDict, AwareDatetime, field_validator, model_validator
 
 # Project
 from hyperglass.util import snake_to_camel
@@ -89,3 +89,14 @@ class ShareRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", alias_generator=snake_to_camel)
 
     query_id: str = Field(pattern=r"^hyperglass\.query\.[0-9a-f]{64}$")
+    # Seconds to keep the share, one of `share.timeout_choices`; `share.timeout` if
+    # absent or null.
+    expires_in: t.Optional[int] = Field(None, gt=0)
+
+    @field_validator("expires_in", mode="before")
+    @classmethod
+    def whole_seconds(cls, value: t.Any) -> t.Any:
+        """Take a JSON integer only: not a string, a float or a boolean."""
+        if value is not None and type(value) is not int:
+            raise ValueError("expiresIn must be an integer")
+        return value

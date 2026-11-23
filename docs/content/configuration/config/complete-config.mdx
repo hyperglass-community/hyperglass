@@ -105,7 +105,9 @@ Lets visitors copy a cached query result into a snapshot that anyone with its li
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `share.enable` | Boolean | `false` | Register `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}`. |
-| `share.timeout` | Integer | `604800` | Seconds a snapshot is kept, from `60` to `2592000` (30 days). Reading it doesn't extend it. |
+| `share.timeout` | Integer | `2592000` | Seconds a snapshot is kept when the request doesn't choose (`expiresIn`). Must be one of `share.timeout_choices`. Reading a snapshot doesn't extend it. |
+| `share.max_timeout` | Integer | `7776000` | The longest a visitor can choose, from `60` to `31536000` (1 year). Longer `timeout_choices` are dropped. |
+| `share.timeout_choices` | List of Integers | `[604800, 2592000, 7776000]` | Times, in seconds, a visitor can choose to keep a snapshot for (7, 30 and 90 days). Sent to the UI with `share.timeout`. |
 | `share.max_entries` | Integer | `1000` | Live snapshots from all clients together. When full, new shares get HTTP 503; none is deleted to make room. |
 | `share.max_size` | Integer | `262144` | Bytes of one snapshot. Larger results get HTTP 413. |
 | `share.quota.client_limit` | Integer | `10` | Shares per window from one client: an IPv4 address or an IPv6 /64. |
@@ -119,8 +121,10 @@ Lets visitors copy a cached query result into a snapshot that anyone with its li
 ```yaml filename="config.yaml"
 share:
   enable: true
-  timeout: 86400     # one day
-  max_entries: 500   # at most 500 x 256 KiB = 125 MiB of snapshots
+  timeout: 86400            # one day unless the visitor picks another choice
+  max_timeout: 604800       # at most a week
+  timeout_choices: [86400, 604800]
+  max_entries: 500          # at most 500 x 256 KiB = 125 MiB of snapshots
 ```
 
 ---
@@ -301,6 +305,7 @@ Customize error messages and user-facing text shown in the UI and API responses.
 | `messages.share_too_large` | String | `This result is too large to share.` | Returned with HTTP 413 when a snapshot would be larger than `share.max_size`. |
 | `messages.share_unavailable` | String | `Sharing is unavailable right now. Please try again later.` | Returned with HTTP 503 when `share.max_entries` snapshots exist. |
 | `messages.share_not_found` | String | `This shared result does not exist or has expired.` | Returned with HTTP 404 for a missing, expired or deleted share, or a wrong delete token. |
+| `messages.share_invalid_expiry` | String | `Choose one of the offered times to keep the shared result.` | Returned with HTTP 400 when a share request's `expiresIn` is not one of `share.timeout_choices`. |
 | `messages.share_unsupported` | String | `This shared result was saved in a format this version can't show.` | Returned with HTTP 422 for a share stored in a snapshot version this version doesn't read. |
 
 #### Example: Custom Messages
@@ -919,9 +924,18 @@ share:
   # its link can read until it expires. Snapshots are kept in Redis outside
   # the state that a restart clears. Default: false
   enable: false
-  # Seconds a snapshot is kept, 60 to 2592000. Reading it doesn't extend it.
-  # Default: 604800 (7 days)
-  timeout: 604800
+  # Seconds a snapshot is kept when the visitor doesn't choose. Must be one of
+  # timeout_choices. Reading a snapshot doesn't extend it. Default: 2592000 (30 days)
+  timeout: 2592000
+  # The longest a visitor can choose, 60 to 31536000 (1 year). Longer
+  # timeout_choices are dropped. Default: 7776000 (90 days)
+  max_timeout: 7776000
+  # The times, in seconds, a visitor can choose to keep a snapshot for.
+  # Default: 7, 30 and 90 days
+  timeout_choices:
+    - 604800
+    - 2592000
+    - 7776000
   # Live snapshots from all clients together. When full, new shares get
   # HTTP 503 with messages.share_unavailable; none is deleted to make room.
   # Default: 1000
@@ -1110,6 +1124,8 @@ messages:
   share_unavailable: "Sharing is unavailable right now. Please try again later."
   # The share does not exist, expired or was deleted, or the delete token is wrong (HTTP 404).
   share_not_found: "This shared result does not exist or has expired."
+  # A share request's expiresIn is not one of share.timeout_choices (HTTP 400).
+  share_invalid_expiry: "Choose one of the offered times to keep the shared result."
   # The share was stored in a snapshot version this version doesn't read (HTTP 422).
   share_unsupported: "This shared result was saved in a format this version can't show."
   # Deprecated keys, accepted with a warning but never shown. No removal release is scheduled.

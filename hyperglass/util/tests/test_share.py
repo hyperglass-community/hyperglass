@@ -39,6 +39,7 @@ MESSAGES = {
     "share_unavailable": "Sharing is full.",
     "share_not_found": "No such share.",
     "share_unsupported": "Unsupported share.",
+    "share_invalid_expiry": "Pick an offered time.",
     "rate_limited": "Slow down.",
 }
 
@@ -159,8 +160,8 @@ def run_query(test_client: TestClient, target: str = "192.0.2.0/24", **kwargs: t
     return response.json()["id"]
 
 
-def create(test_client: TestClient, query_id: str):
-    return test_client.post("/api/share", json={"queryId": query_id})
+def create(test_client: TestClient, query_id: str, **extra: t.Any):
+    return test_client.post("/api/share", json={"queryId": query_id, **extra})
 
 
 def shared(test_client: TestClient, target: str = "192.0.2.0/24", **kwargs: t.Any) -> t.Dict:
@@ -192,7 +193,9 @@ def index() -> t.List[bytes]:
 def test_defaults():
     share = Params().share
     assert share.enable is False
-    assert (share.timeout, share.max_entries, share.max_size) == (604800, 1000, 262144)
+    assert (share.timeout, share.max_timeout) == (2592000, 7776000)
+    assert share.timeout_choices == [604800, 2592000, 7776000]
+    assert (share.max_entries, share.max_size) == (1000, 262144)
     assert (share.quota.client_limit, share.quota.global_limit, share.quota.window) == (
         10,
         100,
@@ -204,15 +207,44 @@ def test_defaults():
         assert getattr(Params().messages, key)
 
 
+DAY = 86400
+
+
 @pytest.mark.parametrize(
-    ("timeout", "valid"), ((59, False), (60, True), (2592000, True), (2592001, False))
+    ("config", "choices"),
+    (
+        ({}, [7 * DAY, 30 * DAY, 90 * DAY]),
+        # Choices above the cap are dropped.
+        ({"max_timeout": 30 * DAY}, [7 * DAY, 30 * DAY]),
+        (
+            {"max_timeout": 365 * DAY, "timeout_choices": [365 * DAY, 30 * DAY]},
+            [30 * DAY, 365 * DAY],
+        ),
+        ({"timeout": 60, "timeout_choices": [60, 30 * DAY, 30 * DAY]}, [60, 30 * DAY]),
+    ),
 )
-def test_timeout_bounds(timeout, valid):
-    if valid:
-        assert Params(share={"timeout": timeout}).share.timeout == timeout
-    else:
-        with pytest.raises(ValueError):
-            Params(share={"timeout": timeout})
+def test_timeout_choices(config, choices):
+    assert Params(share=config).share.timeout_choices == choices
+
+
+@pytest.mark.parametrize(
+    "config",
+    (
+        # The default must be one of the offered times, after the cap.
+        {"timeout": 14 * DAY},
+        {"max_timeout": 7 * DAY},
+        # Nothing left after the cap.
+        {"max_timeout": DAY, "timeout": DAY, "timeout_choices": [7 * DAY]},
+        {"timeout_choices": []},
+        {"max_timeout": 365 * DAY + 1},
+        {"timeout": 59, "timeout_choices": [59]},
+        {"timeout_choices": [30 * DAY, 0]},
+        {"timeout_choices": [30 * DAY, 365 * DAY + 1], "max_timeout": 365 * DAY},
+    ),
+)
+def test_invalid_timeouts(config):
+    with pytest.raises(ValueError):
+        Params(share=config)
 
 
 @pytest.mark.parametrize(
@@ -228,8 +260,19 @@ def test_limits_must_be_positive(key):
         Params(share=value)
 
 
-def test_share_is_not_sent_to_the_ui():
-    assert "share" not in Params(share={"enable": True}).frontend()
+def test_only_the_timeouts_are_sent_to_the_ui():
+    share = Params(share={"enable": True, "max_timeout": 30 * DAY}).frontend()["share"]
+    assert share == {"timeout": 30 * DAY, "timeout_choices": [7 * DAY, 30 * DAY]}
+
+
+def test_ui_parameters_carry_the_timeouts():
+    # Project
+    from hyperglass.models.ui import UIParameters
+
+    assert UIParameters.model_fields["share"].annotation.model_fields.keys() == {
+        "timeout",
+        "timeout_choices",
+    }
 
 
 def test_max_size_default_fits_large_structured_results():
@@ -445,15 +488,85 @@ def test_expired_shares_free_their_place(device):
     assert first.encode() not in index()
 
 
-def test_share_ttl_and_index_score(device):
-    configure({"timeout": 3600})
+@pytest.mark.parametrize("seconds", (7 * DAY, 30 * DAY, 90 * DAY, "absent", None))
+def test_expiry_is_the_chosen_time(device, seconds):
+    # Absent or null: `share.timeout`.
+    extra = {} if seconds == "absent" else {"expiresIn": seconds}
+    expected = seconds if isinstance(seconds, int) else 30 * DAY
     with client() as test_client:
-        created = shared(test_client)
+        response = create(test_client, run_query(test_client), **extra)
+        assert response.status_code == 201
+        created = response.json()
+        data = test_client.get(f"/api/share/{created['id']}").json()
     key = f"hyperglass.share:{created['id']}"
-    assert 3590 < raw().ttl(key) <= 3600
+    assert expected - 10 < raw().ttl(key) <= expected
     now = raw().time()[0]
     score = raw().zscore("hyperglass.share:index", created["id"])
-    assert now + 3590 < score <= now + 3600
+    assert now + expected - 10 < score <= now + expected
+    # Standard Library
+    from datetime import datetime
+
+    created_at = datetime.fromisoformat(data["createdAt"])
+    expires_at = datetime.fromisoformat(data["expiresAt"])
+    assert (expires_at - created_at).total_seconds() == expected
+    assert data["expiresAt"] == created["expiresAt"]
+
+
+@pytest.mark.parametrize("seconds", (3600, 14 * DAY, 365 * DAY, 0, -1, "604800", True, 604800.0))
+def test_expiry_not_offered_is_400(device, seconds):
+    with client() as test_client:
+        response = create(test_client, run_query(test_client), expiresIn=seconds)
+    assert response.status_code == 400
+    assert index() == []
+
+
+def test_expiry_not_offered_has_the_configured_text(device):
+    with client() as test_client:
+        response = create(test_client, run_query(test_client), expiresIn=3600)
+    assert response.json()["output"] == MESSAGES["share_invalid_expiry"]
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_expiry_above_the_cap_is_400(device):
+    configure({"max_timeout": 30 * DAY})
+    with client() as test_client:
+        query_id = run_query(test_client)
+        refused = create(test_client, query_id, expiresIn=90 * DAY)
+        accepted = create(test_client, query_id, expiresIn=30 * DAY)
+    assert (refused.status_code, accepted.status_code) == (400, 201)
+
+
+def test_reshare_keeps_the_expiry(device):
+    with client() as test_client:
+        query_id = run_query(test_client)
+        first = create(test_client, query_id, expiresIn=7 * DAY).json()
+        again = create(test_client, query_id, expiresIn=90 * DAY)
+    assert again.status_code == 200
+    assert again.json()["id"] == first["id"]
+    assert again.json()["expiresAt"] == first["expiresAt"]
+    assert raw().ttl(f"hyperglass.share:{first['id']}") <= 7 * DAY
+
+
+def test_index_pruning_with_mixed_expiries(device):
+    configure({"max_entries": 2})
+    with client() as test_client:
+        short = create(test_client, run_query(test_client), expiresIn=7 * DAY).json()["id"]
+        long = create(
+            test_client, run_query(test_client, "198.51.100.0/24"), expiresIn=90 * DAY
+        ).json()["id"]
+        scores = {
+            member.decode(): score
+            for member, score in raw().zrange("hyperglass.share:index", 0, -1, withscores=True)
+        }
+        assert scores[long] - scores[short] == 83 * DAY
+        query_id = run_query(test_client, "203.0.113.0/24")
+        assert create(test_client, query_id).status_code == 503
+        # Eight days later: the 7-day share expired, the 90-day one is still live.
+        raw().delete(f"hyperglass.share:{short}")
+        raw().zadd("hyperglass.share:index", {short: raw().time()[0] - DAY})
+        third = create(test_client, query_id)
+    assert third.status_code == 201
+    assert sorted(index()) == sorted([long.encode(), third.json()["id"].encode()])
 
 
 def test_reading_does_not_extend_the_ttl(device):
@@ -1307,3 +1420,12 @@ def test_routes_do_not_look_up_non_ids(device, monkeypatch):
         removed = test_client.delete("/api/share/index", headers={DELETE_HEADER: "x" * 43})
     assert (read.status_code, removed.status_code) == (404, 404)
     assert looked_up == []
+
+
+@pytest.mark.parametrize(
+    "config",
+    ({"max_timeout": DAY, "timeout": DAY, "timeout_choices": [7 * DAY]}, {"timeout_choices": []}),
+)
+def test_no_choice_left_is_reported_as_such(config):
+    with pytest.raises(ValueError, match="no time within share.max_timeout"):
+        Params(share=config)

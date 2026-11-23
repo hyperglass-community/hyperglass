@@ -249,6 +249,12 @@ class ShareNotFound(ShareError, template="share_not_found", level="warning"):
     _status_code = 404
 
 
+class ShareInvalidExpiry(ShareError, template="share_invalid_expiry", level="warning"):
+    """Raised when a share request asks for a time that is not offered."""
+
+    _status_code = 400
+
+
 class ShareUnsupported(ShareError, template="share_unsupported", level="warning"):
     """Raised for a share stored in a snapshot version this version can't read."""
 

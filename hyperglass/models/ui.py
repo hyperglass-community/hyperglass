@@ -73,10 +73,18 @@ class UICache(HyperglassModel):
     refresh: UICacheRefresh
 
 
+class UIShare(HyperglassModel):
+    """UI: Share. The times a visitor can keep a share for, and the default."""
+
+    timeout: int
+    timeout_choices: t.List[int]
+
+
 class UIParameters(ParamsPublic, HyperglassModel):
     """UI Configuration Parameters."""
 
     cache: UICache
+    share: UIShare
     web: WebPublic
     messages: Messages
     version: str

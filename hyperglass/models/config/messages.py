@@ -126,6 +126,11 @@ class Messages(HyperglassModel):
         title="Share Not Found",
         description="Returned with HTTP 404 when a [share](/configuration/config/share) does not exist, has expired or was deleted, or when a delete request has the wrong token.",
     )
+    share_invalid_expiry: str = Field(
+        "Choose one of the offered times to keep the shared result.",
+        title="Share Invalid Expiry",
+        description="Returned with HTTP 400 when a [share](/configuration/config/share) request's `expiresIn` is not one of `share.timeout_choices`.",
+    )
     share_unsupported: str = Field(
         "This shared result was saved in a format this version can't show.",
         title="Share Unsupported",
