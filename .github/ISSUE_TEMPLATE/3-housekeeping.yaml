@@ -1,7 +1,6 @@
 name: Housekeeping
 description: Maintenance work such as cleanup, hardening, tooling or documentation accuracy
-labels:
-  - housekeeping
+type: Task
 body:
   - type: markdown
     attributes:
