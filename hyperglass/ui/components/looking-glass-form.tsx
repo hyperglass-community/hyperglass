@@ -324,23 +324,53 @@ export const LookingGlassForm = (): JSX.Element => {
         message: strF(web.text.historyLocationUnavailable, { locations: unavailable.join(', ') }),
       });
     }
+    // Name each saved variable value the selected query type no longer offers, on its
+    // field. (A variable the query type no longer has has no field to show it.)
+    const after = useFormState.getState();
+    const selected = after.getDirective();
+    const droppedVariables = Object.entries(query.queryVariables).filter(
+      ([id, value]) =>
+        after.form.queryVariables[id] !== value &&
+        (selected?.variables ?? []).some(v => v.id === id),
+    );
+    for (const [id, value] of droppedVariables) {
+      setError(id as keyof FormData, {
+        message: strF(web.text.historyVariableUnavailable, { value }),
+      });
+    }
     if (mode === 'newTarget') {
       setAfterReuse({ focus: ['queryTarget', 'queryType', 'queryLocation'] });
       return;
     }
-    // Run the saved query only as it was saved: without a location or a variable value it
-    // would be another query. Validation catches a missing query type or target.
-    const { queryVariables } = useFormState.getState().form;
+    // Run the saved query only as it was saved. Anything `prefillForm` left out or chose
+    // on its own makes another query: a location, the query type (when the saved one is
+    // gone, `locationChange` may choose the only one left, and one without a target field
+    // gets the form's placeholder target, so validation would pass), the target, or a
+    // variable value. Then only fill the form and focus the first field that differs.
+    const sameType =
+      selected !== null &&
+      (selected.id === query.queryType || selected.name === query.queryTypeName);
+    const sameTarget =
+      selected !== null &&
+      (selected.fieldType === null
+        ? isEqual(query.queryTarget, ['null'])
+        : isEqual(after.form.queryTarget, query.queryTarget));
     const sameVariables = Object.entries(query.queryVariables).every(
-      ([id, value]) => queryVariables[id] === value,
+      ([id, value]) => after.form.queryVariables[id] === value,
     );
-    if (unavailable.length > 0) {
-      setAfterReuse({ focus: ['queryLocation', SUBMIT_FIELD] });
-    } else if (!sameVariables) {
-      setAfterReuse({ focus: [SUBMIT_FIELD] });
-    } else {
+    if (unavailable.length === 0 && sameType && sameTarget && sameVariables) {
       setAfterReuse({ submit: true });
+      return;
     }
+    setAfterReuse({
+      focus: [
+        ...(unavailable.length > 0 ? ['queryLocation'] : []),
+        ...(sameType ? [] : ['queryType']),
+        ...(sameType && !sameTarget && selected?.fieldType !== null ? ['queryTarget'] : []),
+        ...droppedVariables.map(([id]) => `var.${id}`),
+        SUBMIT_FIELD,
+      ],
+    });
   }, [pendingReuse]);
 
   // On the render after a saved query filled the form, so `submitHandler`, the schema and

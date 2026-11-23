@@ -375,16 +375,85 @@ describe('Run again', () => {
         ['Router Three'],
       ),
     );
-    renderPage();
+    const { container } = renderPage();
 
     await userEvent.click(await rowButton(0, text.historyRerun));
 
-    // The form reports the missing target, as it does for a visitor's submit.
-    expect(
-      await screen.findByText(testConfig.messages.noInput.replace('{field}', text.queryTarget)),
-    ).toBeInTheDocument();
+    // The form is filled without the target, which gets focus.
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-query-field="queryTarget"] input[role="combobox"]'),
+      ).toHaveFocus(),
+    );
     expect(useFormState.getState().form.queryType).toBe('peer_communities');
     expect(useFormState.getState().form.queryTarget).toEqual([]);
+    expect(useFormState.getState().status).toBe('form');
+    expect(queries()).toEqual([]);
+  });
+
+  it('does not run another query type the form chose on its own', async () => {
+    // BGP Route is gone; the location's only query type, without a target field, is
+    // chosen by the form and gets its placeholder target.
+    const dev = structuredClone(device('router_one'));
+    dev.directives = [
+      { ...dev.directives[0], id: 'summary', name: 'BGP Summary', fieldType: null },
+    ] as unknown as Directive[];
+    const config = makeConfig({
+      devices: [{ group: 'North America', locations: [dev] }],
+    } as never);
+    seed(entry('saved', { queryTarget: ['2001:db8::/32'] }));
+    const { container } = renderPage(config);
+
+    await userEvent.click(await rowButton(0, text.historyRerun));
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-query-field="queryType"] input[role="combobox"]'),
+      ).toHaveFocus(),
+    );
+    expect(useFormState.getState().form.queryType).toBe('summary');
+    expect(useFormState.getState().status).toBe('form');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(queries()).toEqual([]);
+  });
+
+  it('does not run another query type without a target field in place of one', async () => {
+    // The saved query type had no target field either, so the targets match.
+    const dev = structuredClone(device('router_one'));
+    dev.directives = [
+      { ...dev.directives[0], id: 'neighbors', name: 'BGP Neighbors', fieldType: null },
+    ] as unknown as Directive[];
+    const config = makeConfig({
+      devices: [{ group: 'North America', locations: [dev] }],
+    } as never);
+    seed(
+      entry('saved', { queryType: 'summary', queryTypeName: 'BGP Summary', queryTarget: ['null'] }),
+    );
+    renderPage(config);
+
+    await userEvent.click(await rowButton(0, text.historyRerun));
+
+    await waitFor(() => expect(useFormState.getState().form.queryType).toBe('neighbors'));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(useFormState.getState().status).toBe('form');
+    expect(queries()).toEqual([]);
+  });
+
+  it('does not run a query type that no longer takes the saved target', async () => {
+    const dev = structuredClone(device('router_one'));
+    dev.directives = dev.directives.map(d =>
+      d.name === 'BGP Route' ? ({ ...d, fieldType: null } as unknown as Directive) : d,
+    );
+    const config = makeConfig({
+      devices: [{ group: 'North America', locations: [dev] }],
+    } as never);
+    seed(entry('saved', { queryTarget: ['2001:db8::/32'] }));
+    renderPage(config);
+
+    await userEvent.click(await rowButton(0, text.historyRerun));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Query' })).toHaveFocus());
+    expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_bgp_route__');
     expect(useFormState.getState().status).toBe('form');
     expect(queries()).toEqual([]);
   });
@@ -444,15 +513,37 @@ describe('Run again', () => {
         queryVariables: { vrf: 'removed' },
       }),
     );
-    renderPage(vrfConfig());
+    const { container } = renderPage(vrfConfig());
 
     await userEvent.click(await rowButton(0, text.historyRerun));
 
     expect(await targetInput()).toHaveValue('2001:db8::/32');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Submit Query' })).toHaveFocus());
+    // Named on the variable's field, which gets focus.
+    expect(await screen.findByText('No longer available: removed')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-query-field="var.vrf"] input[role="combobox"]'),
+      ).toHaveFocus(),
+    );
     expect(useFormState.getState().form.queryVariables).toEqual({});
     expect(useFormState.getState().status).toBe('form');
     expect(queries()).toEqual([]);
+  });
+
+  it('uses the configured message for a variable value that no longer exists', async () => {
+    seed(
+      entry('saved', {
+        queryTarget: ['2001:db8::/32'],
+        queryVariables: { vrf: 'removed' },
+      }),
+    );
+    const config = vrfConfig();
+    config.web.text.historyVariableUnavailable = 'Gone: {value}.';
+    renderPage(config);
+
+    await userEvent.click(await rowButton(0, text.historyRerun));
+
+    expect(await screen.findByText('Gone: removed.')).toBeInTheDocument();
   });
 
   it('names the locations that no longer exist, and only fills the form', async () => {
@@ -588,6 +679,9 @@ describe('Run again', () => {
     expect(await recentQueries()).toBeInTheDocument();
     expect(useHistoryView.getState().openId).toBeNull();
     expect(await targetInput()).toHaveValue('2001:db8::/32');
+    // The saved query was taken once: the form's return doesn't run it again.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(queries()).toHaveLength(1);
   });
 });
 

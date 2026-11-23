@@ -59,11 +59,13 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
       px={3}
       py={2}
       display="flex"
+      flexWrap="wrap"
       alignItems="center"
       borderTopWidth="1px"
       _first={{ borderTopWidth: 0 }}
     >
-      <Box flex="1 1 auto" minW={0} mr={2}>
+      {/* On a phone, the buttons go under the text, which keeps the row's whole width. */}
+      <Box flex={{ base: '1 1 100%', sm: '1 1 0' }} minW={0} mr={{ base: 0, sm: 2 }}>
         <Text fontSize="sm" overflowWrap="anywhere">
           <Text as="span" fontWeight="bold">
             {labels.type}
@@ -93,6 +95,7 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
         aria-labelledby={`${targetId} ${locationsId}`}
         spacing={0}
         flex="0 0 auto"
+        ml="auto"
       >
         <ActionButton
           label={web.text.historyOpen}

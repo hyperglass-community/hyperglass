@@ -411,6 +411,7 @@
       "historyRerun": "Run again",
       "historySavedAt": "Saved {time}",
       "historyTitle": "Recent queries",
+      "historyVariableUnavailable": "No longer available: {value}",
       "ipButton": "My IP",
       "ipError": "Unable to determine IP Address",
       "ipLookupConfirm": "Look up my IP",
