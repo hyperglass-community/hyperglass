@@ -240,8 +240,36 @@ describe('isSnapshot with structured output', () => {
     ['an object as a hostname', trace({ hops: [{ ...hop, hostname: {} }] })],
     ['a latency that is not a number', trace({ hops: [{ ...hop, avg_rtt: '1' }] })],
     ['a list as the AS', trace({ hops: [{ ...hop, asn: ['65000'] }] })],
+    ['a string in the AS path', bgp({ routes: [{ ...route, as_path: ['65000'] }] })],
+    ['a fraction in the AS path', bgp({ routes: [{ ...route, as_path: [65000.5] }] })],
+    ['a string as the origin AS', bgp({ routes: [{ ...route, source_as: '64999' }] })],
+    ['an AS name under a key that is not an ASN', bgp({ asn_organizations: { x: { name: 'X' } } })],
   ])('refuses %s', (_, value) => {
     expect(isSnapshot(value)).toBe(false);
+  });
+
+  // Names an object already has: looked up as an ASN they reach Object's own members, and
+  // crashed the page past the error boundary (#560 re-review).
+  it.each(['__proto__', 'constructor', 'toString'])('refuses %j as an ASN', name => {
+    expect(isSnapshot(bgp({ routes: [{ ...route, as_path: [name, 64999] }] }))).toBe(false);
+    expect(isSnapshot(bgp({ routes: [{ ...route, next_hop_asn: name }] }))).toBe(false);
+    expect(isSnapshot(trace({ hops: [{ ...hop, asn: name }] }))).toBe(false);
+    expect(isSnapshot(bgp({ asn_organizations: JSON.parse(`{"${name}": {"name": "X"}}`) }))).toBe(
+      false,
+    );
+  });
+
+  it('accepts the next hop AS as the server writes it', () => {
+    expect(isSnapshot(bgp({ routes: [{ ...route, next_hop_asn: 'AS13335' }] }))).toBe(true);
+  });
+
+  it.each([
+    ['an ASN', '65000'],
+    ['an exchange point', 'IXP'],
+    ['no ASN, as the server writes it', 'None'],
+    ['no ASN', null],
+  ])('accepts a hop with %s', (_, asn) => {
+    expect(isSnapshot(trace({ hops: [{ ...hop, asn }] }))).toBe(true);
   });
 });
 

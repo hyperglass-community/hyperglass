@@ -4,6 +4,8 @@ import { Component } from 'react';
 interface ShareErrorBoundaryProps {
   /** Shown in place of the children when they fail to render. */
   message: string;
+  /** Called once the children failed, so the page can hide what came from them. */
+  onError?(): void;
   children: React.ReactNode;
 }
 
@@ -12,9 +14,10 @@ interface ShareErrorBoundaryState {
 }
 
 /**
- * Shows `message` in place of shared results that fail to render, so a snapshot the
- * shape check let through (it doesn't check every value) can't take the page down with
- * it. The error itself is never shown.
+ * Shows `message` in place of shared results that throw while rendering. It catches only
+ * errors thrown during rendering of its children, not those in event handlers, effects or
+ * asynchronous code, so it is a second line behind the shape check, not a guarantee. The
+ * error itself is never shown.
  */
 export class ShareErrorBoundary extends Component<
   ShareErrorBoundaryProps,
@@ -24,6 +27,10 @@ export class ShareErrorBoundary extends Component<
 
   static getDerivedStateFromError(): ShareErrorBoundaryState {
     return { failed: true };
+  }
+
+  componentDidCatch(): void {
+    this.props.onError?.();
   }
 
   render(): React.ReactNode {
