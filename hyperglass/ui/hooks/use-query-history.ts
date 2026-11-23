@@ -7,7 +7,17 @@ import { historyStorage } from '~/util/history-storage';
 /** The `localStorage` key of the query history. */
 export const HISTORY_KEY = 'hyperglass.history';
 
-/** The version of the stored value. */
+/**
+ * The version of the stored value. Whoever changes the format and adds version 2 must add
+ * a `migrate` for version 1, and should stop older code from writing over a value of a
+ * higher version: this version deletes another version's value on load (see below) and
+ * replaces it on its next save.
+ *
+ * There is deliberately no `migrate` here to quiet zustand's "couldn't be migrated"
+ * error for an unknown version: zustand stores the migrated state right away, so a
+ * `migrate` would also overwrite a value another tab of another version stores, on that
+ * tab's `storage` event.
+ */
 const HISTORY_VERSION = 1;
 
 /** The query a history entry was submitted with, as sent to `/api/query`. */
