@@ -76,6 +76,28 @@ cache:
 
 ---
 
+## Query Rate Limit
+
+Limits how many queries each client, and all clients together, can send to `POST /api/query`. Off by default. See [Query Rate Limit](/configuration/config/query-limit).
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `query_limit.enable` | Boolean | `false` | Count queries and answer those over the limit with HTTP 429. |
+| `query_limit.client_limit` | Integer | `30` | Queries per window from one client: an IPv4 address or an IPv6 /64. Each selected location is one query. |
+| `query_limit.global_limit` | Integer | `300` | Queries per window from all clients together. |
+| `query_limit.window` | Integer | `60` | Length of the counting window, in seconds, up to 2592000 (30 days). Also sent as `Retry-After`. |
+
+#### Example: Query Rate Limit
+```yaml filename="config.yaml"
+query_limit:
+  enable: true
+  client_limit: 30   # 30 queries a minute per IPv4 address or IPv6 /64
+  global_limit: 300  # 300 queries a minute from everyone
+  window: 60
+```
+
+---
+
 ## API Documentation Configuration
 
 Controls the automatically generated API documentation. Hyperglass serves it at `docs.path`.
@@ -245,6 +267,7 @@ Customize error messages and user-facing text shown in the UI and API responses.
 | `messages.no_response` | String | `No response.` | Deprecated. Accepted but not displayed. Setting it logs a warning at startup. No removal release is scheduled. |
 | `messages.no_output` | String | `The query completed, but no matching results were found.` | Shown for successful queries with empty results. |
 | `messages.device_command_error` | String | `The query command failed on {device_name}.` | Shown when a device rejects a command or denies permission to run it. |
+| `messages.rate_limited` | String | `Too many requests. Please try again later.` | Shown when a query is over the [query rate limit](/configuration/config/query-limit). |
 
 #### Example: Custom Messages
 ```yaml filename="config.yaml"
@@ -811,6 +834,26 @@ cache:
     min_interval: 30
 
 # ---------------------------------------------------------------------------
+# Query rate limit (POST /api/query only)
+# ---------------------------------------------------------------------------
+
+query_limit:
+  # Limit how many queries each client, and all clients together, can send.
+  # Over the limit, a query gets HTTP 429 with messages.rate_limited and
+  # Retry-After, and no device is contacted. Answers from the cache count.
+  # Behind a reverse proxy, set web.client_ip so clients are told apart.
+  # Default: false
+  enable: false
+  # Queries per window from one IPv4 address or IPv6 /64. Each location is a
+  # query: a submission with 10 locations sends 10, so the default allows about
+  # three such submissions a minute. Default: 30
+  client_limit: 30
+  # Queries per window from all clients together. Default: 300
+  global_limit: 300
+  # Length of the counting window, in seconds. Default: 60
+  window: 60
+
+# ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)
 # ---------------------------------------------------------------------------
 
@@ -960,6 +1003,8 @@ messages:
   no_output: "The query completed, but no matching results were found."
   # The device rejected the command or denied permission. {device_name} is filled in.
   device_command_error: "The query command failed on {device_name}."
+  # A client, or all clients together, sent more queries than query_limit allows.
+  rate_limited: "Too many requests. Please try again later."
   # Deprecated keys, accepted with a warning but never shown. No removal release is scheduled.
   # feature_not_enabled, invalid_query, invalid_field, no_response.
 

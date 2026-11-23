@@ -17,6 +17,7 @@ from .web import Web
 from .docs import Docs
 from ..main import HyperglassModel
 from .cache import Cache
+from .quota import QueryLimit
 from .logging import Logging
 from .metrics import Metrics
 from .messages import Messages
@@ -85,6 +86,7 @@ class Params(ParamsPublic, HyperglassModel):
 
     # Sub Level Params
     cache: Cache = Field(default_factory=Cache)
+    query_limit: QueryLimit = Field(default_factory=QueryLimit)
     docs: Docs = Field(default_factory=Docs)
     logging: Logging = Field(default_factory=Logging)
     metrics: Metrics = Field(default_factory=Metrics)

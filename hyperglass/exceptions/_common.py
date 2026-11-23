@@ -176,6 +176,11 @@ class PublicHyperglassError(HyperglassError):
         self._keywords = list(kwargs.values())
         super().__init__(message=self._message, level=self._level, keywords=self._keywords)
 
+    @property
+    def headers(self) -> Dict[str, str]:
+        """Return HTTP headers to send with the error response."""
+        return {}
+
 
 class PrivateHyperglassError(HyperglassError):
     """Base exception class for internal system errors.

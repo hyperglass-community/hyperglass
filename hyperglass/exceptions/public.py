@@ -172,3 +172,22 @@ class ResponseEmpty(PublicHyperglassError, template="no_output"):
 
 class DeviceCommandError(PublicHyperglassError, template="device_command_error"):
     """Raised when a device rejects a query command."""
+
+
+class RateLimited(PublicHyperglassError, template="rate_limited", level="warning"):
+    """Raised when a client, or all clients together, are over a request quota."""
+
+    def __init__(self, *, retry_after: int) -> None:
+        """Initialize parent error with the seconds to wait before retrying."""
+        self._retry_after = retry_after
+        super().__init__()
+
+    @property
+    def status_code(self) -> int:
+        """Return HTTP 429, Too Many Requests."""
+        return 429
+
+    @property
+    def headers(self) -> Dict[str, str]:
+        """Tell the client when the quota is renewed."""
+        return {"Retry-After": str(self._retry_after)}

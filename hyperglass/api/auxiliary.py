@@ -3,7 +3,6 @@
 # Standard Library
 import json
 import asyncio
-import hashlib
 import ipaddress
 import re
 import typing as t
@@ -22,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from hyperglass.state import use_state
 
 # Local
-from .client_address import client_address
+from .quota import take_quota
 
 if t.TYPE_CHECKING:
     # Project
@@ -30,18 +29,9 @@ if t.TYPE_CHECKING:
 
 _HOSTNAME = re.compile(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
 _LOCAL_SUFFIXES = ("localhost", "local", "internal", "lan", "home.arpa", "onion")
+# Lookup quotas count requests per minute (`web.server_lookups`).
+_LOOKUP_WINDOW = 60
 
-# One atomic fixed window shared by every worker. Check the global budget before
-# allocating a client key, so rotating source addresses cannot create unlimited keys.
-_RATE = """
-local total = tonumber(redis.call('GET', KEYS[1]) or '0')
-local client = tonumber(redis.call('GET', KEYS[2]) or '0')
-if total >= tonumber(ARGV[1]) or client >= tonumber(ARGV[2]) then return 0 end
-for _, key in ipairs(KEYS) do
-    if redis.call('INCR', key) == 1 then redis.call('EXPIRE', key, 60) end
-end
-return 1
-"""
 _ACQUIRE = """
 local clock = redis.call('TIME')
 local now = tonumber(clock[1]) + tonumber(clock[2]) / 1000000
@@ -92,25 +82,6 @@ def _lookups() -> "ServerLookups":
     return use_state("params").web.server_lookups
 
 
-def quota_identity(address: str) -> str:
-    """Return the identity a client's lookup quota is counted against.
-
-    An IPv6 host usually controls a whole /64, so counting each address separately would
-    let one host multiply its quota, and use up the global budget, by rotating source
-    addresses. IPv4 clients, and IPv4 addresses carried in IPv6, count per address.
-    Anything that is not an address (such as `anonymous`) is used as it is.
-    """
-    try:
-        parsed = ipaddress.ip_address(address)
-    except ValueError:
-        return address
-    if isinstance(parsed, ipaddress.IPv6Address):
-        if parsed.ipv4_mapped is not None:
-            return str(parsed.ipv4_mapped)
-        return str(ipaddress.IPv6Network((parsed, 64), strict=False))
-    return str(parsed)
-
-
 async def lookup_guard(connection: ASGIConnection, handler: BaseRouteHandler) -> None:
     """Enforce runtime switches and shared per-client/global request quotas."""
     kind = "dns" if handler.fn.__name__ == "dns" else "aspath"
@@ -118,20 +89,23 @@ async def lookup_guard(connection: ASGIConnection, handler: BaseRouteHandler) ->
     enabled = web.dns_provider.name == "server" if kind == "dns" else web.aspath_enrichment
     if not enabled:
         raise HTTPException(status_code=404, detail="Not found")
-    identity = hashlib.sha256(quota_identity(client_address(connection)).encode()).hexdigest()
     quota = web.server_lookups.dns if kind == "dns" else web.server_lookups.aspath
-    allowed = await _redis(
-        "eval",
-        _RATE,
-        2,
-        _key(f"{kind}:global"),
-        _key(f"{kind}:client:{identity}"),
-        quota.global_limit,
-        quota.client_limit,
-    )
+    try:
+        allowed = await take_quota(
+            connection,
+            kind,
+            client_limit=quota.client_limit,
+            global_limit=quota.global_limit,
+            window=_LOOKUP_WINDOW,
+            client_ip=web.client_ip,
+        )
+    except RedisError as error:
+        raise HTTPException(status_code=503, detail="Lookup service unavailable") from error
     if not allowed:
         raise HTTPException(
-            status_code=429, detail="Lookup rate limit exceeded", headers={"Retry-After": "60"}
+            status_code=429,
+            detail="Lookup rate limit exceeded",
+            headers={"Retry-After": str(_LOOKUP_WINDOW)},
         )
 
 

@@ -34,7 +34,7 @@ Server DNS supports A and AAAA records. Server My IP returns only the address fa
 
 ### Client Address
 
-Hyperglass needs the visitor's address for server My IP, for the per-client lookup limits and for the webhook `source` field. By default it uses the address of the connection and ignores forwarding headers. Behind a reverse proxy, list the proxy in `web.client_ip.trusted_proxies`. Hyperglass then reads the forwarded address from connections that come from those networks.
+Hyperglass needs the visitor's address for server My IP, for the per-client lookup limits, for the [query rate limit](/configuration/config/query-limit) and for the webhook `source` field. By default it uses the address of the connection and ignores forwarding headers. Behind a reverse proxy, list the proxy in `web.client_ip.trusted_proxies`. Hyperglass then reads the forwarded address from connections that come from those networks.
 
 | Parameter | Type | Default Value | Description |
 | :-------- | :--- | :------------ | :---------- |
