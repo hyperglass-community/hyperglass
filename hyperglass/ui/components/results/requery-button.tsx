@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { Button, Tooltip } from '@chakra-ui/react';
+import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 
 import type { ButtonProps } from '@chakra-ui/react';
@@ -14,9 +15,11 @@ const _RequeryButton: React.ForwardRefRenderFunction<HTMLButtonElement, RequeryB
   ref,
 ) => {
   const { requery, ...rest } = props;
+  const { web } = useConfig();
+  const label = web.text.reloadQuery;
 
   return (
-    <Tooltip hasArrow label="Reload Query" placement="top">
+    <Tooltip hasArrow label={label} placement="top">
       <Button
         mx={1}
         ref={ref}
@@ -24,6 +27,7 @@ const _RequeryButton: React.ForwardRefRenderFunction<HTMLButtonElement, RequeryB
         zIndex="1"
         variant="ghost"
         onClick={requery as Get<RequeryButtonProps, 'onClick'>}
+        aria-label={label}
         colorScheme="secondary"
         {...rest}
       >

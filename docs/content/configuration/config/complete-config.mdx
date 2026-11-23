@@ -61,12 +61,17 @@ Controls how Hyperglass caches query responses to improve performance.
 | :-------- | :--- | :------ | :---------- |
 | `cache.timeout` | Integer | `120` | Cache timeout in seconds. How long responses are cached. |
 | `cache.show_text` | Boolean | `true` | Whether to show cache timeout countdown to users. |
+| `cache.refresh.enable` | Boolean | `false` | Let a query sent with `force` run a cached query on the device again. See [Forced refresh](/configuration/config/caching#forced-refresh). |
+| `cache.refresh.min_interval` | Integer | `30` | Minimum seconds between runs of one query through `force`. Must be greater than 0 and less than `cache.timeout` when refresh is enabled. |
 
 #### Example: Cache Configuration
 ```yaml filename="config.yaml"
 cache:
   timeout: 300      # Cache for 5 minutes
   show_text: true   # Show "Results cached for X seconds" to users
+  refresh:
+    enable: true      # Let requests sent with `force` bypass the cache
+    min_interval: 30  # At most one forced run of a query starts every 30 seconds
 ```
 
 ---
@@ -198,6 +203,24 @@ logging:
     headers:
       "Content-Type": "application/json"
       "User-Agent": "hyperglass-webhook"
+```
+
+---
+
+## Metrics Configuration
+
+Exposes [Prometheus](https://prometheus.io) metrics. See [Health & Monitoring](/configuration/config/monitoring.mdx) for the metric names and labels.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `metrics.enable` | Boolean | `false` | Expose Prometheus metrics. The endpoint is unauthenticated. |
+| `metrics.path` | String | `/metrics` | Path at which metrics are exposed. |
+
+#### Example: Metrics Configuration
+```yaml filename="config.yaml"
+metrics:
+  enable: true
+  path: "/metrics"
 ```
 
 ---
@@ -447,8 +470,19 @@ The "My IP" button automatically detects the user's public IP address and popula
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `web.text.cache_prefix` | String | `Results cached for ` | Prefix for cache countdown timer. Hyperglass adds one trailing space. |
-| `web.text.cache_icon` | String | `Cached from {time} UTC` | Tooltip for cached result indicator. |
+| `web.text.cache_icon` | String | `Cached from {time}` | Tooltip for cached result indicator. |
 | `web.text.complete_time` | String | `Completed in {seconds}` | Tooltip showing query completion time. |
+| `web.text.copy_output` | String | `Copy Output` | Tooltip and accessible name of the button that copies a result. |
+| `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
+| `web.text.view_as_path` | String | `View AS Path` | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.as_path_title` | String | `Path to {target}` | Heading of the AS path chart. `{target}` is replaced with the query target. |
+| `web.text.zoom_in` | String | `Zoom In` | Accessible name of the AS path chart's zoom in button. |
+| `web.text.zoom_out` | String | `Zoom Out` | Accessible name of the AS path chart's zoom out button. |
+| `web.text.fit_nodes` | String | `Fit Nodes` | Accessible name of the AS path chart's button that fits the whole path in view. |
+| `web.text.first_page` | String | `First Page` | Accessible name of the table button that shows the first page. |
+| `web.text.previous_page` | String | `Previous Page` | Accessible name of the table button that shows the previous page. |
+| `web.text.next_page` | String | `Next Page` | Accessible name of the table button that shows the next page. |
+| `web.text.last_page` | String | `Last Page` | Accessible name of the table button that shows the last page. |
 
 #### BGP/RPKI Status Text
 
@@ -765,6 +799,13 @@ cache:
   timeout: 120
   # Show the cache icon and countdown on cached results in the UI. Default: true
   show_text: true
+  refresh:
+    # Let a query sent with `force` skip the cache and run on the device again.
+    # Default: false
+    enable: false
+    # Minimum seconds between runs of one query through `force`. Must be less
+    # than timeout when enable is true. Default: 30
+    min_interval: 30
 
 # ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)
@@ -874,6 +915,19 @@ logging:
     max_size: "50MB"
     # Rotated files kept. Minimum 1. Default: 1
     backup_count: 1
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+#
+# The metrics endpoint is unauthenticated. Restrict access to it at your reverse
+# proxy or firewall.
+
+metrics:
+  # Expose Prometheus metrics. Default: false
+  enable: false
+  # Path at which metrics are exposed. Default: /metrics
+  path: "/metrics"
 
 # ---------------------------------------------------------------------------
 # User-facing error messages
@@ -1141,7 +1195,7 @@ web:
     fqdn_error_button: "Try Again"
     # Cache and timing.
     cache_prefix: "Results cached for "
-    cache_icon: "Cached from {time} UTC"
+    cache_icon: "Cached from {time}"
     complete_time: "Completed in {seconds}"
     # RPKI states and the empty-communities label.
     rpki_invalid: "Invalid"
@@ -1156,6 +1210,20 @@ web:
     ip_button: "My IP"
     ip_lookup_notice: "This sends your IP address to myip.wtf to look it up."
     ip_lookup_confirm: "Look up my IP"
+    # Icon-only result buttons: tooltip and screen reader name.
+    copy_output: "Copy Output"
+    reload_query: "Reload Query"
+    view_as_path: "View AS Path"
+    # AS path chart: modal heading ({target} is the query target) and zoom controls.
+    as_path_title: "Path to {target}"
+    zoom_in: "Zoom In"
+    zoom_out: "Zoom Out"
+    fit_nodes: "Fit Nodes"
+    # Table pagination buttons: screen reader names.
+    first_page: "First Page"
+    previous_page: "Previous Page"
+    next_page: "Next Page"
+    last_page: "Last Page"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

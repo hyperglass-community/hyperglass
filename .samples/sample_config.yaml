@@ -64,6 +64,13 @@ cache:
   timeout: 120
   # Show the cache icon and countdown on cached results in the UI. Default: true
   show_text: true
+  refresh:
+    # Let a query sent with `force` skip the cache and run on the device again.
+    # Default: false
+    enable: false
+    # Minimum seconds between runs of one query through `force`. Must be less
+    # than timeout when enable is true. Default: 30
+    min_interval: 30
 
 # ---------------------------------------------------------------------------
 # API documentation (OpenAPI / ReDoc at docs.path)
@@ -173,6 +180,19 @@ logging:
     max_size: "50MB"
     # Rotated files kept. Minimum 1. Default: 1
     backup_count: 1
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+#
+# The metrics endpoint is unauthenticated. Restrict access to it at your reverse
+# proxy or firewall.
+
+metrics:
+  # Expose Prometheus metrics. Default: false
+  enable: false
+  # Path at which metrics are exposed. Default: /metrics
+  path: "/metrics"
 
 # ---------------------------------------------------------------------------
 # User-facing error messages
@@ -440,7 +460,7 @@ web:
     fqdn_error_button: "Try Again"
     # Cache and timing.
     cache_prefix: "Results cached for "
-    cache_icon: "Cached from {time} UTC"
+    cache_icon: "Cached from {time}"
     complete_time: "Completed in {seconds}"
     # RPKI states and the empty-communities label.
     rpki_invalid: "Invalid"
@@ -455,6 +475,20 @@ web:
     ip_button: "My IP"
     ip_lookup_notice: "This sends your IP address to myip.wtf to look it up."
     ip_lookup_confirm: "Look up my IP"
+    # Icon-only result buttons: tooltip and screen reader name.
+    copy_output: "Copy Output"
+    reload_query: "Reload Query"
+    view_as_path: "View AS Path"
+    # AS path chart: modal heading ({target} is the query target) and zoom controls.
+    as_path_title: "Path to {target}"
+    zoom_in: "Zoom In"
+    zoom_out: "Zoom Out"
+    fit_nodes: "Fit Nodes"
+    # Table pagination buttons: screen reader names.
+    first_page: "First Page"
+    previous_page: "Previous Page"
+    next_page: "Next Page"
+    last_page: "Last Page"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

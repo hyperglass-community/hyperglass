@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 ## Monitoring
 
 ### Health Check
@@ -27,3 +29,123 @@ hyperglass healthcheck
 ```
 
 The container image uses this command as its Docker `HEALTHCHECK`, every 30 seconds. The UI is built on first start, before Hyperglass starts listening, so the container has a 10 minute start period before failed checks count against it. `docker compose ps` shows the result. A `healthcheck` defined in `compose.yaml` replaces the image's check; see [Health check](/installation/docker.mdx#health-check).
+
+### Metrics
+
+Hyperglass can expose [Prometheus](https://prometheus.io) metrics. They are disabled by default.
+
+| Parameter        | Type    | Default Value | Description                                   |
+| :--------------- | :------ | :------------ | :-------------------------------------------- |
+| `metrics.enable` | Boolean | `false`       | Expose Prometheus metrics.                    |
+| `metrics.path`   | String  | `/metrics`    | Path at which Prometheus metrics are exposed. |
+
+```yaml filename="config.yaml" copy
+metrics:
+    enable: true
+```
+
+<Callout type="warning">
+    The metrics endpoint is unauthenticated. Anyone who can reach it can read your device IDs, query volumes and error rates. Restrict it at your reverse proxy or firewall; see [Restricting the Metrics Endpoint](#restricting-the-metrics-endpoint).
+</Callout>
+
+The metrics endpoint answers while Redis is down, so it can report an outage.
+
+#### Query Metrics
+
+| Metric                              | Type      | Labels                           | Description                                                                  |
+| :---------------------------------- | :-------- | :------------------------------- | :--------------------------------------------------------------------------- |
+| `hyperglass_queries_total`          | Counter   | `device`, `query_type`, `status` | Queries handled. `status` is `success` or `error`.                           |
+| `hyperglass_query_errors_total`     | Counter   | `device`, `query_type`, `reason` | Failed queries, by failure reason.                                           |
+| `hyperglass_query_duration_seconds` | Histogram | `device`, `query_type`           | Time spent executing successful queries against devices (cache misses and bypasses). |
+| `hyperglass_query_cache_total`      | Counter   | `result`                         | Query cache lookups. `result` is `hit`, `miss` or `bypass`; see [Cache Results](#cache-results). |
+| `hyperglass_build_info`             | Gauge     | `version`                        | Always `1`; carries the running Hyperglass version.                          |
+
+`device` is the device ID and `query_type` is the directive ID. When a query is rejected before it is validated (for example, an unknown location or a malformed request), both are `unknown`. Labels are never taken from raw request input, so clients cannot create new label values.
+
+#### Cache Results
+
+Each query that reaches the cache lookup counts once in `hyperglass_query_cache_total`, by whether it ran on the device. Requests rejected before the lookup, such as invalid requests, unknown locations or Redis failing during the lookup, are not counted there; they appear in `hyperglass_query_errors_total`.
+
+| Result   | Meaning                                                                                                                       |
+| :------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| `hit`    | The query was answered from the cache, without running on the device.                                                         |
+| `miss`   | The query had no cached result and ran on the device.                                                                         |
+| `bypass` | A [forced refresh](/configuration/config/caching#forced-refresh) skipped a cached result and ran on the device.               |
+
+A forced query that the server answers from the cache, during the cooldown after a run or while another request's forced run is in progress, is a `hit`: the client gets the cached result and the device is not queried. A forced query with no cached result is a `miss`, and with `cache.refresh.enable: false`, where `force` is ignored, a forced query counts exactly as an unforced one. So `miss` plus `bypass` is the number of runs on devices, and the hit ratio below is the fraction of queries the cache kept off the devices.
+
+A forced run is otherwise counted like any other run: its outcome in `hyperglass_queries_total`, its failure reason in `hyperglass_query_errors_total` and, when it succeeds, its time in `hyperglass_query_duration_seconds`.
+
+`reason` is the failure's error type in snake case. Common reasons:
+
+| Reason                     | Meaning                                                                                       |
+| :------------------------- | :-------------------------------------------------------------------------------------------- |
+| `device_timeout`           | The device could not be reached or did not respond in time, including the overall `request_timeout`. |
+| `auth_error`               | The device rejected Hyperglass's credentials.                                                 |
+| `rest_error`               | An HTTP-based device returned an error or could not be reached.                               |
+| `scrape_error`             | Hyperglass could not connect to the device through its SSH proxy.                             |
+| `response_empty`           | The device returned no output.                                                                |
+| `parsing_error`            | The device output could not be parsed.                                                        |
+| `device_command_error`     | The device reported an error for the command it was sent.                                     |
+| `input_invalid`            | The query target is invalid.                                                                  |
+| `input_not_allowed`        | The query target is not allowed by the directive's rules.                                     |
+| `query_location_not_found` | The requested location does not exist.                                                        |
+| `query_type_not_found`     | The requested query type does not exist or is not enabled for the location.                   |
+| `invalid_request`          | The request body is malformed or missing fields.                                              |
+| `service_unavailable`      | Hyperglass's configuration was missing from Redis and could not be reloaded.                  |
+| `internal_error`           | An unexpected error; see the Hyperglass logs.                                                 |
+
+#### HTTP Metrics
+
+`hyperglass_http_requests_total`, `hyperglass_http_request_duration_seconds`, `hyperglass_http_requests_in_progress` and `hyperglass_http_requests_error_total` cover every HTTP request except the health check and metrics endpoints. They are labeled by `method`, route `path` template (for example `/api/devices/{id}`) and `status_code`.
+
+#### Example Queries
+
+```promql
+# Fraction of queries failing, per device
+sum by (device) (rate(hyperglass_query_errors_total[5m]))
+  / sum by (device) (rate(hyperglass_queries_total[5m]))
+
+# Why queries are failing
+sum by (device, reason) (increase(hyperglass_query_errors_total[1h]))
+
+# 95th percentile device response time
+histogram_quantile(0.95, sum by (le, device) (rate(hyperglass_query_duration_seconds_bucket[5m])))
+
+# Cache hit ratio
+sum(rate(hyperglass_query_cache_total{result="hit"}[5m]))
+  / sum(rate(hyperglass_query_cache_total[5m]))
+```
+
+#### Restricting the Metrics Endpoint
+
+Scrape the metrics from a trusted network and keep the path away from the public.
+
+- **NGINX.** The sample configuration (`.samples/hyperglass.nginx`) only forwards `/api` and `/openapi.json` to Hyperglass, so `/metrics` is not reachable through it. To scrape through NGINX, add a location that allows only your Prometheus servers:
+
+    ```nginx copy
+    location = /metrics {
+        allow 192.0.2.10;
+        allow 2001:db8::10;
+        deny all;
+        try_files $uri @proxy_to_app;
+    }
+    ```
+
+- **Caddy.** The sample `Caddyfile` forwards every path to Hyperglass. Answer `/metrics` from anywhere else with a 404:
+
+    ```caddy copy
+    @metrics_public {
+        path /metrics
+        not remote_ip 192.0.2.10/32 2001:db8::10/128
+    }
+    respond @metrics_public 404
+    ```
+
+- **Docker Compose.** Compose publishes the Hyperglass port on all host addresses by default, which bypasses the reverse proxy. Set `HYPERGLASS_BIND_ADDRESS=127.0.0.1` when the proxy runs on the host, or filter the port with a firewall.
+
+#### Multiple Workers
+
+Hyperglass runs several worker processes, each with its own metric values. When metrics are enabled, `hyperglass start` aggregates them through a new temporary directory under the system temporary directory (`TMPDIR`, usually `/tmp`), and removes it on exit. To use a specific directory, set the `PROMETHEUS_MULTIPROC_DIR` environment variable to a directory that the Hyperglass user can write to; Hyperglass creates it if needed and deletes the `*.db` files in it at every start. In the container image, `/tmp` is writable by the `hyperglass` user.
+
+If you serve `hyperglass.api:app` with your own ASGI server and more than one worker, set `PROMETHEUS_MULTIPROC_DIR` to an empty directory yourself before starting it.

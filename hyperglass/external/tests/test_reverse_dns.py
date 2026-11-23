@@ -112,7 +112,7 @@ async def test_response_precedes_ptr_and_poll_receives_enriched_cache(monkeypatc
     monkeypatch.setattr(TracerouteResult, "enrich_with_ip_enrichment", enrich_ip)
     query = SimpleNamespace(
         summary=lambda: "trace", digest=lambda: "a" * 64, timestamp=datetime.now(UTC),
-        random=lambda: "random", device=SimpleNamespace(structured_output=True),
+        random=lambda: "random", device=SimpleNamespace(structured_output=True), force=False,
     )
     response = await routes.query.fn(state, SimpleNamespace(), query)
     assert response.content["enrichment"] == "pending"

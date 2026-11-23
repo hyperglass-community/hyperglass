@@ -55,6 +55,12 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
 
   const options = useMemo(() => buildOptions(directive), [directive]);
   const isSelect = useMemo(() => directive !== null && isSelectDirective(directive), [directive]);
+  // Show the store's target, so a target the store clears (another location's options
+  // don't offer it) isn't still shown as selected, and one set from a link is.
+  const selected = useMemo(
+    () => options.find(o => queryTarget.includes(o.value)) ?? null,
+    [options, queryTarget],
+  );
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>): void {
     setTarget({ display: e.target.value });
@@ -65,6 +71,10 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
     if (isSingleValue(e)) {
       onChange({ field: name, value: e.value });
       setTarget({ display: e.value });
+    } else {
+      // Cleared: remove the target, as the query type select does with its value.
+      onChange({ field: name, value: [] });
+      setTarget({ display: '' });
     }
   };
 
@@ -80,6 +90,7 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
         <Select<OptionWithDescription, false>
           name={name}
           options={options}
+          value={selected}
           components={{ Option }}
           onChange={handleSelectChange}
         />

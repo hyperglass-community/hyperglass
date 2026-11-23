@@ -52,7 +52,11 @@ export const Logo = (props: ImageProps): JSX.Element => {
         WebkitUserSelect: 'none',
       }}
       fallback={
+        // Stands in for the logo while it loads, or if it fails to, so it carries the
+        // logo's text alternative.
         <Skeleton
+          role="img"
+          aria-label={web.text.title}
           isLoaded={false}
           borderRadius="md"
           endColor={skeletonB}

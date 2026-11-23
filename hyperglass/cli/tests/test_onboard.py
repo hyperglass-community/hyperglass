@@ -20,7 +20,7 @@ from hyperglass.cli.onboard.runtime import runtime
 from hyperglass.models.config.devices import Device
 from hyperglass.execution.drivers.ssh_netmiko import NetmikoConnection, collect_commands
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 ENTRY = {
     "name": "Test FRR",
@@ -462,3 +462,24 @@ def test_invalid_yaml_does_not_leak_credential_lines(config):
     assert result.exit_code == 1
     assert json.loads(result.stdout)["error"] == "Invalid YAML configuration"
     assert "secret-invalid-yaml" not in result.stdout + result.stderr
+
+
+def test_port_prompt_rejects_out_of_range_values():
+    """The port prompt asks again until it gets an integer from 1 to 65535."""
+    # Third Party
+    import typer
+
+    # Project
+    from hyperglass.cli.onboard.prompts import Port, prompt
+
+    app = typer.Typer()
+
+    @app.command()
+    def main():
+        typer.echo(prompt("Port", default=22, type=Port, err=True))
+
+    result = runner.invoke(app, [], input="0\n65536\nssh\n2222\n")
+
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert result.stdout.strip() == "2222"
+    assert result.stderr.count("Error:") == 3

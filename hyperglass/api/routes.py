@@ -35,8 +35,16 @@ from hyperglass.models.config.devices import Devices, APIDevice
 from .state import get_state, get_params, get_devices
 from .tasks import enrich_query_output, send_webhook
 from .client_address import client_address
+from .metrics import (
+    QUERY_METRICS_OPT,
+    set_query_labels,
+    record_query_cache,
+    record_query_success,
+    record_query_duration,
+)
 from .middleware import skip_state_recovery
 from .fake_output import fake_output
+from .refresh import ForcedRefresh
 from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
 
 # Not user-configurable: an internal bound so an unreachable Redis reports
@@ -290,7 +298,11 @@ async def health() -> Response:
     )
 
 
-@post("/api/query", dependencies={"_state": Provide(get_state)})
+@post(
+    "/api/query",
+    dependencies={"_state": Provide(get_state)},
+    opt={QUERY_METRICS_OPT: True},
+)
 async def query(_state: HyperglassState, request: Request, data: Query) -> QueryResponse:
     """Ingest request data pass it to the backend application to perform the query."""
 
@@ -304,6 +316,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
     cache_key = f"hyperglass.query.{data.digest()}"
 
     _log = log.bind(query=data.summary())
+    set_query_labels(request, data)
 
     _log.info("Starting query execution")
 
@@ -320,15 +333,23 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         cache.delete(cache_key)
         cache_response = None
 
+    # A forced query runs again only when no other request's forced run of it holds the
+    # lease and no cooldown is running; otherwise it is answered from the cache.
+    refresh = ForcedRefresh(cache, cache_key, _state.params)
+    cache_response = refresh.check(cache_response, force=data.force)
+
     json_output = False
     cached = False
     runtime = 65535
     enrichment_status = "complete"
     enrichment_output = None
     enrichment_generation = None
+    # Device execution time of a cache miss or bypass, recorded once the query succeeds.
+    elapsedtime = None
 
     if cache_response:
         _log.bind(cache_key=cache_key).debug("Cache hit")
+        record_query_cache("hit")
 
         # If a cached response exists, reset the expiration time.
         cache.expire(cache_key, expire_in=_state.params.cache.timeout)
@@ -340,20 +361,23 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
 
     elif not cache_response:
         _log.bind(cache_key=cache_key).debug("Cache miss")
+        # A forced run skips a cached result; it is not a miss.
+        record_query_cache("bypass" if refresh.forced else "miss")
 
         timestamp = data.timestamp
 
         starttime = time.time()
 
-        if _state.params.fake_output:
-            # Return fake, static data for development purposes, if enabled.
-            output = await fake_output(
-                query_type=data.query_type,
-                structured=data.device.structured_output or False,
-            )
-        else:
-            # Both attempts share the configured request deadline.
-            output = await _execute_query(data)
+        with refresh.run():
+            if _state.params.fake_output:
+                # Return fake, static data for development purposes, if enabled.
+                output = await fake_output(
+                    query_type=data.query_type,
+                    structured=data.device.structured_output or False,
+                )
+            else:
+                # Both attempts share the configured request deadline.
+                output = await _execute_query(data)
 
         endtime = time.time()
         elapsedtime = round(endtime - starttime, 4)
@@ -378,6 +402,7 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
             enrichment_generation = uuid4().hex
 
         with cache.pipeline() as pipeline:
+            refresh.record(pipeline)
             pipeline.set_map_item(cache_key, "output", raw_output)
             pipeline.set_map_item(cache_key, "timestamp", timestamp)
             pipeline.set_map_item(cache_key, "enrichment_status", enrichment_status)
@@ -407,10 +432,16 @@ async def query(_state: HyperglassState, request: Request, data: Query) -> Query
         "timestamp": timestamp,
         "format": response_format,
         "enrichment": enrichment_status,
+        "refresh_in": refresh.refresh_in(),
         "random": data.random(),
         "level": "success",
         "keywords": [],
     }
+
+    # Last, after everything that can fail: writing the cache and `refresh_in` both
+    # use Redis, and a query that fails there is counted as an error instead.
+    record_query_duration(request, elapsedtime)
+    record_query_success(request)
 
     return Response(
         response,
