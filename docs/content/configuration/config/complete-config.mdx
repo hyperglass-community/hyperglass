@@ -576,6 +576,20 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.history_location_unavailable` | String | `No longer available: {locations}` | Shown on the location field when a saved query's locations are no longer configured. `{locations}` is their names. |
 | `web.text.history_variable_unavailable` | String | `No longer available: {value}` | Shown on a variable's field when a saved query's value for it is no longer an option. `{value}` is the saved value. |
 
+#### Shared Result Text
+
+Text of the page that shows a [shared result](/configuration/config/share#the-shared-result-page). A link that doesn't exist (missing, expired or deleted) shows `messages.share_not_found`, one saved in a format this version can't read shows `messages.share_unsupported`, and a rate-limited request shows `messages.rate_limited`.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.text.share_title` | String | `Shared result` | Heading of the shared result page. |
+| `web.text.share_loading` | String | `Loading the shared result...` | Shown while the shared result loads. |
+| `web.text.share_error` | String | `The shared result could not be loaded. Please try again later.` | Shown when the shared result can't be loaded for any other reason: a server or network error, or a response the page can't read. |
+| `web.text.share_result_time` | String | `Result from {time}` | When the shared result was produced. `{time}` is shown in the viewer's locale and time zone. |
+| `web.text.share_expires` | String | `Link expires {time}` | When the share link stops working. `{time}` is shown in the viewer's locale and time zone. |
+| `web.text.share_run_query` | String | `Run this query` | Button that fills the form with the shared query, for the visitor to submit. |
+| `web.text.share_new_query` | String | `New query` | Button that leaves the shared result for an empty form. |
+
 #### BGP/RPKI Status Text
 
 | Parameter | Type | Default | Description |
@@ -1428,6 +1442,15 @@ web:
     history_new_target: "New target"
     history_location_unavailable: "No longer available: {locations}"
     history_variable_unavailable: "No longer available: {value}"
+    # Shared result page (/?share=<id>). {time} is shown in the viewer's time
+    # zone.
+    share_title: "Shared result"
+    share_loading: "Loading the shared result..."
+    share_error: "The shared result could not be loaded. Please try again later."
+    share_result_time: "Result from {time}"
+    share_expires: "Link expires {time}"
+    share_run_query: "Run this query"
+    share_new_query: "New query"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

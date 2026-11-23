@@ -20,6 +20,7 @@ import { FormRow } from '~/elements';
 import {
   historyPrefill,
   parsePrefill,
+  shareParam,
   useDevice,
   useFormState,
   useGreeting,
@@ -279,6 +280,11 @@ export const LookingGlassForm = (): JSX.Element => {
     }
     prefillRead.current = true;
     const { pathname, search, hash } = window.location;
+    // A share link shows a snapshot, never a form someone else filled in: the shared
+    // result page ignores the other parameters and removes them from the address.
+    if (shareParam(search) !== null) {
+      return;
+    }
     const prefill = parsePrefill(search);
     if (prefill !== null) {
       prefillForm(prefill, { setError, clearErrors, getDevice, text: web.text });
@@ -362,7 +368,8 @@ export const LookingGlassForm = (): JSX.Element => {
     const sameVariables = Object.entries(query.queryVariables).every(
       ([id, value]) => after.form.queryVariables[id] === value,
     );
-    if (unavailable.length === 0 && sameType && sameTarget && sameVariables) {
+    // A shared query (`fill`) is never submitted: the visitor submits it.
+    if (mode === 'rerun' && unavailable.length === 0 && sameType && sameTarget && sameVariables) {
       setAfterReuse({ submit: true });
       return;
     }

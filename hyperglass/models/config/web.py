@@ -188,6 +188,17 @@ class Text(HyperglassModel):
     history_new_target: str = "New target"
     history_location_unavailable: str = "No longer available: {locations}"
     history_variable_unavailable: str = "No longer available: {value}"
+    # Shared result page (`/?share=<id>`): its heading, the time of the result and the
+    # link's expiry (`{time}` is formatted by Javascript), the text while it loads and
+    # when it can't be loaded, and the buttons that leave it. Not found and unsupported
+    # use `messages.share_not_found` and `messages.share_unsupported`.
+    share_title: str = "Shared result"
+    share_loading: str = "Loading the shared result..."
+    share_error: str = "The shared result could not be loaded. Please try again later."
+    share_result_time: str = "Result from {time}"
+    share_expires: str = "Link expires {time}"
+    share_run_query: str = "Run this query"
+    share_new_query: str = "New query"
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:
