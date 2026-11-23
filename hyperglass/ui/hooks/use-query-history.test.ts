@@ -226,6 +226,30 @@ describe('useQueryHistory', () => {
     expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['b', 'a']);
   });
 
+  it('does not save a response the history could not show', () => {
+    const { record } = useQueryHistory.getState();
+    const bad = response({ format: 'application/json', output: 'not a table' });
+    record(input({ result: { name: 'Router One', queryId: 'c0ffee', data: bad } }), 10);
+
+    expect(useQueryHistory.getState().entries).toEqual([]);
+    expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  });
+
+  it("keeps every location's response of a query in memory when not even it fits in storage", () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    });
+    const { record } = useQueryHistory.getState();
+    record(input(), 10);
+    const two = { name: 'Router Two', queryId: 'beef', data: response({ id: 'beef' }) };
+    record(input({ deviceId: 'router_two', result: two }), 10);
+    vi.restoreAllMocks();
+
+    const { entries } = useQueryHistory.getState();
+    expect(entries.map(e => e.id)).toEqual(['s1']);
+    expect(Object.keys(entries[0].results)).toEqual(['router_one', 'router_two']);
+  });
+
   it('works without storage when using it throws', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('The operation is insecure.', 'SecurityError');
@@ -324,6 +348,20 @@ describe('useQueryHistory rehydration', () => {
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([entry('b')]);
+    // Stored again with only what can be shown, and deleted.
+    expect(stored()).toEqual({ state: { entries: [entry('b')] }, version: 1 });
+  });
+
+  it('removes a stored value with nothing it can read', async () => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({ state: { entries: [{ id: 'x' }, withData({ output: 42 })] }, version: 1 }),
+    );
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([]);
+    expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
   });
 
   it('leaves out stored entries that the result view could not render', async () => {
@@ -346,7 +384,7 @@ describe('useQueryHistory rehydration', () => {
     expect(store.getState().entries).toEqual([entry('b')]);
   });
 
-  it('does not read history stored by another version, and replaces it on the next save', async () => {
+  it('does not read history stored by another version, and removes it', async () => {
     const newer = JSON.stringify({ state: { entries: [entry('b')], other: 1 }, version: 2 });
     localStorage.setItem(HISTORY_KEY, newer);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -354,19 +392,28 @@ describe('useQueryHistory rehydration', () => {
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([]);
-    // Loading alone leaves it.
-    expect(localStorage.getItem(HISTORY_KEY)).toBe(newer);
-    store.getState().record(input({ submissionId: 'new' }), 10);
-    expect(stored()).toEqual({ state: { entries: store.getState().entries }, version: 1 });
-    expect(store.getState().entries.map(e => e.id)).toEqual(['new']);
+    // The visitor couldn't see or delete it.
+    expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
   });
 
-  it('starts empty when the stored value is not JSON', async () => {
+  it('starts empty when the stored value is not JSON, and removes it', async () => {
     localStorage.setItem(HISTORY_KEY, '{');
 
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([]);
+    expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  });
+
+  it('leaves a readable stored value as it is', async () => {
+    const value = JSON.stringify({ state: { entries: [entry('b')] }, version: 1 });
+    localStorage.setItem(HISTORY_KEY, value);
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+    await freshStore();
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(localStorage.getItem(HISTORY_KEY)).toBe(value);
   });
 
   it("does not read hyperglass-ng's history", async () => {
@@ -428,6 +475,49 @@ describe('useQueryHistory across tabs', () => {
     window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
 
     expect(two.getState().entries).toEqual([]);
+  });
+
+  it.each([
+    ['removes the key', () => localStorage.removeItem(HISTORY_KEY), HISTORY_KEY],
+    ['clears the whole storage', () => localStorage.clear(), null],
+    [
+      'stores a value that is not JSON',
+      () => localStorage.setItem(HISTORY_KEY, '{broken'),
+      HISTORY_KEY,
+    ],
+  ])('shows no entries when another tab %s', async (_, change, key) => {
+    const two = await tab();
+    expect(two.getState().entries).toHaveLength(2);
+
+    change();
+    window.dispatchEvent(new StorageEvent('storage', { key }));
+
+    expect(two.getState().entries).toEqual([]);
+  });
+
+  it('does not remove a value another tab stores under another version', async () => {
+    const two = await tab();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const newer = JSON.stringify({ state: { entries: [entry('b')] }, version: 2 });
+
+    localStorage.setItem(HISTORY_KEY, newer);
+    window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
+
+    expect(two.getState().entries).toEqual([]);
+    expect(localStorage.getItem(HISTORY_KEY)).toBe(newer);
+  });
+
+  it('does not read entries another tab stored under another version when saving', async () => {
+    const two = await tab();
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({ state: { entries: [entry('newer')] }, version: 2 }),
+    );
+
+    two.getState().record(input({ submissionId: 'c' }), 10);
+
+    expect(stored()).toEqual({ state: { entries: two.getState().entries }, version: 1 });
+    expect(two.getState().entries.map(e => e.id)).toEqual(['c']);
   });
 
   it('ignores changes to other keys', async () => {

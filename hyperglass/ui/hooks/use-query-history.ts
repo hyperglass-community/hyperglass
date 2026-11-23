@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { withDev } from '~/util';
 import { historyStorage } from '~/util/history-storage';
 
@@ -160,6 +161,52 @@ export function isHistoryEntry(value: unknown): value is HistoryEntry {
   );
 }
 
+/** The value `persist` stores. */
+interface StoredHistory {
+  state: { entries: HistoryEntry[] };
+  version: number;
+}
+
+/**
+ * `persist`'s storage, as JSON. A value that isn't JSON reads as nothing stored, so
+ * the store shows no entries rather than keeping the ones it had.
+ */
+const jsonStorage: PersistStorage<{ entries: HistoryEntry[] }> = {
+  getItem(name: string): StorageValue<{ entries: HistoryEntry[] }> | null {
+    const value = historyStorage.getItem(name) as string | null;
+    if (value === null) {
+      return null;
+    }
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  },
+  setItem(name: string, value: StorageValue<{ entries: HistoryEntry[] }>): void {
+    historyStorage.setItem(name, JSON.stringify(value));
+  },
+  removeItem(name: string): void {
+    historyStorage.removeItem(name);
+  },
+};
+
+/**
+ * Whether `value` is a stored history this version reads in full: nothing in it is left
+ * out when loading.
+ */
+function isFullyReadable(value: string): boolean {
+  try {
+    const parsed = JSON.parse(value) as Partial<StoredHistory> | null;
+    const entries = parsed?.state?.entries;
+    return (
+      parsed?.version === HISTORY_VERSION && Array.isArray(entries) && entries.every(isHistoryEntry)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The entries in storage now, which another tab may have changed since this tab last
  * read them. An entry another tab deleted must not come back when this tab saves.
@@ -191,20 +238,24 @@ export const useQueryHistory = create<QueryHistoryState>()(
         record(input: RecordInput, limit: number): void {
           const { submissionId, query, labels, deviceId, result } = input;
           const entries = storedEntries();
-          const existing = entries.find(e => e.id === submissionId);
-          if (existing !== undefined) {
-            const updated = { ...existing, results: { ...existing.results, [deviceId]: result } };
-            set({ entries: entries.map(e => (e === existing ? updated : e)) });
+          // The entry may be in memory only: storage was too full to hold it.
+          const existing =
+            entries.find(e => e.id === submissionId) ??
+            get().entries.find(e => e.id === submissionId);
+          const entry: HistoryEntry =
+            existing === undefined
+              ? { id: submissionId, savedAt: Date.now(), query, labels, results: {} }
+              : existing;
+          const updated = { ...entry, results: { ...entry.results, [deviceId]: result } };
+          // Save only what the history can read back and show.
+          if (!isHistoryEntry(updated)) {
             return;
           }
-          const entry: HistoryEntry = {
-            id: submissionId,
-            savedAt: Date.now(),
-            query,
-            labels,
-            results: { [deviceId]: result },
-          };
-          set({ entries: [entry, ...entries].slice(0, limit) });
+          if (entries.some(e => e.id === submissionId)) {
+            set({ entries: entries.map(e => (e.id === submissionId ? updated : e)) });
+          } else {
+            set({ entries: [updated, ...entries].slice(0, limit) });
+          }
         },
 
         remove(id: string): void {
@@ -231,14 +282,16 @@ export const useQueryHistory = create<QueryHistoryState>()(
     {
       name: HISTORY_KEY,
       version: HISTORY_VERSION,
-      storage: createJSONStorage(() => historyStorage),
+      storage: jsonStorage,
       partialize: state => ({ entries: state.entries }),
-      // Keep only the stored entries that have the expected shape.
+      // Keep only the stored entries that have the expected shape. Nothing readable
+      // stored (removed, cleared, not JSON, another version): no entries, also when another
+      // tab made it so.
       merge: (persisted, current) => {
         const entries = isObject(persisted) ? persisted.entries : undefined;
         return {
           ...current,
-          entries: Array.isArray(entries) ? entries.filter(isHistoryEntry) : current.entries,
+          entries: Array.isArray(entries) ? entries.filter(isHistoryEntry) : [],
         };
       },
     },
@@ -274,6 +327,21 @@ export const useHistoryView = create<HistoryViewState>()(
     'useHistoryView',
   ),
 );
+
+// On load, don't keep stored history the visitor can't see or delete: what this version
+// can't read is stored again without it, or removed when nothing is left. (Only on load:
+// a value another tab, of another version, stores later is that tab's to show.)
+if (typeof window !== 'undefined') {
+  const value = historyStorage.getItem(HISTORY_KEY);
+  if (typeof value === 'string' && !isFullyReadable(value)) {
+    const { entries } = useQueryHistory.getState();
+    if (entries.length > 0) {
+      useQueryHistory.setState({ entries });
+    } else {
+      useQueryHistory.persist.clearStorage();
+    }
+  }
+}
 
 // Another tab saved or deleted entries: show its changes. (`key` is `null` when another
 // tab cleared the whole storage.)

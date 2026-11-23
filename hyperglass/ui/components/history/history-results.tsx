@@ -51,6 +51,18 @@ const StoredResult = (props: StoredResultProps): JSX.Element => {
 };
 
 /**
+ * Close the opened entry. When `Layout` gave it a browser history entry, leave that entry
+ * instead, so Back and Forward stay in step with the view; its popstate closes it.
+ */
+function leave(close: () => void): void {
+  if (window.history.state?.ultraglass === 'history') {
+    window.history.back();
+  } else {
+    close();
+  }
+}
+
+/**
  * The saved query that is open, shown read-only in place of the form, with a button that
  * closes it. The browser's Back button closes it too (see `Layout`).
  */
@@ -68,11 +80,12 @@ export const HistoryResults = (): JSX.Element | null => {
     backRef.current?.focus();
   }, []);
 
-  // The entry was deleted, in another tab: return to the list.
+  // The entry was deleted, in another tab: return to the list, through the browser history
+  // entry `Layout` added for it, as Back does.
   const missing = entry === undefined;
   useEffect(() => {
     if (missing) {
-      close();
+      leave(close);
     }
   }, [missing, close]);
 
@@ -81,12 +94,7 @@ export const HistoryResults = (): JSX.Element | null => {
   }
 
   function handleBack(): void {
-    if (window.history.state?.ultraglass === 'history') {
-      // Leave the entry `Layout` added, so Back and Forward stay in step with the view.
-      window.history.back();
-    } else {
-      close();
-    }
+    leave(close);
   }
 
   const { query, labels, results } = entry;

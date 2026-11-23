@@ -92,15 +92,15 @@ export const RecentQueries = (): JSX.Element | null => {
     if (useQueryHistory.getState().entries.length > 0) {
       headingRef.current?.focus();
     } else {
-      focusTarget()?.focus();
+      focusTarget()?.focus({ preventScroll: true });
     }
   }
 
   function handleClear(): void {
     setConfirming(false);
     clear();
-    // The list is gone.
-    focusTarget()?.focus();
+    // The list is gone. Don't scroll the page to the top, away from where it was.
+    focusTarget()?.focus({ preventScroll: true });
   }
 
   return (

@@ -217,6 +217,20 @@ describe('HistoryResults', () => {
     expect(useHistoryView.getState().openId).toBeNull();
   });
 
+  it('goes back through browser history when the opened entry is gone and has its own entry', () => {
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    window.history.replaceState({ ultraglass: 'history' }, '');
+    renderOpened();
+
+    act(() => {
+      useQueryHistory.setState({ entries: [] });
+    });
+
+    expect(back).toHaveBeenCalledTimes(1);
+    // The popstate event that follows closes it (see `Layout`).
+    expect(useHistoryView.getState().openId).toBe('saved');
+  });
+
   it('uses the configured text', () => {
     renderOpened(
       entry(),

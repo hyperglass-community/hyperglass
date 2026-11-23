@@ -200,6 +200,17 @@ describe('Result query history', () => {
     expect(entries()).toEqual([]);
   });
 
+  it('does not save a response the history could not show', async () => {
+    // A success whose structured output has no routes or hops.
+    stubFetch(
+      vi.fn(async () => jsonResponse(response({ format: 'application/json', output: 'x' }))),
+    );
+    renderResults();
+    await finished();
+
+    expect(entries()).toEqual([]);
+  });
+
   it('saves nothing when history is disabled', async () => {
     stubFetch(vi.fn(async () => jsonResponse(response())));
     renderResults(['router_one'], makeConfig({ web: { history: { enable: false } } }));

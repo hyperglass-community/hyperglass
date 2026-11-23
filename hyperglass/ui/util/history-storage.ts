@@ -39,7 +39,7 @@ function browserStorage(): Storage | null {
  * Storage for the query history store that never throws:
  *
  * - When the storage is full, the oldest entries are dropped until the value fits. The
- *   store keeps them in memory until the page is closed.
+ *   store's next change starts from what was stored, so the dropped entries go then.
  * - When there is no storage or the browser doesn't allow it (some private modes throw
  *   on access), the value is kept in memory for the session.
  */

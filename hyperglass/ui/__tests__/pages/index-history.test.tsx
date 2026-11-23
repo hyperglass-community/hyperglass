@@ -210,11 +210,14 @@ describe('Index page query history', () => {
         within(await recentQueries()).getByRole('button', { name: text.historyClearAll }),
       );
       const group = screen.getByRole('group', { name: text.historyClearConfirm });
+      const focus = vi.spyOn(screen.getByRole('main'), 'focus');
 
       await userEvent.click(within(group).getByRole('button', { name: text.historyClearAll }));
 
       expect(screen.queryByRole('region', { name: text.historyTitle })).not.toBeInTheDocument();
       expect(screen.getByRole('main')).toHaveFocus();
+      // Without scrolling to the top of the page, away from where the list was.
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
     });
 
     it('goes to the page once the last query is deleted', async () => {
@@ -224,10 +227,13 @@ describe('Index page query history', () => {
       const remove = within(row).getByRole('button', { name: text.historyDelete });
       await waitFor(() => expect(remove.querySelector('svg')).toBeInTheDocument(), IMPORT_WAIT);
 
+      const focus = vi.spyOn(screen.getByRole('main'), 'focus');
+
       await userEvent.click(remove);
 
       expect(screen.queryByRole('region', { name: text.historyTitle })).not.toBeInTheDocument();
       expect(screen.getByRole('main')).toHaveFocus();
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
     });
   });
 });
