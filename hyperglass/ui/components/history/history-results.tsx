@@ -1,4 +1,4 @@
-import { Button, Flex, Text } from '@chakra-ui/react';
+import { Button, Flex, HStack, Text } from '@chakra-ui/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { Path, ResultPanel, ResultsView, Tags } from '~/components';
 import { CopyButton } from '~/components/results/copy-button';
@@ -8,7 +8,7 @@ import { useColorValue, useHistoryView, useQueryHistory, useStrf } from '~/hooks
 import { formatTimestamp } from '~/util';
 
 import type { ResultQueryState } from '~/components';
-import type { HistoryResult } from '~/hooks';
+import type { HistoryReuseMode, HistoryResult } from '~/hooks';
 
 interface StoredResultProps {
   index: number;
@@ -72,6 +72,7 @@ export const HistoryResults = (): JSX.Element | null => {
   const muted = useColorValue('gray.600', 'gray.400');
   const openId = useHistoryView(s => s.openId);
   const close = useHistoryView(s => s.close);
+  const reuse = useHistoryView(s => s.reuse);
   const entry = useQueryHistory(s => s.entries.find(e => e.id === openId));
   const backRef = useRef<HTMLButtonElement>(null);
 
@@ -95,6 +96,14 @@ export const HistoryResults = (): JSX.Element | null => {
 
   function handleBack(): void {
     leave(close);
+  }
+
+  // Close the entry, as Back does, for the form to take its query (see `LookingGlassForm`).
+  function handleReuse(mode: HistoryReuseMode): void {
+    if (entry !== undefined) {
+      reuse(entry, mode);
+      leave(close);
+    }
   }
 
   const { query, labels, results } = entry;
@@ -125,6 +134,26 @@ export const HistoryResults = (): JSX.Element | null => {
         >
           {web.text.historyBack}
         </Button>
+        <HStack spacing={2} flexWrap="wrap">
+          <Button
+            size="sm"
+            variant="ghost"
+            colorScheme="secondary"
+            onClick={() => handleReuse('rerun')}
+            leftIcon={<DynamicIcon icon={{ fi: 'FiRepeat' }} boxSize="16px" />}
+          >
+            {web.text.historyRerun}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            colorScheme="secondary"
+            onClick={() => handleReuse('newTarget')}
+            leftIcon={<DynamicIcon icon={{ fi: 'FiEdit' }} boxSize="16px" />}
+          >
+            {web.text.historyNewTarget}
+          </Button>
+        </HStack>
         <Flex direction="column" align="flex-end" textAlign="right" minW={0}>
           <Text fontSize="sm" color={muted}>
             {strF(web.text.historySavedAt, {

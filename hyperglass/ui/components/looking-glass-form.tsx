@@ -1,7 +1,7 @@
 import { Flex, ScaleFade, SlideFade, chakra } from '@chakra-ui/react';
 import { vestResolver } from '@hookform/resolvers/vest';
 import { useRouter } from 'next/router';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import isEqual from 'react-fast-compare';
 import { FormProvider, useForm } from 'react-hook-form';
 import vest, { test, enforce } from 'vest';
@@ -18,16 +18,19 @@ import {
 import { useConfig } from '~/context';
 import { FormRow } from '~/elements';
 import {
+  historyPrefill,
   parsePrefill,
   useDevice,
   useFormState,
   useGreeting,
+  useHistoryView,
   useStrf,
   withoutPrefill,
 } from '~/hooks';
 import { Directive, isQueryField, isString } from '~/types';
 import { isFQDN } from '~/util';
 
+import type { FieldErrors } from 'react-hook-form';
 import type { FormData, OnChangeArgs } from '~/types';
 
 /** The store's form values before a query is entered, and after a reset. */
@@ -37,6 +40,31 @@ const EMPTY_VALUES: FormData = {
   queryTarget: [],
   queryVariables: {},
 };
+
+/** What follows once a saved query fills the form: submit it, or focus the first field found. */
+type AfterReuse = { submit: true } | { focus: string[] };
+
+/** The `data-query-field` of the Submit button's row. */
+const SUBMIT_FIELD = 'submit';
+
+/**
+ * Focus the control of the first of `names` that has one: its input, else its first
+ * button. A name is a form row's `data-query-field`: `queryLocation`, `queryType`,
+ * `queryTarget`, `var.<variable ID>` or `submit`. Location cards have no control.
+ */
+function focusField(form: HTMLFormElement | null, names: string[]): void {
+  const fields = Array.from(form?.querySelectorAll<HTMLElement>('[data-query-field]') ?? []);
+  for (const name of names) {
+    const field = fields.find(f => f.dataset.queryField === name);
+    const control =
+      field?.querySelector<HTMLElement>('input:not([hidden]):not([type="hidden"])') ??
+      field?.querySelector<HTMLElement>('button');
+    if (control !== null && control !== undefined) {
+      control.focus();
+      return;
+    }
+  }
+}
 
 export const LookingGlassForm = (): JSX.Element => {
   const { web, messages } = useConfig();
@@ -99,6 +127,7 @@ export const LookingGlassForm = (): JSX.Element => {
   });
 
   const { handleSubmit, register, reset, setValue, setError, clearErrors } = formInstance;
+  const formRef = useRef<HTMLFormElement>(null);
 
   const isFqdnQuery = useCallback(
     (target: string | string[], fieldType: Directive['fieldType'] | null): boolean =>
@@ -265,9 +294,85 @@ export const LookingGlassForm = (): JSX.Element => {
     }
   }, [router.isReady]);
 
+  // A saved query from the history (Run again or New target), which the form takes once,
+  // after the effects above. It fills the form as a link does; Run again then submits
+  // through `submitHandler`, with its greeting check and hostname resolution, once the
+  // values are rendered (see `afterReuse`).
+  const pendingReuse = useHistoryView(s => s.pending);
+  const [afterReuse, setAfterReuse] = useState<AfterReuse | null>(null);
+  useEffect(() => {
+    const reuse = pendingReuse === null ? null : useHistoryView.getState().takeReuse();
+    if (reuse === null) {
+      return;
+    }
+    const { query, locations, mode } = reuse;
+    // The errors of what the form had before.
+    clearErrors();
+    const prefill = historyPrefill(query, getDevice);
+    prefillForm(mode === 'newTarget' ? { ...prefill, queryTarget: null } : prefill, {
+      setError,
+      clearErrors,
+      getDevice,
+      text: web.text,
+    });
+    // `prefillForm` leaves out what the configuration no longer has; name the locations.
+    const unavailable = query.queryLocation.flatMap((id, index) =>
+      getDevice(id) === null ? [locations[index] ?? id] : [],
+    );
+    if (unavailable.length > 0) {
+      setError('queryLocation', {
+        message: strF(web.text.historyLocationUnavailable, { locations: unavailable.join(', ') }),
+      });
+    }
+    if (mode === 'newTarget') {
+      setAfterReuse({ focus: ['queryTarget', 'queryType', 'queryLocation'] });
+      return;
+    }
+    // Run the saved query only as it was saved: without a location or a variable value it
+    // would be another query. Validation catches a missing query type or target.
+    const { queryVariables } = useFormState.getState().form;
+    const sameVariables = Object.entries(query.queryVariables).every(
+      ([id, value]) => queryVariables[id] === value,
+    );
+    if (unavailable.length > 0) {
+      setAfterReuse({ focus: ['queryLocation', SUBMIT_FIELD] });
+    } else if (!sameVariables) {
+      setAfterReuse({ focus: [SUBMIT_FIELD] });
+    } else {
+      setAfterReuse({ submit: true });
+    }
+  }, [pendingReuse]);
+
+  // On the render after a saved query filled the form, so `submitHandler`, the schema and
+  // react-hook-form (through the mirror above) have its values.
+  useEffect(() => {
+    if (afterReuse === null) {
+      return;
+    }
+    setAfterReuse(null);
+    if ('focus' in afterReuse) {
+      focusField(formRef.current, afterReuse.focus);
+      return;
+    }
+    const order: [string, string][] = [
+      ['queryLocation', 'queryLocation'],
+      ['queryType', 'queryType'],
+      ['queryTarget', 'queryTarget'],
+      // A variable's row is named apart from the others, as in a link (`var.<id>`).
+      ...(directive?.variables ?? []).map((v): [string, string] => [v.id, `var.${v.id}`]),
+    ];
+    const onInvalid = (errors: FieldErrors<FormData>) =>
+      focusField(
+        formRef.current,
+        order.filter(([error]) => error in errors).map(([, field]) => field),
+      );
+    void handleSubmit(submitHandler, onInvalid)();
+  }, [afterReuse]);
+
   return (
     <FormProvider {...formInstance}>
       <chakra.form
+        ref={formRef}
         p={0}
         my={4}
         w="100%"
@@ -277,7 +382,11 @@ export const LookingGlassForm = (): JSX.Element => {
         onSubmit={handleSubmit(submitHandler)}
       >
         <FormRow>
-          <FormField name="queryLocation" label={web.text.queryLocation}>
+          <FormField
+            name="queryLocation"
+            label={web.text.queryLocation}
+            data-query-field="queryLocation"
+          >
             <QueryLocation onChange={handleChange} label={web.text.queryLocation} />
           </FormField>
         </FormRow>
@@ -286,6 +395,7 @@ export const LookingGlassForm = (): JSX.Element => {
             <FormField
               name="queryType"
               label={web.text.queryType}
+              data-query-field="queryType"
               labelAddOn={
                 directive !== null && (
                   <DirectiveInfoModal
@@ -306,7 +416,11 @@ export const LookingGlassForm = (): JSX.Element => {
             unmountOnExit
           >
             {directive !== null && (
-              <FormField name="queryTarget" label={web.text.queryTarget}>
+              <FormField
+                name="queryTarget"
+                label={web.text.queryTarget}
+                data-query-field="queryTarget"
+              >
                 <QueryTarget
                   name="queryTarget"
                   register={register}
@@ -320,7 +434,12 @@ export const LookingGlassForm = (): JSX.Element => {
         {directive !== null && (directive.variables ?? []).length > 0 && (
           <FormRow>
             {(directive.variables ?? []).map(variable => (
-              <FormField key={variable.id} name={variable.id} label={variable.name}>
+              <FormField
+                key={variable.id}
+                name={variable.id}
+                label={variable.name}
+                data-query-field={`var.${variable.id}`}
+              >
                 <QueryVariable variable={variable} onChange={handleVariableChange} />
               </FormField>
             ))}
@@ -335,6 +454,7 @@ export const LookingGlassForm = (): JSX.Element => {
             flex="0 0 0"
             flexDir="column"
             mr={{ base: 0, lg: 2 }}
+            data-query-field={SUBMIT_FIELD}
           >
             <ScaleFade initialScale={0.5} in={form.queryTarget.length !== 0}>
               <SubmitButton />
