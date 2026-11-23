@@ -51,15 +51,25 @@ class UIContent(HyperglassModel):
     greeting: str
 
 
+class UICacheRefresh(HyperglassModel):
+    """UI: Cache refresh.
+
+    Only `enable`: the UI learns the interval from `refresh_in` on each response.
+    """
+
+    enable: bool
+
+
 class UICache(HyperglassModel):
     """UI: Cache.
 
     Only what the UI reads. The full `Cache` model would fill in server-only fields,
-    such as `refresh`, with their defaults rather than the configured values.
+    such as `refresh.min_interval`, with their defaults rather than the configured values.
     """
 
     timeout: int
     show_text: bool
+    refresh: UICacheRefresh
 
 
 class UIParameters(ParamsPublic, HyperglassModel):

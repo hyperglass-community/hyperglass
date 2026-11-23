@@ -47,7 +47,7 @@ export const ResultHeader = (props: ResultHeaderProps): JSX.Element => {
         bg={isError ? warning : defaultStatus}
         color={color}
       >
-        <Box boxSize={6}>
+        <Box boxSize={6} flexShrink={0}>
           {loading ? (
             <Spinner size="sm" mr={4} color={status} />
           ) : (
@@ -61,7 +61,10 @@ export const ResultHeader = (props: ResultHeaderProps): JSX.Element => {
         </Box>
       </Tooltip>
 
-      <Text fontSize="lg">{title}</Text>
+      {/* A name with no break opportunity, such as a long hostname, still wraps. */}
+      <Text fontSize="lg" overflowWrap="anywhere">
+        {title}
+      </Text>
       <AccordionIcon ml="auto" />
     </HStack>
   );

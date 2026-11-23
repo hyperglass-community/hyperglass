@@ -51,6 +51,7 @@ interface _Text {
   ip_lookup_confirm: string;
   copy_output: string;
   reload_query: string;
+  refresh_cooldown: string;
   view_as_path: string;
   copy_link: string;
   link_copied: string;
@@ -176,9 +177,14 @@ interface _Content {
   greeting: string;
 }
 
+interface _CacheRefresh {
+  enable: boolean;
+}
+
 interface _Cache {
   show_text: boolean;
   timeout: number;
+  refresh: _CacheRefresh;
 }
 
 type _Config = _ConfigDeep & _ConfigShallow;
