@@ -84,7 +84,7 @@ class Snapshot(_Model):
 
 
 class ShareRequest(BaseModel):
-    """Body of `POST /api/share`: the `id` of a query response."""
+    """Body of `POST /api/share`: the `id` (and `timestamp`) of a query response."""
 
     model_config = ConfigDict(extra="forbid", alias_generator=snake_to_camel)
 
@@ -92,6 +92,10 @@ class ShareRequest(BaseModel):
     # Seconds to keep the share, one of `share.timeout_choices`; `share.timeout` if
     # absent or null.
     expires_in: t.Optional[int] = Field(None, gt=0)
+    # The `timestamp` of the query response whose result is to be shared. The `id` names
+    # the query's cache entry, which holds a newer result once the query has run again:
+    # with a timestamp, only the result with this timestamp is shared. Optional.
+    timestamp: t.Optional[str] = Field(None, min_length=1, max_length=64, strict=True)
 
     @field_validator("expires_in", mode="before")
     @classmethod

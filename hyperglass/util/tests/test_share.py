@@ -669,6 +669,50 @@ def test_result_replaced_while_sharing_is_not_shared(device, monkeypatch):
     assert index() == []
 
 
+def test_share_of_the_result_with_its_timestamp(device):
+    """A request naming the result's `timestamp` shares that result (#562)."""
+    with client() as test_client:
+        response = test_client.post("/api/query", json=body())
+        data = response.json()
+        created = create(test_client, data["id"], timestamp=data["timestamp"])
+        assert created.status_code == 201, created.text
+        shared_result = test_client.get(f"/api/share/{created.json()['id']}").json()
+    assert shared_result["results"][0]["timestamp"] == data["timestamp"]
+
+
+def test_newer_result_than_the_timestamp_is_not_shared(device):
+    """A saved result whose query has run again since is gone: a newer one isn't shared.
+
+    A history entry (#562) keeps the response's `id`, which names the query's cache entry,
+    not the result. Once the query has run again, that entry holds another result.
+    """
+    with client() as test_client:
+        data = test_client.post("/api/query", json=body()).json()
+        # The query ran again later: a new result in the same cache entry.
+        use_state().redis.set_map_item(data["id"], "timestamp", "2099-01-01 00:00:00")
+        response = create(test_client, data["id"], timestamp=data["timestamp"])
+    assert response.status_code == 404
+    assert response.json()["output"] == MESSAGES["share_result_expired"]
+    assert index() == []
+
+
+def test_timestamp_is_optional(device):
+    with client() as test_client:
+        query_id = run_query(test_client)
+        use_state().redis.set_map_item(query_id, "timestamp", "2099-01-01 00:00:00")
+        response = create(test_client, query_id)
+    assert response.status_code == 201
+
+
+@pytest.mark.parametrize("timestamp", (20261123, "", "x" * 65, True, ["2026-11-23 08:00:00"]))
+def test_malformed_timestamp_is_400(device, timestamp):
+    with client() as test_client:
+        query_id = run_query(test_client)
+        response = create(test_client, query_id, timestamp=timestamp)
+    assert response.status_code == 400
+    assert index() == []
+
+
 def test_share_survives_a_restart(device):
     with client() as test_client:
         created = shared(test_client)
