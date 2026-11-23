@@ -67,12 +67,6 @@ type Announcement = 'copied' | 'deleted' | 'expired' | null;
 /** Where focus goes after the change an action makes. */
 type FocusNext = { link: string } | 'auto' | null;
 
-/**
- * Milliseconds after the popover closes within which the button getting focus is the
- * popover returning it (Chakra does so on the next frame), not the visitor.
- */
-const FOCUS_RETURN = 100;
-
 /** The longest delay `setTimeout` takes; a longer one fires at once. */
 const MAX_DELAY = 2 ** 31 - 1;
 
@@ -230,10 +224,11 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
   // The result shown now, for a create that resolves after the query ran again.
   const latest = useRef(timestamp);
   latest.current = timestamp;
-  // When the popover last closed: focus coming back to the button right after doesn't
-  // open its tooltip over the page. Only right after: a close that sent focus elsewhere
-  // leaves nothing that would swallow a later focus or hover.
-  const closedAt = useRef<number | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Set while the popover hands focus back to the button, so that focus doesn't open the
+  // tooltip over the page. Consumed by the tooltip's next open, and cleared when the
+  // button loses focus or a pointer comes over it: nothing is left to swallow a later one.
+  const skipTooltip = useRef(false);
   const openRef = useRef(isOpen);
   openRef.current = isOpen;
 
@@ -299,8 +294,24 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
     setFailure(null);
     setAnnouncement(null);
     setFocusNext(null);
-    closedAt.current = performance.now();
     onClose();
+    // Focus goes back to the button only when it was in the popover (Escape, or an
+    // action): a close by a click elsewhere leaves focus where the visitor put it. Decided
+    // once the close has run: during the blur of a click elsewhere, nothing has focus yet.
+    const trigger = triggerRef.current;
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (
+        trigger === null ||
+        !trigger.isConnected ||
+        active === trigger ||
+        !(active === null || active === document.body || contentRef.current?.contains(active))
+      ) {
+        return;
+      }
+      skipTooltip.current = true;
+      trigger.focus();
+    }, 0);
   }
 
   async function handleCreate(): Promise<void> {
@@ -384,6 +395,8 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
       onOpen={onOpen}
       onClose={handleClose}
       placement="bottom-end"
+      // Returned by `handleClose`, which knows whether the tooltip should follow.
+      returnFocusOnClose={false}
       initialFocusRef={current === null ? keepForRef : currentFieldRef}
     >
       <Tooltip
@@ -392,8 +405,8 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
         placement="top"
         isOpen={tooltipOpen && !isOpen}
         onOpen={() => {
-          const closed = closedAt.current;
-          if (closed !== null && performance.now() - closed < FOCUS_RETURN) {
+          if (skipTooltip.current) {
+            skipTooltip.current = false;
             return;
           }
           setTooltipOpen(true);
@@ -401,11 +414,15 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
         onClose={() => setTooltipOpen(false)}
       >
         <ShareTrigger
+          ref={triggerRef}
           aria-label={label}
           isDisabled={isDisabled}
           // A pointer coming over the button wants the tooltip, after a close too.
           onPointerEnter={() => {
-            closedAt.current = null;
+            skipTooltip.current = false;
+          }}
+          onBlur={() => {
+            skipTooltip.current = false;
           }}
         />
       </Tooltip>

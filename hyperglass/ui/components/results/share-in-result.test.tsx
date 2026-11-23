@@ -156,6 +156,22 @@ describe('Result Share button', () => {
   });
 
   it('is absent while enrichment is pending, and shown once it completes', async () => {
+    // The enrichment is polled every second. The test runs the next poll itself instead of
+    // waiting a second of real time: it takes the poll's interval, and lets every other
+    // interval run (jsdom's animation frames run on one, and framer-motion waits for them).
+    const polls: Array<() => void> = [];
+    const setInterval = window.setInterval.bind(window);
+    vi.spyOn(window, 'setInterval').mockImplementation(((
+      callback: () => void,
+      delay?: number,
+      ...rest: unknown[]
+    ) => {
+      if (delay === 1000) {
+        polls.push(callback);
+        return 0;
+      }
+      return setInterval(callback, delay, ...rest);
+    }) as typeof window.setInterval);
     const enrichment = { status: 'pending' };
     const fetch = stubFetch(response({ enrichment: 'pending' }), enrichment);
     await renderResult(config());
@@ -166,6 +182,11 @@ describe('Result Share button', () => {
     expect(shareButton()).toBeNull();
 
     enrichment.status = 'complete';
+    // The poll of the effect that is running now: the last interval set.
+    expect(polls.length).toBeGreaterThan(0);
+    await act(async () => {
+      polls[polls.length - 1]();
+    });
     expect(
       await screen.findByRole('button', { name: 'Share Result' }, IMPORT_WAIT),
     ).toBeInTheDocument();
