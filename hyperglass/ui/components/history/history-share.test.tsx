@@ -5,6 +5,7 @@ import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__te
 import { SHARES_KEY, useHistoryView, useQueryHistory, useSavedShares } from '~/hooks';
 import { formatTimestamp } from '~/util';
 import { HistoryResults } from './history-results';
+import { hasSavedLink } from './history-share-button';
 import { RecentQueries } from './recent-queries';
 
 import type { HistoryEntry, SavedShare } from '~/hooks';
@@ -298,6 +299,16 @@ describe('Share in an opened history entry', () => {
     expect(within(dialog).getByRole('button', { name: text.shareCreate })).toBeInTheDocument();
   });
 
+  it("doesn't show a link of another query", async () => {
+    useSavedShares.getState().add(saved({ queryId: `hyperglass.query.${'cd'.repeat(32)}` }));
+    renderOpened();
+
+    const dialog = await openPopover(shareButtons()[0]);
+
+    expect(within(dialog).queryByRole('textbox')).toBeNull();
+    expect(within(dialog).getByRole('button', { name: text.shareCreate })).toBeInTheDocument();
+  });
+
   it('deletes the link, and forgets its token', async () => {
     useSavedShares.getState().add(saved());
     renderOpened();
@@ -514,5 +525,14 @@ describe('Share in Recent queries', () => {
     expect(screen.getByRole('group', { name: text.historyClearConfirm })).toHaveTextContent(
       'Kept.',
     );
+  });
+});
+
+describe('hasSavedLink', () => {
+  it("tells whether a live link was made from one of the entry's results", () => {
+    expect(hasSavedLink(entry(), [saved()])).toBe(true);
+    expect(hasSavedLink(entry(), [saved({ deadline: Date.now() - 1 })])).toBe(false);
+    expect(hasSavedLink(entry(), [saved({ timestamp: '2026-11-19 08:00:00' })])).toBe(false);
+    expect(hasSavedLink(entry(), [saved({ queryId: 'elsewhere' })])).toBe(false);
   });
 });
