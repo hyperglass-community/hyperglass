@@ -467,6 +467,15 @@ describe('useSavedShares with remember_links off', () => {
     expect(useSavedShares.getState().links).toEqual([]);
   });
 
+  it('never reads what another tab stores, also when saving', () => {
+    useSavedShares.getState().configure(false);
+    seed([other]);
+
+    useSavedShares.getState().add(share());
+
+    expect(useSavedShares.getState().links).toEqual([share()]);
+  });
+
   it('keeps its links when configured again the same way', () => {
     useSavedShares.getState().configure(false);
     useSavedShares.getState().add(share());

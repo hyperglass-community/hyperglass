@@ -359,8 +359,8 @@ export interface SavedShareLinks {
  * saves the links it creates with `labels` (how "Your shared links" names them).
  */
 export function useSavedShareLinks(queryId: string, labels: SavedShareLabels): SavedShareLinks {
-  const rememberLinks = useRememberLinks();
-  const configure = useSavedShares(s => s.configure);
+  // Applied once mounted, before any link can be created.
+  useRememberLinks();
   const all = useSavedShares(s => s.links);
   const add = useSavedShares(s => s.add);
   const dropToken = useSavedShares(s => s.dropToken);
@@ -375,11 +375,9 @@ export function useSavedShareLinks(queryId: string, labels: SavedShareLabels): S
         dropToken(link.id);
         return;
       }
-      // Before the first link is kept, in case the effect hasn't run yet.
-      configure(rememberLinks);
       add({ ...link, queryId, savedAt: Date.now(), labels: { location, type, target } });
     },
-    [add, configure, dropToken, rememberLinks, queryId, location, type, target],
+    [add, dropToken, queryId, location, type, target],
   );
   return { links, onAdd, onRemove: remove };
 }
