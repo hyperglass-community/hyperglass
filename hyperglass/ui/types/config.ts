@@ -104,6 +104,9 @@ interface _Text {
   share_hours: string;
   share_day: string;
   share_days: string;
+  history_shared: string;
+  history_delete_confirm: string;
+  history_share_kept: string;
 }
 
 interface _History {

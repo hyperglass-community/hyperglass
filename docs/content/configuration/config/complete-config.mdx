@@ -610,6 +610,16 @@ Text of the Share button on each result and of its popover, shown when [sharing]
 | `web.text.share_day` | String | `{count} day` | A time to keep the link of exactly one day. |
 | `web.text.share_days` | String | `{count} days` | A time to keep the link in days, when it is a whole number of days. |
 
+#### Saved Share Link Text
+
+Text for the share links kept with saved queries, shown when [sharing](/configuration/config/share#sharing-from-the-query-history) and the query history are enabled.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.text.history_shared` | String | `Link shared` | Shown on a saved query that has a share link that hasn't expired. |
+| `web.text.history_delete_confirm` | String | `Delete this saved query from this browser?` | Question shown before a saved query with a share link is deleted. |
+| `web.text.history_share_kept` | String | `Deleting a saved query doesn't delete its share links: they keep working until they expire. To stop a link sooner, delete it from its Share button first.` | Shown before a saved query with a share link is deleted, and before every saved query is deleted when any has one. |
+
 #### BGP/RPKI Status Text
 
 | Parameter | Type | Default | Description |
@@ -1487,6 +1497,12 @@ web:
     share_hours: "{count} hours"
     share_day: "{count} day"
     share_days: "{count} days"
+    # Share links kept with saved queries: the mark on a saved query with a live
+    # link, the question before deleting one, and the note that deleting saved
+    # queries doesn't delete their links.
+    history_shared: "Link shared"
+    history_delete_confirm: "Delete this saved query from this browser?"
+    history_share_kept: "Deleting a saved query doesn't delete its share links: they keep working until they expire. To stop a link sooner, delete it from its Share button first."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

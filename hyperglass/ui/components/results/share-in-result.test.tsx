@@ -188,7 +188,7 @@ describe('Result Share button', () => {
     expect(shareButton()).toBeInTheDocument();
   });
 
-  it('shares the response by its id, and keeps the link for this page', async () => {
+  it('shares the response by its id and time, and keeps the link for this page', async () => {
     const fetch = stubFetch();
     await renderResult();
     await userEvent.click(shareButton() as HTMLElement);
@@ -200,7 +200,12 @@ describe('Result Share button', () => {
     const shares = fetch.mock.calls.filter(([url]) => url === '/api/share');
     expect(shares).toHaveLength(1);
     const [, init] = shares[0] as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ queryId: QUERY_ID, expiresIn: 2592000 });
+    // With its time, so the server shares this result and not a newer one (#562).
+    expect(JSON.parse(init.body as string)).toEqual({
+      queryId: QUERY_ID,
+      expiresIn: 2592000,
+      timestamp: '2026-11-23 08:00:00',
+    });
 
     // Closed and opened again: the same link, without another request.
     await userEvent.keyboard('{Escape}');

@@ -42,6 +42,11 @@ export interface ShareButtonProps {
   /** The `id` of the query response whose cached result is shared. */
   queryId: string;
   /**
+   * The response's `timestamp`, sent with the request so the server shares this result
+   * and not a newer one of the same query.
+   */
+  timestamp?: string;
+  /**
    * The link already created for this result in this browser, or `null`. The live
    * results keep it in memory (`ResultShareButton`); a saved history entry can pass the
    * one stored with it.
@@ -50,6 +55,11 @@ export interface ShareButtonProps {
   /** Called with a created link, and with `null` once it is deleted, gone or expired. */
   onChange(share: CreatedShare | null): void;
   isDisabled?: boolean;
+  /**
+   * Shown under the message when the server no longer holds the result: for a saved
+   * result, a button that runs its query again.
+   */
+  resultExpiredAction?: React.ReactNode;
 }
 
 /** What the popover's live region announces. */
@@ -100,7 +110,7 @@ const ShareTrigger = forwardRef<HTMLButtonElement, ButtonProps>(_ShareTrigger);
  * link or the address.
  */
 export const ShareButton = (props: ShareButtonProps): JSX.Element => {
-  const { queryId, share, onChange, isDisabled } = props;
+  const { queryId, timestamp, share, onChange, isDisabled, resultExpiredAction } = props;
   const { share: config, web, messages, requestTimeout } = useConfig();
   const strF = useStrf();
   const muted = useColorValue('gray.600', 'gray.400');
@@ -161,7 +171,7 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
     setBusy('create');
     setFailure(null);
     setAnnouncement(null);
-    const outcome = await createShare(queryId, expiresIn, requestTimeout * 1000);
+    const outcome = await createShare(queryId, expiresIn, requestTimeout * 1000, timestamp);
     inFlight.current = false;
     setBusy(null);
     if (outcome.status === 'created') {
@@ -326,6 +336,7 @@ export const ShareButton = (props: ShareButtonProps): JSX.Element => {
                   {shareFailureMessage(failure, messages)}
                 </Alert>
               )}
+              {failure === 'resultExpired' && resultExpiredAction}
               {/* Always rendered, so a screen reader announces the change. */}
               <Text role="status" aria-atomic="true" fontSize="sm">
                 {announcement === 'copied'
@@ -358,6 +369,12 @@ export const ResultShareButton = (props: ResultShareButtonProps): JSX.Element =>
   const save = useShareLinks(s => s.save);
   const onChange = useCallback((next: CreatedShare | null) => save(key, next), [key, save]);
   return (
-    <ShareButton queryId={queryId} share={share} onChange={onChange} isDisabled={isDisabled} />
+    <ShareButton
+      queryId={queryId}
+      timestamp={timestamp}
+      share={share}
+      onChange={onChange}
+      isDisabled={isDisabled}
+    />
   );
 };

@@ -1,7 +1,14 @@
 import { Box, Button, Flex, HStack, Heading, List, Text } from '@chakra-ui/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useConfig } from '~/context';
-import { directiveRetains, useDevice, useHistoryView, useQueryHistory } from '~/hooks';
+import {
+  directiveRetains,
+  hasLiveShare,
+  useDevice,
+  useDropExpiredShares,
+  useHistoryView,
+  useQueryHistory,
+} from '~/hooks';
 import { HistoryEntryRow } from './history-entry-row';
 
 /** Where focus goes when the list goes away: the page's main landmark (see `Layout`). */
@@ -30,6 +37,7 @@ export const RecentQueries = (): JSX.Element | null => {
   const [confirming, setConfirming] = useState(false);
   const headingId = useId();
   const confirmId = useId();
+  const keptId = useId();
   const sectionRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const clearRef = useRef<HTMLButtonElement>(null);
@@ -68,6 +76,9 @@ export const RecentQueries = (): JSX.Element | null => {
     });
   }, [enable, entries, dropUnretained, getDevice]);
 
+  // Drop expired shares and their tokens, also as each expires.
+  useDropExpiredShares(enable);
+
   // Back from an opened entry: return focus to its Open button, or to the list if it is
   // gone. Once the list has rendered.
   useEffect(() => {
@@ -96,6 +107,8 @@ export const RecentQueries = (): JSX.Element | null => {
   if (!mounted || !enable || entries.length === 0) {
     return null;
   }
+
+  const anyShared = entries.some(e => hasLiveShare(e));
 
   function cancel(): void {
     refocus.current = true;
@@ -145,6 +158,7 @@ export const RecentQueries = (): JSX.Element | null => {
         <Flex
           role="group"
           aria-labelledby={confirmId}
+          aria-describedby={anyShared ? keptId : undefined}
           align="center"
           justify="space-between"
           flexWrap="wrap"
@@ -159,9 +173,17 @@ export const RecentQueries = (): JSX.Element | null => {
             }
           }}
         >
-          <Text id={confirmId} fontSize="sm">
-            {web.text.historyClearConfirm}
-          </Text>
+          <Box>
+            <Text id={confirmId} fontSize="sm">
+              {web.text.historyClearConfirm}
+            </Text>
+            {/* Deleting saved queries doesn't delete their links (#562). */}
+            {anyShared && (
+              <Text id={keptId} fontSize="sm" mt={1}>
+                {web.text.historyShareKept}
+              </Text>
+            )}
+          </Box>
           <HStack>
             <Button size="sm" colorScheme="red" onClick={handleClear}>
               {web.text.historyClearAll}

@@ -126,6 +126,17 @@ The button opens a popover with a **Keep for** choice of `timeout_choices` (with
 
 During UI development (`next dev`), `POST /api/share` is proxied to `HYPERGLASS_URL` too.
 
+### Sharing from the Query History
+
+With sharing and the [query history](/configuration/config/web-ui#query-history) on, a saved result can be shared too. Each result of an opened saved query has the Share button, and so does the row of a saved query of one location in "Recent queries" (a query of several locations is shared per location, once opened). The button is offered on the same terms as on a live result, checked against the current configuration: not for a location no longer configured, a directive that now has `retain: false`, or a result saved while its enrichment was running.
+
+- The request sends the saved response's `id` and `timestamp`. The server copies only what it still holds: once the result has left the query cache (`cache.timeout`, 120 seconds by default), or the query has run again since, it answers 404 and the popover shows `messages.share_result_expired` with a **Run again** button (`web.text.history_rerun`), which fills the form with the saved query and submits it, as **Run again** in the history does. The query is never run again on its own. A link created from the results view of the new run is a link to that new result.
+- The link's ID, expiry and delete token are stored with the saved result, in the browser's local storage (`hyperglass.history`), so the popover shows the link to copy or delete from any tab and after a reload. A saved query with a link that hasn't expired is marked with `web.text.history_shared`. The token is never shown, logged, or put in a URL or the link, and is sent only in the `X-Delete-Token` header of `DELETE /api/share/{id}`.
+- Deleting the link from the popover deletes it on the server and removes it from the history. A link that has expired is removed with its token: when the page loads, with each change to the history, and, while the history shows, when it expires.
+- Deleting a saved query that has a live link, or **Clear all** while any has one, doesn't delete the link on the server: it keeps working until it expires. Both ask first, with `web.text.history_delete_confirm` (or `history_clear_confirm`) and `web.text.history_share_kept`. Delete the link from its Share button first to stop it sooner.
+- When the history can't store the link (the saved query was deleted in another tab, or doesn't fit in the browser's storage), it is kept in the page's memory, as a live result's link is, until the page is closed or reloaded.
+- A link created from a live result (the results view) is kept in the page's memory only, as before; it is shown in the history's Share popover of the same result while the page is open.
+
 ### Operator Commands
 
 ```shell
