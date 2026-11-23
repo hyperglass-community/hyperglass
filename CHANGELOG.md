@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 
 - Show the cached-result time in the viewer's locale and time zone, with the zone name or offset, for example `Nov 20, 2026, 3:00:00 AM EST`. The locale decides the 12- or 24-hour clock. The backend's timestamp is UTC without a zone designator, and the tooltip showed it as received ([#564](https://github.com/hyperglass-community/hyperglass/pull/564), [#551](https://github.com/hyperglass-community/hyperglass/issues/551)). **Default change:** `web.text.cache_icon` is now `Cached from {time}`; it was `Cached from {time} UTC`. A configuration that sets `cache_icon` to the old text now labels a local time as UTC; remove the setting or the word `UTC`.
-- Upgrade the UI to zustand 5 (from 3.7.2), with no change in behaviour. A greeting acknowledgement saved in the browser by an earlier version still applies ([#575](https://github.com/hyperglass-community/hyperglass/issues/575)).
+- Upgrade the UI to zustand 5 (from 3.7.2). A greeting acknowledgement saved in the browser, including one saved by an earlier version, still keeps the greeting closed when the page loads ([#575](https://github.com/hyperglass-community/hyperglass/issues/575)).
 
 ### Fixed
 
