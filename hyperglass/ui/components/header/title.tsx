@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { isSafari } from 'react-device-detect';
 import { Case, Switch } from 'react-if';
 import { useConfig } from '~/context';
-import { useFormInteractive, useFormState, useMobile } from '~/hooks';
+import { useFormInteractive, useFormState, useMobile, useQueryHistory } from '~/hooks';
 import { Logo } from './logo';
 import { SubtitleOnly } from './subtitle-only';
 import { TitleOnly } from './title-only';
@@ -120,6 +120,7 @@ export const Title = (props: FlexProps): JSX.Element => {
   const { titleMode } = web.text;
 
   const reset = useFormState(s => s.reset);
+  const closeHistory = useQueryHistory(s => s.close);
   const formInteractive = useFormInteractive();
 
   return (
@@ -144,7 +145,11 @@ export const Title = (props: FlexProps): JSX.Element => {
         variant="link"
         flexWrap="wrap"
         flexDir="column"
-        onClick={async () => await reset()}
+        onClick={async () => {
+          // Return to the form from an opened history entry, too.
+          closeHistory();
+          await reset();
+        }}
         _focus={{ boxShadow: 'none' }}
         _hover={{ textDecoration: 'none' }}
       >

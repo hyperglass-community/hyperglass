@@ -1,0 +1,90 @@
+import { Box, Button, HStack, ListItem, Text, Tooltip } from '@chakra-ui/react';
+import { useId } from 'react';
+import { useConfig } from '~/context';
+import { DynamicIcon } from '~/elements';
+import { useColorValue, useStrf } from '~/hooks';
+import { formatTimestamp } from '~/util';
+
+import type { HistoryEntry } from '~/hooks';
+
+interface HistoryEntryRowProps {
+  entry: HistoryEntry;
+  onOpen(id: string): void;
+  onDelete(id: string): void;
+}
+
+/** An icon-only button, named by its tooltip text. */
+const ActionButton = (props: { label: string; icon: string; onClick(): void }): JSX.Element => {
+  const { label, icon, onClick } = props;
+  return (
+    <Tooltip hasArrow label={label} placement="top">
+      <Button
+        mx={1}
+        size="sm"
+        variant="ghost"
+        colorScheme="secondary"
+        aria-label={label}
+        onClick={onClick}
+      >
+        <DynamicIcon icon={{ fi: icon }} boxSize="16px" />
+      </Button>
+    </Tooltip>
+  );
+};
+
+/**
+ * One saved query in the recent queries list: what it was and when, with buttons to open
+ * and delete it.
+ */
+export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
+  const { entry, onOpen, onDelete } = props;
+  const { web } = useConfig();
+  const strF = useStrf();
+  const labelId = useId();
+  const muted = useColorValue('gray.600', 'gray.400');
+  const { labels } = entry;
+
+  return (
+    <ListItem
+      px={3}
+      py={2}
+      display="flex"
+      alignItems="center"
+      borderTopWidth="1px"
+      _first={{ borderTopWidth: 0 }}
+    >
+      <Box id={labelId} flex="1 1 auto" minW={0} mr={2}>
+        <Text fontSize="sm" overflowWrap="anywhere">
+          <Text as="span" fontWeight="bold">
+            {labels.type}
+          </Text>{' '}
+          <Text as="span" fontFamily="mono">
+            {labels.target}
+          </Text>
+        </Text>
+        <Text fontSize="sm" overflowWrap="anywhere">
+          {labels.locations.join(', ')}
+        </Text>
+        {labels.variables.length > 0 && (
+          <Text fontSize="sm" overflowWrap="anywhere">
+            {labels.variables.join(', ')}
+          </Text>
+        )}
+        <Text fontSize="xs" color={muted}>
+          {strF(web.text.historySavedAt, {
+            time: formatTimestamp(new Date(entry.savedAt).toISOString()),
+          })}
+        </Text>
+      </Box>
+      {/* Each row has the same button names: name the buttons' group after its query. */}
+      <HStack role="group" aria-labelledby={labelId} spacing={0} flex="0 0 auto">
+        <ActionButton label={web.text.historyOpen} icon="FiEye" onClick={() => onOpen(entry.id)} />
+        <ActionButton
+          label={web.text.historyDelete}
+          icon="FiTrash2"
+          onClick={() => onDelete(entry.id)}
+        />
+      </HStack>
+    </ListItem>
+  );
+};

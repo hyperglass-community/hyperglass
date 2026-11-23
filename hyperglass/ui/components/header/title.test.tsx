@@ -1,10 +1,14 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeConfig, renderWithProviders } from '~/__tests__/render';
+import { useFormState, useQueryHistory } from '~/hooks';
 import { Title } from './title';
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  useQueryHistory.setState({ entries: [], openId: null });
+  localStorage.clear();
 });
 
 /** An `Image` whose every load succeeds, as a browser's would once the logo arrives. */
@@ -40,5 +44,15 @@ describe('Title', () => {
     renderWithProviders(<Title />, { config });
 
     expect(screen.getByRole('button', { name: 'Example AS65000' })).toBeInTheDocument();
+  });
+
+  it('returns to an empty form from an opened history entry', async () => {
+    useQueryHistory.setState({ openId: 'saved' });
+    renderWithProviders(<Title />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hyperglass' }));
+
+    expect(useQueryHistory.getState().openId).toBeNull();
+    expect(useFormState.getState().status).toBe('form');
   });
 });
