@@ -532,6 +532,9 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.history_clear_cancel` | String | `Cancel` | Button that keeps the saved queries. |
 | `web.text.history_back` | String | `Back` | Button that closes an opened saved query. |
 | `web.text.history_saved_at` | String | `Saved {time}` | When a query was saved. `{time}` is shown in the viewer's locale and time zone. |
+| `web.text.history_rerun` | String | `Run again` | Button that fills the form with a saved query and submits it. |
+| `web.text.history_new_target` | String | `New target` | Button that fills the form with a saved query, except its target. |
+| `web.text.history_location_unavailable` | String | `No longer available: {locations}` | Shown on the location field when a saved query's locations are no longer configured. `{locations}` is their names. |
 
 #### BGP/RPKI Status Text
 
@@ -1320,6 +1323,9 @@ web:
     history_clear_cancel: "Cancel"
     history_back: "Back"
     history_saved_at: "Saved {time}"
+    history_rerun: "Run again"
+    history_new_target: "New target"
+    history_location_unavailable: "No longer available: {locations}"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

@@ -181,6 +181,11 @@ class Text(HyperglassModel):
     history_clear_cancel: str = "Cancel"
     history_back: str = "Back"
     history_saved_at: str = "Saved {time}"  # Formatted by Javascript
+    # Fill the form from a saved query, to run it again or with another target, and name
+    # its locations that are no longer configured (`{locations}` is formatted by Javascript).
+    history_rerun: str = "Run again"
+    history_new_target: str = "New target"
+    history_location_unavailable: str = "No longer available: {locations}"
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:
