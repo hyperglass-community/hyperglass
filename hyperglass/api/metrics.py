@@ -12,6 +12,8 @@ import functools
 
 # Third Party
 from litestar import Request
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from redis.exceptions import ConnectionError as RedisConnectionError
 from prometheus_client import Gauge, Counter, Histogram
 from litestar.exceptions import HTTPException
 from litestar.plugins.prometheus import PrometheusConfig, PrometheusController
@@ -40,6 +42,11 @@ __all__ = (
     "record_query_success",
     "set_query_labels",
 )
+
+# Redis being unreachable is temporary, so `unavailable_handler` answers these with 503
+# and they are counted as `service_unavailable`. Other Redis errors, such as a command
+# error, are bugs: they stay 500 and `internal_error`.
+REDIS_UNAVAILABLE = (RedisConnectionError, RedisTimeoutError)
 
 # Route handler `opt` key marking a handler whose failures count as query errors.
 QUERY_METRICS_OPT = "query_metrics"
@@ -116,6 +123,9 @@ def error_reason(exc: BaseException) -> str:
     """Get a bounded, snake_case failure reason from an exception."""
     if isinstance(exc, HyperglassError):
         return _snake_case(type(exc).__name__)
+    if isinstance(exc, REDIS_UNAVAILABLE):
+        # Answered with 503 by `unavailable_handler`: the server works, Redis does not.
+        return "service_unavailable"
     if isinstance(exc, HTTPException):
         if exc.status_code < 500:
             return "invalid_request"

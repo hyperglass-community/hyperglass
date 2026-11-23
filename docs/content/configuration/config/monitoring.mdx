@@ -92,7 +92,7 @@ A forced run is otherwise counted like any other run: its outcome in `hyperglass
 | `query_location_not_found` | The requested location does not exist.                                                        |
 | `query_type_not_found`     | The requested query type does not exist or is not enabled for the location.                   |
 | `invalid_request`          | The request body is malformed or missing fields.                                              |
-| `service_unavailable`      | Hyperglass's configuration was missing from Redis and could not be reloaded.                  |
+| `service_unavailable`      | Redis was unreachable, or Hyperglass's configuration was missing from Redis and could not be reloaded. |
 | `internal_error`           | An unexpected error; see the Hyperglass logs.                                                 |
 
 #### HTTP Metrics
