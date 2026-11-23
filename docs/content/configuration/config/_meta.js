@@ -9,6 +9,7 @@ export default {
     messages: "Messages",
     monitoring: "Health & Monitoring",
     "query-limit": "Query Rate Limit",
+    share: "Share Snapshots",
     "structured-output": "Structured Output",
     "web-ui": "Web UI",
 };

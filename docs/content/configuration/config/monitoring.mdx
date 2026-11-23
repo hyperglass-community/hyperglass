@@ -58,6 +58,7 @@ The metrics endpoint answers while Redis is down, so it can report an outage.
 | `hyperglass_query_errors_total`     | Counter   | `device`, `query_type`, `reason` | Failed queries, by failure reason.                                           |
 | `hyperglass_query_duration_seconds` | Histogram | `device`, `query_type`           | Time spent executing successful queries against devices (cache misses and bypasses). |
 | `hyperglass_query_cache_total`      | Counter   | `result`                         | Query cache lookups. `result` is `hit`, `miss` or `bypass`; see [Cache Results](#cache-results). |
+| `hyperglass_share_requests_total`   | Counter   | `operation`, `result`            | [Share](/configuration/config/share) requests; see [Share Results](#share-results). |
 | `hyperglass_build_info`             | Gauge     | `version`                        | Always `1`; carries the running Hyperglass version.                          |
 
 `device` is the device ID and `query_type` is the directive ID. When a query is rejected before it is validated (for example, an unknown location or a malformed request), both are `unknown`. Labels are never taken from raw request input, so clients cannot create new label values.
@@ -95,6 +96,16 @@ A forced run is otherwise counted like any other run: its outcome in `hyperglass
 | `rate_limited`             | The client, or all clients together, sent more queries than [`query_limit`](/configuration/config/query-limit) allows. |
 | `service_unavailable`      | Redis was unreachable, or Hyperglass's configuration was missing from Redis and could not be reloaded. |
 | `internal_error`           | An unexpected error; see the Hyperglass logs.                                                 |
+
+#### Share Results
+
+`hyperglass_share_requests_total` counts requests to the [share routes](/configuration/config/share#api) by `operation` and `result`. Requests that fail because Redis is unreachable are not counted there; they appear in the HTTP metrics as 503s.
+
+| `operation` | `result`                                                                                                                                  |
+| :---------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`    | `created`, `reused` (the client's existing share), `not_found` (result no longer cached), `pending`, `not_allowed`, `too_large`, `full`, `rate_limited` |
+| `read`      | `found`, `not_found`, `hidden` (directive removed or `retain: false`), `invalid`, `unsupported`, `rate_limited`                         |
+| `delete`    | `deleted`, `not_found` (no such share, or a wrong token)                                                                                   |
 
 #### HTTP Metrics
 

@@ -14,6 +14,8 @@ When `cache.refresh.enable` is `true`, a `POST /api/query` request can set `"for
 
 When `query_limit.enable` is `true`, a `POST /api/query` request over the limit gets HTTP 429 with a `Retry-After` header, in seconds. See [Query Rate Limit](/configuration/config/query-limit).
 
+When `share.enable` is `true`, `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}` copy a cached result into a snapshot, read it and delete it. They are not in the generated documentation; see [Share Snapshots](/configuration/config/share#api).
+
 ### Endpoint Parameters
 
 The `devices`, `info`, `queries` and `query` sections each take a `title`, `description` and `summary` string. `title` is the section heading the endpoint is grouped under, `summary` is shown beside the endpoint path, and `description` is shown in the endpoint's detail. If you set one of these sections, set all three keys.

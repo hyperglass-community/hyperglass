@@ -27,7 +27,7 @@ Each directive has the following options:
 | `multiple`           | Boolean         | `false`       | Command supports receiving multiple values. For example, Cisco IOS's `show ip bgp community` accepts multiple communities as arguments.                                    |
 | `multiple_separator` | String          | `" "`         | String by which multiple values are separated. For example, a list of values `[65001, 65002, 65003]` would be rendered as `65001 65002 65003` for when the command is run. |
 | `variables`          | Mapping         |               | Mapping/dict of [optional variables](#variables), each with a fixed list of allowed values.                                                                                |
-| `retain`             | Boolean         | `true`        | Let browsers keep this directive's results in [query history](/configuration/config/web-ui.mdx#query-history). Set `false` to [keep them out](#keep-results-out-of-history). |
+| `retain`             | Boolean         | `true`        | Let browsers keep this directive's results in [query history](/configuration/config/web-ui.mdx#query-history), and visitors copy them into [share snapshots](/configuration/config/share). Set `false` to [keep them out](#keep-results-out-of-history). |
 
 ## Rules
 
@@ -274,4 +274,5 @@ neighbor-entry:
 -   Results of the directive are shown as usual, but are not saved to the history. Nothing in the UI mentions it: no hint, icon or disabled button.
 -   A query of several locations runs each location's own directive of the same name, as a query type with built-in directives of different vendors does. Only the locations whose directive retains its results are saved; when none does, the query is not saved at all.
 -   Results saved before the directive was set to `retain: false` are deleted from each browser's history when the browser next loads the page. A query left without results is removed.
+-   With [share snapshots](/configuration/config/share) enabled, the directive's results can't be shared (HTTP 403), and snapshots made before it was set to `retain: false` are no longer served (HTTP 404). They are kept until they expire, so setting `retain: true` again serves them; delete them with `hyperglass share delete` or `hyperglass share clear`.
 -   Built-in directives always retain their results. To keep a built-in query type out of history, [disable that built-in](/configuration/devices.mdx#examples) on the device and add a directive of your own with `retain: false`.
