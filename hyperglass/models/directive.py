@@ -499,6 +499,9 @@ class Directive(HyperglassUniqueModel, unique_by=("id", "table_output")):
     multiple: bool = False
     multiple_separator: str = " "
     variables: t.Dict[str, Variable] = {}
+    # Whether the UI may keep this directive's results: in the browser's query history,
+    # and in share links (#559). `False` keeps its output out of both.
+    retain: bool = True
 
     @field_validator("variables")
     @classmethod
@@ -617,6 +620,7 @@ class Directive(HyperglassUniqueModel, unique_by=("id", "table_output")):
             "groups": self.groups,
             "description": self.field.description if self.field is not None else "",
             "info": None,
+            "retain": self.retain,
         }
 
         if self.info is not None:
