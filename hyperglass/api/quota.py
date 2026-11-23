@@ -34,8 +34,9 @@ __all__ = ("client_identity", "query_limit_guard", "quota_identity", "take_quota
 # One atomic fixed window shared by every worker. Check the global budget before
 # allocating a client key, so rotating source addresses cannot create unlimited keys.
 # A request over either budget changes nothing. A counter gets its expiry when it is
-# created, and later requests don't extend it. A counter found without an expiry
-# (`TTL` -1, e.g. one written by hand) gets one, so it can't block a client forever.
+# created, and later requests don't extend it. A counter below its limit found without
+# an expiry (`TTL` -1, e.g. one written by hand) gets one on the next accepted request.
+# One already at its limit is not repaired, because a rejected request changes nothing.
 _RATE = """
 local total = tonumber(redis.call('GET', KEYS[1]) or '0')
 local client = tonumber(redis.call('GET', KEYS[2]) or '0')
