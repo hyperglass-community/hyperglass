@@ -4,6 +4,9 @@ import { testConfig } from '~/__tests__/render';
 import { queryClient } from '~/context';
 import {
   parsePrefill,
+  prefillLink,
+  prefillSearch,
+  queryPrefill,
   withoutPrefill,
   useFormInteractive,
   useFormSelections,
@@ -1119,5 +1122,277 @@ describe('withoutPrefill', () => {
   it('returns a query string without its parameters unchanged', () => {
     expect(withoutPrefill('?q=a%20b')).toBe('?q=a%20b');
     expect(withoutPrefill('')).toBe('');
+  });
+});
+
+// #577: the link the results view copies is read back by `parsePrefill` (#567).
+describe('queryPrefill', () => {
+  const bgpRoute = device('router_one').directives[0];
+  const peerCommunities = device('router_three').directives[0];
+
+  it('takes the locations, query type, target and variables the form submitted', () => {
+    expect(
+      queryPrefill(
+        {
+          queryLocation: ['router_one', 'router_two'],
+          queryType: bgpRoute.id,
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: { vrf: 'default' },
+        },
+        bgpRoute,
+      ),
+    ).toEqual({
+      queryLocation: ['router_one', 'router_two'],
+      queryType: '__hyperglass_juniper_bgp_route__',
+      queryTarget: '2001:db8::/32',
+      queryVariables: { vrf: 'default' },
+    });
+  });
+
+  it('takes a select target', () => {
+    expect(
+      queryPrefill(
+        {
+          queryLocation: ['router_three'],
+          queryType: 'peer_communities',
+          queryTarget: ['65000:1'],
+        },
+        peerCommunities,
+      ),
+    ).toEqual({
+      queryLocation: ['router_three'],
+      queryType: 'peer_communities',
+      queryTarget: '65000:1',
+      queryVariables: {},
+    });
+  });
+
+  it('leaves out the placeholder target of a query type without a target field', () => {
+    const fieldless = { ...bgpRoute, fieldType: null } as unknown as Directive;
+    expect(
+      queryPrefill(
+        { queryLocation: ['router_one'], queryType: bgpRoute.id, queryTarget: ['null'] },
+        fieldless,
+      ).queryTarget,
+    ).toBeNull();
+  });
+});
+
+describe('prefillSearch', () => {
+  const empty: FormPrefill = {
+    queryLocation: [],
+    queryType: null,
+    queryTarget: null,
+    queryVariables: {},
+  };
+
+  it('writes one location, the query type and the target', () => {
+    expect(
+      prefillSearch({
+        ...empty,
+        queryLocation: ['router_one'],
+        queryType: '__hyperglass_juniper_ping__',
+        queryTarget: '192.0.2.1',
+      }),
+    ).toBe('?location=router_one&type=__hyperglass_juniper_ping__&target=192.0.2.1');
+  });
+
+  it('repeats the location parameter for several locations, in order', () => {
+    const search = prefillSearch({
+      ...empty,
+      queryLocation: ['router_two', 'router_one', 'router_three'],
+      queryType: '__hyperglass_arista_eos_bgp_route__',
+      queryTarget: '192.0.2.0/24',
+    });
+    expect(new URLSearchParams(search).getAll('location')).toEqual([
+      'router_two',
+      'router_one',
+      'router_three',
+    ]);
+  });
+
+  it('writes the variables under the var. prefix', () => {
+    const search = prefillSearch({
+      ...empty,
+      queryLocation: ['router_one'],
+      queryType: 'bgp_vrf',
+      queryTarget: '192.0.2.0/24',
+      queryVariables: { vrf: 'customer', location: 'default' },
+    });
+    const params = new URLSearchParams(search);
+    expect(params.get('var.vrf')).toBe('customer');
+    expect(params.get('var.location')).toBe('default');
+    expect(params.getAll('location')).toEqual(['router_one']);
+  });
+
+  it('writes nothing for empty values', () => {
+    expect(prefillSearch(empty)).toBe('');
+    expect(
+      prefillSearch({ ...empty, queryLocation: ['router_one'], queryVariables: { vrf: '' } }),
+    ).toBe('?location=router_one');
+  });
+
+  it.each([
+    ['an IPv4 address', '192.0.2.1'],
+    ['an IPv4 prefix', '192.0.2.0/24'],
+    ['an IPv6 address', '2001:db8::1'],
+    ['an IPv6 prefix', '2001:db8::/32'],
+    ['an IPv6 address with a zone', 'fe80::1%eth0'],
+    ['a target with a plus sign and a space', 'a+b c'],
+    ['a target with an ampersand and an equals sign', 'x&target=y'],
+  ])('encodes %s so that parsePrefill reads it back', (_, target) => {
+    const prefill = { ...empty, queryLocation: ['router_one'], queryTarget: target };
+    expect(parsePrefill(prefillSearch(prefill))).toEqual(prefill);
+  });
+
+  it('encodes a zone as %25 and a plus sign as %2B', () => {
+    const search = prefillSearch({ ...empty, queryLocation: ['r'], queryTarget: 'fe80::1%eth0+' });
+    expect(search).toContain('%25eth0%2B');
+  });
+
+  it('round-trips several locations, a query type, a target and variables', () => {
+    const prefill = {
+      queryLocation: ['router_one', 'router_two'],
+      queryType: '__hyperglass_juniper_bgp_route__',
+      queryTarget: '2001:db8::/32',
+      queryVariables: { vrf: 'default', type: 'x' },
+    };
+    expect(parsePrefill(prefillSearch(prefill))).toEqual(prefill);
+  });
+});
+
+describe('prefillLink', () => {
+  const prefill: FormPrefill = {
+    queryLocation: ['router_one'],
+    queryType: '__hyperglass_juniper_ping__',
+    queryTarget: '2001:db8::1',
+    queryVariables: {},
+  };
+  const search = '?location=router_one&type=__hyperglass_juniper_ping__&target=2001%3Adb8%3A%3A1';
+
+  it('links to the page at its origin and path', () => {
+    expect(prefillLink(prefill, { origin: 'https://lg.example.net', pathname: '/' })).toBe(
+      `https://lg.example.net/${search}`,
+    );
+  });
+
+  it('keeps a sub-path, as behind a reverse proxy', () => {
+    expect(
+      prefillLink(prefill, { origin: 'https://example.net:8443', pathname: '/tools/lg/' }),
+    ).toBe(`https://example.net:8443/tools/lg/${search}`);
+  });
+
+  it('keeps a page served as /index.html', () => {
+    expect(
+      prefillLink(prefill, { origin: 'http://[2001:db8::1]', pathname: '/lg/index.html' }),
+    ).toBe(`http://[2001:db8::1]/lg/index.html${search}`);
+  });
+});
+
+describe('a copied link, opened', () => {
+  beforeEach(async () => {
+    queryClient.clear();
+    await useFormState.getState().reset();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+  });
+
+  /** Open `link` as the form does: parse its query string and prefill the form. */
+  function open(link: string, devicesById = getDevice): void {
+    const prefill = parsePrefill(new URL(link).search);
+    expect(prefill).not.toBeNull();
+    useFormState.getState().prefillForm(prefill as FormPrefill, {
+      setError: vi.fn(),
+      clearErrors: vi.fn(),
+      getDevice: devicesById,
+      text: testConfig.web.text,
+    });
+  }
+
+  /** The link the results view would copy for the query now in the form. */
+  function linkToForm(): string {
+    const { form, getDirective } = useFormState.getState();
+    return prefillLink(queryPrefill(form, getDirective()), {
+      origin: 'https://lg.example.net',
+      pathname: '/lg/',
+    });
+  }
+
+  /** Submit `form` from a fresh store, then copy the link and open it in another one. */
+  async function roundTrip(
+    form: { queryLocation: string[]; queryType: string; queryTarget: string[] },
+    variables: Record<string, string> = {},
+    devicesById = getDevice,
+  ) {
+    open(
+      `https://lg.example.net/?${new URLSearchParams([
+        ...form.queryLocation.map(l => ['location', l]),
+        ['type', form.queryType],
+      ]).toString()}`,
+      devicesById,
+    );
+    useFormState.getState().setFormValue('queryTarget', form.queryTarget);
+    useFormState.getState().setFormValue('queryVariables', variables);
+    const submitted = useFormState.getState().form;
+    const link = linkToForm();
+
+    await useFormState.getState().reset();
+    open(link, devicesById);
+    return { submitted, link };
+  }
+
+  it.each([
+    ['one location and an IPv4 target', ['router_one'], '__hyperglass_juniper_ping__', '192.0.2.1'],
+    [
+      'several locations and an IPv6 prefix',
+      ['router_one', 'router_two', 'router_three'],
+      '__hyperglass_juniper_bgp_route__',
+      '2001:db8::/32',
+    ],
+    ['an IPv4 prefix', ['router_two'], '__hyperglass_arista_eos_bgp_route__', '192.0.2.0/24'],
+    ['an IPv6 address', ['router_three'], '__hyperglass_frr_ping__', '2001:db8::1'],
+    ['an IPv6 address with a zone', ['router_one'], '__hyperglass_juniper_ping__', 'fe80::1%eth0'],
+    ['a select target', ['router_three'], 'peer_communities', '65000:2'],
+  ])('fills in the same query: %s', async (_, queryLocation, queryType, target) => {
+    const { submitted } = await roundTrip({ queryLocation, queryType, queryTarget: [target] });
+
+    const { form, target: display, status } = useFormState.getState();
+    expect(form).toEqual(submitted);
+    expect(form.queryTarget).toEqual([target]);
+    expect(display.display).toBe(target);
+    // Opening a link only fills in the form.
+    expect(status).toBe('form');
+  });
+
+  it('fills in the same variables', async () => {
+    const vrf = {
+      id: 'vrf',
+      name: 'VRF',
+      required: false,
+      options: [
+        { name: 'Default', value: 'default', description: null },
+        { name: 'Customer', value: 'customer', description: null },
+      ],
+    };
+    const withVrf = {
+      ...device('router_one').directives[0],
+      id: 'bgp_vrf',
+      name: 'BGP Route in a VRF',
+      variables: [vrf],
+    } as Directive;
+    const one = { ...device('router_one'), directives: [withVrf] };
+    const byId = (id: string): Device | null => (id === 'router_one' ? one : getDevice(id));
+
+    const { submitted, link } = await roundTrip(
+      { queryLocation: ['router_one'], queryType: 'bgp_vrf', queryTarget: ['2001:db8::/32'] },
+      { vrf: 'customer' },
+      byId,
+    );
+
+    expect(new URL(link).searchParams.get('var.vrf')).toBe('customer');
+    expect(useFormState.getState().form).toEqual(submitted);
+    expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'customer' });
   });
 });

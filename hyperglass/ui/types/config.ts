@@ -51,6 +51,9 @@ interface _Text {
   copy_output: string;
   reload_query: string;
   view_as_path: string;
+  copy_link: string;
+  link_copied: string;
+  query_link: string;
   as_path_title: string;
   zoom_in: string;
   zoom_out: string;

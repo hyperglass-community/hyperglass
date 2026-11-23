@@ -68,6 +68,14 @@ Encode the values as in any URL query string: a `+` reads as a space, so encode 
 
 Once the form is filled in, Hyperglass removes these parameters from the address bar, so the address doesn't keep describing a query you have since changed. Other parameters and the `#` fragment stay.
 
+### Copy a link to a query
+
+After you submit a query, select the link button above the results (**Copy Link**) to copy a link to it. The link has every selected location, the query type, the target and any variables, in the parameters above, on the address of the page you are using, so it also works when Hyperglass is served under a sub-path. Other parameters of your address and the `#` fragment are not included.
+
+The link shares the query, not its result: whoever opens it gets the form filled in and selects **Submit** to run the query again. When the query had a hostname target, the link has the address it was resolved to, as that is what was queried.
+
+If the browser can't copy (for example on a page served over plain HTTP, or when clipboard access is refused), the link appears in a read-only field below the button, selected, so you can copy it yourself.
+
 ## Hostname resolution
 
 When you enter a hostname instead of an address, Hyperglass resolves it through the configured DNS provider. The resolver returns available IPv4 and IPv6 addresses, and you choose which address to query.

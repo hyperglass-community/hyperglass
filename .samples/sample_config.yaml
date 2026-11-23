@@ -479,6 +479,11 @@ web:
     copy_output: "Copy Output"
     reload_query: "Reload Query"
     view_as_path: "View AS Path"
+    # Results view: copy a link to the query, its confirmation, and the label of the
+    # field that shows the link when the clipboard isn't available.
+    copy_link: "Copy Link"
+    link_copied: "Link copied"
+    query_link: "Link to this query"
     # AS path chart: modal heading ({target} is the query target) and zoom controls.
     as_path_title: "Path to {target}"
     zoom_in: "Zoom In"
