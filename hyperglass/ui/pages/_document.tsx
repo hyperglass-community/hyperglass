@@ -60,6 +60,10 @@ class MyDocument extends Document<DocumentExtra> {
           <meta name="language" content="en" />
           <meta httpEquiv="Content-Type" content="text/html" />
           <meta charSet="UTF-8" />
+          {/* Before anything the page loads: browsers then send its address, which can
+          hold a share ID (`/?share=<id>`), to this site only. Hyperglass also sends the
+          header; this covers a UI served by something else. */}
+          <meta name="referrer" content="same-origin" />
           <meta name="og:type" content="website" />
           <meta name="og:image" content="/images/opengraph.jpg" />
           <meta property="og:image:width" content="1200" />
