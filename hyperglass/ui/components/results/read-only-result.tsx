@@ -18,8 +18,8 @@ export interface ReadOnlyResultProps {
 
 /**
  * A response kept from earlier (a saved history entry, a shared result), read-only: no
- * request, no polling, no requery. Its buttons are copy and, for a structured BGP table,
- * the AS path without lookups. It must be inside an `Accordion` (see `ResultsView`).
+ * request, no polling, no requery. Its buttons are copy and, for structured output (a BGP
+ * table or a traceroute), the AS path without lookups. It must be inside an `Accordion` (see `ResultsView`).
  */
 export const ReadOnlyResult = (props: ReadOnlyResultProps): JSX.Element => {
   const { index, location, data, queryTarget, displayTarget } = props;

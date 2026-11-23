@@ -1,7 +1,7 @@
 import { Alert, Box, Button, Flex, HStack, Heading, Spinner, Text, chakra } from '@chakra-ui/react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ReadOnlyResult, ResultsView, Tags } from '~/components';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
@@ -18,6 +18,7 @@ import {
   withoutShare,
 } from '~/hooks';
 import { formatTimestamp } from '~/util';
+import { ShareErrorBoundary } from './share-error-boundary';
 
 import type { NextRouter } from 'next/router';
 import type { SharedResult as SharedResultData, Snapshot } from '~/hooks';
@@ -132,6 +133,16 @@ export const SharedResult = (): JSX.Element | null => {
   const id = useShareView(s => s.id);
   const outcome = useShareSnapshot(id ?? '');
   const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The loading text goes into its live region after the region is rendered: a region
+  // that appears with its text already in it isn't announced.
+  const [announce, setAnnounce] = useState(false);
+
+  // Move focus to the view that replaced the form, and fill the live region.
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+    setAnnounce(true);
+  }, []);
 
   // Remove the prefill parameters from the address once the router is ready (see
   // `LookingGlassForm`, which ignores them while `share` is there).
@@ -206,7 +217,14 @@ export const SharedResult = (): JSX.Element | null => {
         maxW={{ base: '100%', md: '75%' }}
       >
         <Box textAlign="left" minW={0}>
-          <Heading as="h2" id={headingId} size="md">
+          <Heading
+            as="h2"
+            id={headingId}
+            ref={headingRef}
+            size="md"
+            tabIndex={-1}
+            _focus={{ outline: 'none' }}
+          >
             {web.text.shareTitle}
           </Heading>
           {outcome.status === 'found' && (
@@ -240,12 +258,17 @@ export const SharedResult = (): JSX.Element | null => {
         </HStack>
       </Flex>
       {outcome.status === 'loading' && (
-        <HStack role="status" justify="center" spacing={3} my={8}>
-          <Spinner size="sm" />
-          <Text>{web.text.shareLoading}</Text>
+        <HStack justify="center" spacing={3} my={8}>
+          {/* The text says it: no label of the spinner's own, which isn't configurable. */}
+          <Spinner size="sm" label="" aria-hidden />
+          <Text role="status">{announce ? web.text.shareLoading : null}</Text>
         </HStack>
       )}
-      {outcome.status === 'found' && <SnapshotView snapshot={outcome.snapshot} />}
+      {outcome.status === 'found' && (
+        <ShareErrorBoundary message={web.text.shareError}>
+          <SnapshotView snapshot={outcome.snapshot} />
+        </ShareErrorBoundary>
+      )}
       {outcome.status !== 'loading' && outcome.status !== 'found' && (
         <Alert
           status="warning"

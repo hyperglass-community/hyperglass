@@ -153,6 +153,98 @@ describe('isSnapshot', () => {
   });
 });
 
+describe('isSnapshot with structured output', () => {
+  const [base] = snapshot().results;
+
+  const route = {
+    prefix: '2001:db8::/32',
+    active: true,
+    age: 60,
+    weight: 0,
+    med: 0,
+    local_preference: 100,
+    as_path: [65000, 64999],
+    communities: ['65000:1'],
+    next_hop: '2001:db8::1',
+    source_as: 64999,
+    source_rid: '192.0.2.10',
+    peer_rid: '192.0.2.11',
+    rpki_state: 1,
+    filtered: false,
+    next_hop_asn: null,
+  };
+
+  const hop = {
+    hop_number: 1,
+    ip_address: '2001:db8::5',
+    display_ip: null,
+    hostname: 'r1.example.net',
+    rtt1: 1.1,
+    rtt2: null,
+    rtt3: 1.3,
+    loss_pct: 0,
+    sent_count: 3,
+    last_rtt: 1.3,
+    avg_rtt: 1.2,
+    best_rtt: 1.1,
+    worst_rtt: 1.3,
+    asn: '65000',
+    org: null,
+    prefix: null,
+    country: null,
+    rir: null,
+    allocated: null,
+  };
+
+  function bgp(output: Record<string, unknown>): unknown {
+    return {
+      ...snapshot(),
+      results: [
+        {
+          ...base,
+          format: 'application/json',
+          output: { vrf: 'default', count: 1, winning_weight: 'high', routes: [route], ...output },
+        },
+      ],
+    };
+  }
+
+  function trace(output: Record<string, unknown>): unknown {
+    return {
+      ...snapshot(),
+      results: [{ ...base, format: 'application/json', output: { hops: [hop], ...output } }],
+    };
+  }
+
+  it('accepts complete routes and hops, with AS names', () => {
+    expect(isSnapshot(bgp({ asn_organizations: { '64999': { name: 'Example' } } }))).toBe(true);
+    expect(isSnapshot(trace({}))).toBe(true);
+  });
+
+  // Each of these crashed the whole page when it reached the tables (#560 review).
+  it.each([
+    ['an empty route', bgp({ routes: [{}] })],
+    ['a route without communities', bgp({ routes: [{ ...route, communities: undefined }] })],
+    ['an object in the communities', bgp({ routes: [{ ...route, communities: [{}] }] })],
+    ['an object in the AS path', bgp({ routes: [{ ...route, as_path: [{}] }] })],
+    ['an AS path that is not a list', bgp({ routes: [{ ...route, as_path: '65000' }] })],
+    ['an object as the prefix', bgp({ routes: [{ ...route, prefix: {} }] })],
+    ['an age that is not a number', bgp({ routes: [{ ...route, age: '60' }] })],
+    ['an unknown RPKI state', bgp({ routes: [{ ...route, rpki_state: 7 }] })],
+    ['an object as the next hop AS', bgp({ routes: [{ ...route, next_hop_asn: {} }] })],
+    ['an unknown winning weight', bgp({ winning_weight: 'middle' })],
+    ['AS names that are not objects', bgp({ asn_organizations: { '64999': 'Example' } })],
+    ['an AS name that is not text', bgp({ asn_organizations: { '64999': { name: {} } } })],
+    ['an empty hop', trace({ hops: [{}] })],
+    ['a hop number that is not a number', trace({ hops: [{ ...hop, hop_number: '1' }] })],
+    ['an object as a hostname', trace({ hops: [{ ...hop, hostname: {} }] })],
+    ['a latency that is not a number', trace({ hops: [{ ...hop, avg_rtt: '1' }] })],
+    ['a list as the AS', trace({ hops: [{ ...hop, asn: ['65000'] }] })],
+  ])('refuses %s', (_, value) => {
+    expect(isSnapshot(value)).toBe(false);
+  });
+});
+
 describe('shareQuery', () => {
   it('gives the shared query in the form history reuse takes', () => {
     expect(shareQuery(snapshot())).toEqual({
@@ -214,6 +306,20 @@ describe('fetchShare', () => {
     expect(init.method).toBe('GET');
     expect(init.body).toBeUndefined();
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('does not follow a redirect, so one request is all it makes', async () => {
+    answer(200, snapshot());
+    await fetchShare(ID, 1000);
+    const [, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(init.redirect).toBe('error');
+  });
+
+  it('is an error when the server redirects', async () => {
+    // With `redirect: 'error'`, `fetch` rejects a redirect with a TypeError.
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await fetchShare(ID, 1000)).toEqual({ status: 'error' });
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it.each([

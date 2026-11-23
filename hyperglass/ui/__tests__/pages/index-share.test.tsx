@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HeadManagerContext } from 'next/dist/shared/lib/head-manager-context.shared-runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -382,9 +382,42 @@ describe('Shared result page', () => {
     openPage(`/?share=${ID}`);
 
     const section = await sharedSection();
-    expect(within(section).getByRole('status')).toHaveTextContent(text.shareLoading);
+    await waitFor(() =>
+      expect(within(section).getByRole('status')).toHaveTextContent(text.shareLoading),
+    );
+    // Only the configured text: the spinner adds no label of its own.
+    expect(within(section).getByRole('status').textContent).toBe(text.shareLoading);
     expect(screen.queryByRole('button', { name: text.shareRunQuery })).not.toBeInTheDocument();
   });
+
+  it('moves focus to the shared result heading when it opens', async () => {
+    answer(200, snapshot());
+    openPage(`/?share=${ID}`);
+
+    const section = await sharedSection();
+    const heading = within(section).getByRole('heading', { name: text.shareTitle });
+    await waitFor(() => expect(heading).toHaveFocus());
+  });
+
+  it.each([
+    ['an empty route', { routes: [{}] }],
+    ['an object in the communities', { routes: [{ ...route(), communities: [{}] }] }],
+    ['an object in the AS path', { routes: [{ ...route(), as_path: [{}] }] }],
+    ['an empty hop', { hops: [{}] }],
+  ])(
+    'shows the error text, and keeps the page, for structured output with %s',
+    async (_, output) => {
+      const result = bgpResult();
+      answer(200, snapshot({ ...result, output: output as never }));
+      openPage(`/?share=${ID}`);
+
+      const section = await sharedSection();
+      expect(await within(section).findByRole('alert')).toHaveTextContent(text.shareError);
+      await userEvent.click(within(section).getByRole('button', { name: text.shareNewQuery }));
+      await screen.findAllByText('Router One', undefined, IMPORT_WAIT);
+      expect(urls()).toEqual([`/api/share/${ID}`]);
+    },
+  );
 
   it.each([
     ['not found', 404, () => messages.shareNotFound],
@@ -477,9 +510,8 @@ describe('Shared result page', () => {
       messages: { shareNotFound: 'Introuvable' },
     });
     openPage(`/?share=${ID}`, config);
-    expect(await screen.findByRole('status', undefined, IMPORT_WAIT)).toHaveTextContent(
-      'Chargement',
-    );
+    const status = await screen.findByRole('status', undefined, IMPORT_WAIT);
+    await waitFor(() => expect(status).toHaveTextContent('Chargement'));
   });
 
   it('asks search engines not to index the page while a share shows', async () => {
@@ -572,6 +604,42 @@ describe('Prefill parameters alongside share', () => {
 });
 
 describe('Run this query', () => {
+  it('does not submit while Enter is held down from Run this query', async () => {
+    answer(200, snapshot(textResult('2001:db8::/32')));
+    openPage(`/?share=${ID}`);
+    const section = await sharedSection();
+    const run = await within(section).findByRole(
+      'button',
+      { name: text.shareRunQuery },
+      IMPORT_WAIT,
+    );
+
+    // A held key: the first keydown activates Run this query; the browser repeats the
+    // keydown, with `repeat` set, on whatever has focus next.
+    run.focus();
+    await userEvent.keyboard('{Enter}');
+    const submit = await submitButton();
+    await waitFor(() => expect(submit).toHaveFocus());
+    const target = await screen.findByPlaceholderText(
+      'IP Address, Prefix, or Hostname',
+      undefined,
+      IMPORT_WAIT,
+    );
+
+    // `fireEvent` returns false when the default action (button activation, implicit
+    // submission) was prevented.
+    expect(fireEvent.keyDown(submit, { key: 'Enter', code: 'Enter', repeat: true })).toBe(false);
+    expect(fireEvent.keyDown(target, { key: 'Enter', code: 'Enter', repeat: true })).toBe(false);
+    await settle();
+    expect(queries()).toEqual([]);
+    expect(useFormState.getState().status).toBe('form');
+
+    // A new press is a deliberate action.
+    expect(fireEvent.keyDown(submit, { key: 'Enter', code: 'Enter' })).toBe(true);
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(queries()).toHaveLength(1));
+  });
+
   it.each([
     ['an IPv4 prefix', '192.0.2.0/24'],
     ['an IPv6 prefix', '2001:db8::/32'],
