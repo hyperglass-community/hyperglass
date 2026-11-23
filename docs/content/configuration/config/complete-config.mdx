@@ -592,7 +592,7 @@ Text of the page that shows a [shared result](/configuration/config/share#the-sh
 
 #### Share Button Text
 
-Text of the Share button on each result and of its popover, shown when [sharing](/configuration/config/share#the-share-button) is enabled. The link is copied with `web.text.copy_link` (confirmed with `web.text.link_copied`) and its expiry shown with `web.text.share_expires`. A refused request shows the matching message: `messages.share_result_expired`, `share_pending`, `share_not_allowed`, `share_too_large`, `share_unavailable`, `share_invalid_expiry`, `share_not_found` (deleting a link that is already gone) or `rate_limited`, and `messages.general` for any other failure.
+Text of the Share button on each result and of its popover, shown when [sharing](/configuration/config/share#the-share-button) is enabled. The link is copied with `web.text.copy_link` (confirmed with `web.text.link_copied`) and its expiry shown with `web.text.share_expires`. A refused request shows the matching message: `messages.share_result_expired`, `share_pending`, `share_not_allowed`, `share_too_large`, `share_unavailable`, `share_invalid_expiry`, `share_not_found` (deleting a link the server no longer has; when the link still exists but its token was replaced, `web.text.share_delete_rotated` is shown instead) or `rate_limited`, and `messages.general` for any other failure.
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
@@ -603,6 +603,10 @@ Text of the Share button on each result and of its popover, shown when [sharing]
 | `web.text.share_notice` | String | `Anyone with the link can see this result, including the target.` | Shown under a created link. |
 | `web.text.share_delete` | String | `Delete Link` | Button that deletes the link. |
 | `web.text.share_deleted` | String | `Link deleted` | Shown and announced once the link is deleted. |
+| `web.text.share_earlier_link` | String | `Link to the result from {time}` | Label of a link created for an earlier result of the same query, before it ran again (a forced refresh, or after its cache expired). `{time}` is when that result was produced, in the viewer's locale and time zone. |
+| `web.text.share_delete_scope` | String | `You can delete the link from this page until you close or reload it.` | Shown under the links this page can delete. The delete token is kept in the page's memory only. |
+| `web.text.share_delete_rotated` | String | `This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires.` | Shown in place of **Delete Link** when deleting got HTTP 404 but the link still exists: the same client shared the result again from another page or browser, which replaced the token. |
+| `web.text.share_link_expired` | String | `The link has expired.` | Announced when a link expires while the popover is open. |
 | `web.text.share_minute` | String | `{count} minute` | A time to keep the link of exactly one minute. |
 | `web.text.share_minutes` | String | `{count} minutes` | A time to keep the link in minutes, when it isn't a whole number of hours. `{count}` is the number of minutes, with decimals when it isn't whole. |
 | `web.text.share_hour` | String | `{count} hour` | A time to keep the link of exactly one hour. |
@@ -1481,6 +1485,13 @@ web:
     share_notice: "Anyone with the link can see this result, including the target."
     share_delete: "Delete Link"
     share_deleted: "Link deleted"
+    # A link made from an earlier result of the same query, before it ran again
+    # ({time} in the viewer's time zone), who can delete a link, the note when it
+    # was shared again elsewhere, and what is announced when a link expires.
+    share_earlier_link: "Link to the result from {time}"
+    share_delete_scope: "You can delete the link from this page until you close or reload it."
+    share_delete_rotated: "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: "The link has expired."
     share_minute: "{count} minute"
     share_minutes: "{count} minutes"
     share_hour: "{count} hour"

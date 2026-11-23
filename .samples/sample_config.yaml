@@ -620,6 +620,13 @@ web:
     share_notice: "Anyone with the link can see this result, including the target."
     share_delete: "Delete Link"
     share_deleted: "Link deleted"
+    # A link made from an earlier result of the same query, before it ran again
+    # ({time} in the viewer's time zone), who can delete a link, the note when it
+    # was shared again elsewhere, and what is announced when a link expires.
+    share_earlier_link: "Link to the result from {time}"
+    share_delete_scope: "You can delete the link from this page until you close or reload it."
+    share_delete_rotated: "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: "The link has expired."
     share_minute: "{count} minute"
     share_minutes: "{count} minutes"
     share_hour: "{count} hour"

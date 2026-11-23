@@ -212,6 +212,14 @@ class Text(HyperglassModel):
     share_notice: str = "Anyone with the link can see this result, including the target."
     share_delete: str = "Delete Link"
     share_deleted: str = "Link deleted"
+    # The label of a link created for an earlier result of the same query, before it ran
+    # again (`{time}` is formatted by Javascript); the note on who can delete a link, which
+    # depends on where this browser keeps its token; the note shown when the token no
+    # longer deletes it; and what is announced when a link expires while shown.
+    share_earlier_link: str = "Link to the result from {time}"  # Formatted by Javascript
+    share_delete_scope: str = "You can delete the link from this page until you close or reload it."
+    share_delete_rotated: str = "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: str = "The link has expired."
     share_minute: str = "{count} minute"  # Formatted by Javascript
     share_minutes: str = "{count} minutes"  # Formatted by Javascript
     share_hour: str = "{count} hour"  # Formatted by Javascript
