@@ -10,6 +10,17 @@ import type { Mock } from 'vitest';
 import type { ShareLink } from '~/hooks/use-share-links';
 import type { Config } from '~/types';
 
+/**
+ * The timers to fake. Not `setInterval`, `requestAnimationFrame` or `performance`:
+ * jsdom runs animation frames on an interval, and framer-motion's frame loop, which
+ * waits for one, would stall in later tests once the fake clock is dropped.
+ */
+const TIMERS: NonNullable<Parameters<typeof vi.useFakeTimers>[0]>['toFake'] = [
+  'setTimeout',
+  'clearTimeout',
+  'Date',
+];
+
 const QUERY_ID = `hyperglass.query.${'cd'.repeat(32)}`;
 const SHARE_ID = 'fedcba9876543210fedcba9876543210';
 const TOKEN = 'D3l3t3T0k3n_n3v3r-1n-th3-l1nk-0r-l0gs-abcdefg';
@@ -73,6 +84,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   // The token is never logged, whatever happened in the test.
   for (const spy of consoleCalls) {
     expect(JSON.stringify(spy.mock.calls)).not.toContain(TOKEN);
@@ -191,8 +203,9 @@ describe('ShareButton', () => {
       await userEvent.keyboard('{Escape}');
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       await waitFor(() => expect(trigger).toHaveFocus());
-      // Focus coming back doesn't open the tooltip over the content.
-      await act(() => new Promise(resolve => setTimeout(resolve, 300)));
+      // Focus coming back doesn't open the tooltip over the content. The tooltip opens on
+      // a zero-delay timer set by that focus; one set after it runs after it.
+      await act(() => new Promise(resolve => setTimeout(resolve, 0)));
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     });
 
@@ -206,8 +219,10 @@ describe('ShareButton', () => {
       try {
         await userEvent.click(outside);
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-        outside.focus();
-        await act(() => new Promise(resolve => setTimeout(resolve, 200)));
+        // The close decides on a zero-delay timer; one set after it runs after it.
+        await act(() => new Promise(resolve => setTimeout(resolve, 0)));
+        // Focus stays where the visitor put it.
+        expect(outside).toHaveFocus();
         // Reached with the keyboard later: its tooltip shows as usual.
         trigger.focus();
         expect(await screen.findByRole('tooltip', { name: 'Share Result' })).toBeInTheDocument();
@@ -375,13 +390,20 @@ describe('ShareButton', () => {
     });
 
     it('forgets a link when it expires while the popover is open, and says so', async () => {
+      // Fake timers that also follow real time, for Testing Library's own waits; the
+      // expiry comes only when the test moves the clock past it.
+      vi.useFakeTimers({ shouldAdvanceTime: true, toFake: TIMERS });
       const { trigger } = await renderButton({
-        initial: [stored({ deadline: Date.now() + 1500 })],
+        initial: [stored({ deadline: Date.now() + 60 * 60_000 })],
       });
       await open(trigger);
       await waitFor(() => expect(linkField()).toHaveFocus());
+      expect(onRemove).not.toHaveBeenCalled();
 
-      await waitFor(() => expect(onRemove).toHaveBeenCalledWith(SHARE_ID), { timeout: 10_000 });
+      await act(async () => {
+        vi.advanceTimersByTime(60 * 60_000);
+      });
+      expect(onRemove).toHaveBeenCalledWith(SHARE_ID);
       await waitFor(() => expect(status()).toHaveTextContent('The link has expired.'));
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
       // Focus stays in the popover.
@@ -686,13 +708,16 @@ describe('ShareButton', () => {
     });
 
     it('shows rate_limited for HTTP 429 and does not retry', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true, toFake: TIMERS });
       const fetch = stubFetch({ status: 429 });
       const { trigger } = await renderButton();
       await open(trigger);
       await userEvent.click(createButton());
       expect(await screen.findByRole('alert')).toHaveTextContent(testConfig.messages.rateLimited);
-      // Nothing retries on its own (a react-query mutation or retry loop would within this).
-      await act(() => new Promise(resolve => setTimeout(resolve, 1500)));
+      // Nothing retries on its own, even after the quota's window (an hour by default).
+      await act(async () => {
+        vi.advanceTimersByTime(2 * 60 * 60_000);
+      });
       expect(fetch).toHaveBeenCalledTimes(1);
       expect(createButton()).not.toHaveAttribute('aria-disabled', 'true');
     });
