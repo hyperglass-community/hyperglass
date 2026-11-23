@@ -13,7 +13,7 @@ export const PathButton = (props: PathButtonProps): JSX.Element => {
   return (
     <Tooltip hasArrow label={label} placement="top">
       <Button
-        mx={1}
+        mx={{ base: 0, sm: 1 }}
         size="sm"
         variant="ghost"
         onClick={onOpen}

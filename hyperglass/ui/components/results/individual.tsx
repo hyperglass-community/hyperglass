@@ -345,7 +345,18 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
       <AccordionHeaderWrapper>
         {/* Shrinks, wrapping a long device name, so the buttons stay in view on a narrow
         screen instead of widening the row past the results box, which clips it. */}
-        <AccordionButton py={2} w="unset" _hover={{}} _focus={{}} flex="1 1 auto" minW={0}>
+        {/* Tighter on a phone, with the buttons closer together below: with four buttons
+        (AS path, copy, requery, share) a long name otherwise gets too little width to wrap
+        between words at 360px. */}
+        <AccordionButton
+          py={2}
+          px={{ base: 2, sm: 4 }}
+          w="unset"
+          _hover={{}}
+          _focus={{}}
+          flex="1 1 auto"
+          minW={0}
+        >
           <ResultHeader
             isError={isError}
             loading={isQuerying}
@@ -355,7 +366,7 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
             title={location.name}
           />
         </AccordionButton>
-        <HStack py={2} spacing={1}>
+        <HStack py={2} pr={{ base: 1, sm: 0 }} spacing={{ base: 0, sm: 1 }}>
           {buttons({
             data,
             copyValue,

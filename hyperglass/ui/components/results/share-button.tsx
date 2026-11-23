@@ -78,7 +78,7 @@ const _ShareTrigger: React.ForwardRefRenderFunction<HTMLButtonElement, ButtonPro
   <PopoverTrigger>
     <Button
       ref={ref}
-      mx={1}
+      mx={{ base: 0, sm: 1 }}
       size="sm"
       zIndex="1"
       variant="ghost"
