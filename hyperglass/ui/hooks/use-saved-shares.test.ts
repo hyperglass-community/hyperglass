@@ -125,7 +125,7 @@ describe('useSavedShares', () => {
   });
 
   it('cuts labels too long to fit, and keeps the link with its token', () => {
-    // A target with no length limit: about 45 IPv6 prefixes, joined as the form shows them.
+    // A target with no length limit: 90 IPv6 prefixes, joined as the form shows them.
     const target = Array.from({ length: 45 }, (_, i) => `2001:db8:${i.toString(16)}::/48`)
       .join(', ')
       .repeat(2);
@@ -142,6 +142,13 @@ describe('useSavedShares', () => {
       target: target.slice(0, 1024),
     });
     expect(useSavedShares.getState().links).toEqual([saved]);
+  });
+
+  it('keeps a surrogate pair that ends at the limit', () => {
+    const location = `${'a'.repeat(1022)}\u{1F310}rest`;
+    useSavedShares.getState().add(share({ labels: { ...share().labels, location } }));
+
+    expect(stored().links[0].labels.location).toBe(`${'a'.repeat(1022)}\u{1F310}`);
   });
 
   it('does not split a surrogate pair when cutting a label', () => {
