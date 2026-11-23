@@ -429,6 +429,72 @@ describe('useQueryHistory rehydration', () => {
   });
 });
 
+// hyperglass-ng kept its history, targets and output, under another key, which this
+// version doesn't read: visitors couldn't see or delete it. It is deleted, not migrated.
+describe("useQueryHistory and hyperglass-ng's history", () => {
+  const FORK_KEY = 'hyperglass.queryHistory';
+  const forkHistory = JSON.stringify({ state: { entries: [entry('old')] }, version: 0 });
+
+  async function load() {
+    vi.resetModules();
+    return (await import('./use-query-history')).useQueryHistory;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('deletes it when the page loads', async () => {
+    localStorage.setItem(FORK_KEY, forkHistory);
+
+    await load();
+
+    expect(localStorage.getItem(FORK_KEY)).toBeNull();
+  });
+
+  it('leaves the other keys alone', async () => {
+    const current = JSON.stringify({ state: { entries: [entry('b')] }, version: 1 });
+    const greeting = JSON.stringify({ state: { ack: true }, version: 0 });
+    localStorage.setItem(FORK_KEY, forkHistory);
+    localStorage.setItem(HISTORY_KEY, current);
+    localStorage.setItem('hyperglass-greeting', greeting);
+    localStorage.setItem('chakra-ui-color-mode', 'dark');
+
+    const store = await load();
+
+    expect(Object.fromEntries(Object.entries(localStorage))).toEqual({
+      [HISTORY_KEY]: current,
+      'hyperglass-greeting': greeting,
+      'chakra-ui-color-mode': 'dark',
+    });
+    expect(store.getState().entries).toEqual([entry('b')]);
+  });
+
+  it.each([
+    [
+      'deleting from storage throws',
+      () =>
+        vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+          throw new DOMException('The operation is insecure.', 'SecurityError');
+        }),
+    ],
+    [
+      'the browser does not allow storage',
+      () =>
+        vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+          throw new DOMException('The operation is insecure.', 'SecurityError');
+        }),
+    ],
+  ])('loads when %s', async (_, block) => {
+    localStorage.setItem(FORK_KEY, forkHistory);
+    block();
+
+    const store = await load();
+
+    expect(store.getState().entries).toEqual([]);
+  });
+});
+
 describe('useQueryHistory across tabs', () => {
   // Each tab has its own store over the same storage: two copies of the module.
   async function tab() {

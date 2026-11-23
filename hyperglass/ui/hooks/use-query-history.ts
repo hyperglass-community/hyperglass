@@ -370,10 +370,19 @@ export const useHistoryView = create<HistoryViewState>()(
   ),
 );
 
+/**
+ * The key hyperglass-ng stored its query history under, in another format. It isn't
+ * migrated: it is deleted on load.
+ */
+const FORK_HISTORY_KEY = 'hyperglass.queryHistory';
+
 // On load, don't keep stored history the visitor can't see or delete: what this version
 // can't read is stored again without it, or removed when nothing is left. (Only on load:
-// a value another tab, of another version, stores later is that tab's to show.)
+// a value another tab, of another version, stores later is that tab's to show.) This
+// module loads with every page, whether history is on or off.
 if (typeof window !== 'undefined') {
+  // `historyStorage` doesn't throw when storage can't be used.
+  historyStorage.removeItem(FORK_HISTORY_KEY);
   const value = historyStorage.getItem(HISTORY_KEY);
   if (typeof value === 'string' && !isFullyReadable(value)) {
     const { entries } = useQueryHistory.getState();
