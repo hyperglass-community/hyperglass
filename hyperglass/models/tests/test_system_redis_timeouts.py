@@ -28,10 +28,11 @@ def test_pool_timeouts_from_environment(tmp_path, monkeypatch):
     assert pool["socket_timeout"] == 12.5
 
 
-@pytest.mark.parametrize("value", ("0", "-1", "none"))
+@pytest.mark.parametrize("value", ("0", "-1", "none", "inf", "nan", "301", "1e30", "1e400"))
 @pytest.mark.parametrize("name", ("REDIS_CONNECT_TIMEOUT", "REDIS_SOCKET_TIMEOUT"))
-def test_pool_timeouts_must_be_positive(tmp_path, monkeypatch, name, value):
+def test_pool_timeouts_must_be_in_range(tmp_path, monkeypatch, name, value):
     # 0 would make the socket non-blocking, and no timeout is the bug in #570.
+    # Infinite or huge values make socket.settimeout raise OverflowError.
     monkeypatch.setenv(f"HYPERGLASS_{name}", value)
     with pytest.raises(ValidationError):
         _settings(tmp_path)
@@ -61,3 +62,11 @@ def test_dsn_query_options_override_settings(tmp_path, monkeypatch):
     settings = _settings(tmp_path, redis_dsn="redis://192.0.2.10:6379/1?socket_timeout=9")
     state = manager.StateManager(settings=settings)
     assert state.redis.instance.connection_pool.connection_kwargs["socket_timeout"] == 9
+
+
+def test_pool_timeouts_accept_the_upper_bound(tmp_path, monkeypatch):
+    monkeypatch.setenv("HYPERGLASS_REDIS_CONNECT_TIMEOUT", "300")
+    monkeypatch.setenv("HYPERGLASS_REDIS_SOCKET_TIMEOUT", "300")
+    pool = _settings(tmp_path).redis_connection_pool
+    assert pool["socket_connect_timeout"] == 300
+    assert pool["socket_timeout"] == 300

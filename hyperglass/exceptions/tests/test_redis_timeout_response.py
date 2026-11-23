@@ -101,6 +101,8 @@ def no_connect(family: int, host: str):
     except socket.timeout:
         pass
     else:
+        filler.close()
+        listener.close()
         pytest.skip("this kernel answers connects to a full accept queue")
     finally:
         probe.close()

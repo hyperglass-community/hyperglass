@@ -7,12 +7,12 @@ from ipaddress import ip_address
 
 # Third Party
 from pydantic import (
+    Field,
     FilePath,
     RedisDsn,
     SecretStr,
     DirectoryPath,
     IPvAnyAddress,
-    PositiveFloat,
     ValidationInfo,
     field_validator,
 )
@@ -28,6 +28,10 @@ if t.TYPE_CHECKING:
 ListenHost = t.Union[None, IPvAnyAddress, t.Literal["localhost"]]
 
 _default_app_path = Path("/etc/hyperglass")
+
+# Seconds. 0 would make the socket non-blocking, and an infinite or huge value
+# makes socket.settimeout raise OverflowError.
+RedisTimeout = t.Annotated[float, Field(gt=0, le=300, allow_inf_nan=False)]
 
 
 class HyperglassSettings(BaseSettings):
@@ -49,8 +53,8 @@ class HyperglassSettings(BaseSettings):
     redis_dsn: RedisDsn = None
     # Seconds the shared Redis connection pool waits to open a connection, and
     # to send or receive on one, before raising redis-py's TimeoutError (#570).
-    redis_connect_timeout: PositiveFloat = 3
-    redis_socket_timeout: PositiveFloat = 5
+    redis_connect_timeout: RedisTimeout = 3
+    redis_socket_timeout: RedisTimeout = 5
     host: IPvAnyAddress = None
     port: int = 8001
     ca_cert: t.Optional[FilePath] = None
