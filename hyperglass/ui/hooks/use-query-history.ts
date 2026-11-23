@@ -6,6 +6,9 @@ import { historyStorage } from '~/util/history-storage';
 /** The `localStorage` key of the query history. */
 export const HISTORY_KEY = 'hyperglass.history';
 
+/** The version of the stored value. */
+const HISTORY_VERSION = 1;
+
 /** The query a history entry was submitted with, as sent to `/api/query`. */
 export interface HistoryQuery {
   queryLocation: string[];
@@ -60,8 +63,6 @@ export interface RecordInput {
 interface QueryHistoryState {
   /** Newest first. */
   entries: HistoryEntry[];
-  /** The entry shown read-only in place of the form, if any. Not stored. */
-  openId: string | null;
   /**
    * Save one location's successful response. The first response of a submission adds
    * an entry and drops the oldest entries beyond `limit`; later ones (another location,
@@ -72,8 +73,17 @@ interface QueryHistoryState {
   clear(): void;
   /** Drop the oldest entries beyond `limit`. */
   prune(limit: number): void;
+}
+
+interface HistoryViewState {
+  /** The entry shown read-only in place of the form, if any. */
+  openId: string | null;
+  /** The entry last closed, whose Open button gets focus back. */
+  returnFocusId: string | null;
   open(id: string): void;
   close(): void;
+  /** The entry to return focus to, once: it is forgotten when read. */
+  takeReturnFocus(): string | null;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -88,19 +98,42 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return isObject(value) && Object.values(value).every(v => typeof v === 'string');
 }
 
+/** An object in a list, as each route or hop the result tables render is. */
+function isObjectArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every(isObject);
+}
+
+/**
+ * Whether a stored response is one the result view can render: a success, with text
+ * output, or structured output with the list of routes or hops its table renders.
+ */
+function isRenderableResponse(data: unknown): data is QueryResponse {
+  if (!isObject(data) || data.level !== 'success') {
+    return false;
+  }
+  const { format, output } = data;
+  if (format === 'text/plain') {
+    return typeof output === 'string';
+  }
+  if (format === 'application/json') {
+    return isObject(output) && (isObjectArray(output.routes) || isObjectArray(output.hops));
+  }
+  return false;
+}
+
 function isHistoryResult(value: unknown): value is HistoryResult {
   return (
     isObject(value) &&
     typeof value.name === 'string' &&
     typeof value.queryId === 'string' &&
-    isObject(value.data) &&
-    'output' in value.data
+    isRenderableResponse(value.data)
   );
 }
 
 /**
- * Whether a stored value has the shape of an entry. Storage is under the visitor's
- * control, and a malformed entry must not break the landing page.
+ * Whether a stored value has the shape of an entry, with responses the result view can
+ * render. Storage is under the visitor's control (and other versions), so this is checked
+ * on every read.
  */
 export function isHistoryEntry(value: unknown): value is HistoryEntry {
   if (!isObject(value) || !isObject(value.query) || !isObject(value.labels)) {
@@ -127,16 +160,37 @@ export function isHistoryEntry(value: unknown): value is HistoryEntry {
   );
 }
 
+/**
+ * The entries in storage now, which another tab may have changed since this tab last
+ * read them. An entry another tab deleted must not come back when this tab saves.
+ * Nothing stored, a value that isn't JSON or one stored by another version: no entries.
+ */
+function storedEntries(): HistoryEntry[] {
+  const value = historyStorage.getItem(HISTORY_KEY);
+  if (typeof value !== 'string') {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed?.version !== HISTORY_VERSION || !Array.isArray(parsed?.state?.entries)) {
+      return [];
+    }
+    return parsed.state.entries.filter(isHistoryEntry);
+  } catch {
+    return [];
+  }
+}
+
 export const useQueryHistory = create<QueryHistoryState>()(
   persist(
     withDev<QueryHistoryState>(
       (set, get) => ({
         entries: [],
-        openId: null,
 
+        // Each change starts from the stored entries, not this tab's copy of them.
         record(input: RecordInput, limit: number): void {
           const { submissionId, query, labels, deviceId, result } = input;
-          const { entries } = get();
+          const entries = storedEntries();
           const existing = entries.find(e => e.id === submissionId);
           if (existing !== undefined) {
             const updated = { ...existing, results: { ...existing.results, [deviceId]: result } };
@@ -154,36 +208,29 @@ export const useQueryHistory = create<QueryHistoryState>()(
         },
 
         remove(id: string): void {
-          set(state => ({
-            entries: state.entries.filter(e => e.id !== id),
-            openId: state.openId === id ? null : state.openId,
-          }));
+          set({ entries: storedEntries().filter(e => e.id !== id) });
+          if (useHistoryView.getState().openId === id) {
+            useHistoryView.getState().close();
+          }
         },
 
         clear(): void {
-          set({ entries: [], openId: null });
+          set({ entries: [] });
+          useHistoryView.getState().close();
         },
 
         prune(limit: number): void {
           const { entries } = get();
           if (entries.length > limit) {
-            set({ entries: entries.slice(0, limit) });
+            set({ entries: storedEntries().slice(0, limit) });
           }
-        },
-
-        open(id: string): void {
-          set({ openId: id });
-        },
-
-        close(): void {
-          set({ openId: null });
         },
       }),
       'useQueryHistory',
     ),
     {
       name: HISTORY_KEY,
-      version: 1,
+      version: HISTORY_VERSION,
       storage: createJSONStorage(() => historyStorage),
       partialize: state => ({ entries: state.entries }),
       // Keep only the stored entries that have the expected shape.
@@ -197,3 +244,43 @@ export const useQueryHistory = create<QueryHistoryState>()(
     },
   ),
 );
+
+/**
+ * Which entry is open. Kept apart from the entries, so opening and closing one never
+ * writes the history to storage.
+ */
+export const useHistoryView = create<HistoryViewState>()(
+  withDev<HistoryViewState>(
+    (set, get) => ({
+      openId: null,
+      returnFocusId: null,
+      open(id: string): void {
+        set({ openId: id });
+      },
+      close(): void {
+        const { openId } = get();
+        if (openId !== null) {
+          set({ openId: null, returnFocusId: openId });
+        }
+      },
+      takeReturnFocus(): string | null {
+        const { returnFocusId } = get();
+        if (returnFocusId !== null) {
+          set({ returnFocusId: null });
+        }
+        return returnFocusId;
+      },
+    }),
+    'useHistoryView',
+  ),
+);
+
+// Another tab saved or deleted entries: show its changes. (`key` is `null` when another
+// tab cleared the whole storage.)
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key === HISTORY_KEY || event.key === null) {
+      void useQueryHistory.persist.rehydrate();
+    }
+  });
+}

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, renderWithProviders, testConfig } from '~/__tests__/render';
 import { Layout } from '~/components/layout';
-import { useFormState, useQueryHistory } from '~/hooks';
+import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
 import Index from '../../pages/index';
 
 import type { HistoryEntry } from '~/hooks';
@@ -90,14 +90,14 @@ beforeEach(() => {
       entry('v6', '2001:db8::/32', 'output for 2001:db8::/32'),
       entry('v4', '192.0.2.0/24', 'output for 192.0.2.0/24'),
     ],
-    openId: null,
   });
 });
 
 afterEach(() => {
   act(() => {
     useFormState.setState(initialFormState, true);
-    useQueryHistory.setState({ entries: [], openId: null });
+    useQueryHistory.setState({ entries: [] });
+    useHistoryView.setState({ openId: null, returnFocusId: null });
   });
   localStorage.clear();
   window.history.replaceState(null, '');
@@ -140,7 +140,7 @@ describe('Index page query history', () => {
 
     expect(await recentQueries()).toBeInTheDocument();
     expect(screen.getByRole('form', { name: 'looking glass form' })).toBeInTheDocument();
-    expect(useQueryHistory.getState().openId).toBeNull();
+    expect(useHistoryView.getState().openId).toBeNull();
     expect(window.history.state).toBeNull();
   });
 
@@ -155,7 +155,79 @@ describe('Index page query history', () => {
     });
 
     expect(await recentQueries()).toBeInTheDocument();
-    expect(useQueryHistory.getState().openId).toBeNull();
+    expect(useHistoryView.getState().openId).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  describe('focus', () => {
+    it.each([
+      [
+        'the Back button',
+        async () => userEvent.click(screen.getByRole('button', { name: text.historyBack })),
+      ],
+      [
+        "the browser's Back button",
+        async () =>
+          act(() => {
+            window.history.back();
+          }),
+      ],
+    ])('returns to the Open button of the closed query with %s', async (_, close) => {
+      renderPage();
+      const rows = within(await recentQueries()).getAllByRole('listitem');
+      await userEvent.click(await openButton(rows[1]));
+      await screen.findByRole('button', { name: text.historyBack }, IMPORT_WAIT);
+
+      await close();
+
+      const list = await recentQueries();
+      const row = within(list).getAllByRole('listitem')[1];
+      await waitFor(() =>
+        expect(within(row).getByRole('button', { name: text.historyOpen })).toHaveFocus(),
+      );
+    });
+
+    it('goes to the list when the opened query was deleted meanwhile', async () => {
+      renderPage();
+      const rows = within(await recentQueries()).getAllByRole('listitem');
+      await userEvent.click(await openButton(rows[1]));
+      await screen.findByRole('button', { name: text.historyBack }, IMPORT_WAIT);
+
+      // Another tab deleted it.
+      act(() => {
+        useQueryHistory.setState({ entries: [useQueryHistory.getState().entries[0]] });
+      });
+
+      await recentQueries();
+      await waitFor(() =>
+        expect(screen.getByRole('heading', { name: text.historyTitle })).toHaveFocus(),
+      );
+    });
+
+    it('goes to the page once every query is cleared', async () => {
+      renderPage();
+      await userEvent.click(
+        within(await recentQueries()).getByRole('button', { name: text.historyClearAll }),
+      );
+      const group = screen.getByRole('group', { name: text.historyClearConfirm });
+
+      await userEvent.click(within(group).getByRole('button', { name: text.historyClearAll }));
+
+      expect(screen.queryByRole('region', { name: text.historyTitle })).not.toBeInTheDocument();
+      expect(screen.getByRole('main')).toHaveFocus();
+    });
+
+    it('goes to the page once the last query is deleted', async () => {
+      useQueryHistory.setState({ entries: [useQueryHistory.getState().entries[0]] });
+      renderPage();
+      const [row] = within(await recentQueries()).getAllByRole('listitem');
+      const remove = within(row).getByRole('button', { name: text.historyDelete });
+      await waitFor(() => expect(remove.querySelector('svg')).toBeInTheDocument(), IMPORT_WAIT);
+
+      await userEvent.click(remove);
+
+      expect(screen.queryByRole('region', { name: text.historyTitle })).not.toBeInTheDocument();
+      expect(screen.getByRole('main')).toHaveFocus();
+    });
   });
 });

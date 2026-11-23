@@ -2,7 +2,7 @@ import dynamic from 'next/dynamic';
 import { AnimatePresence } from 'framer-motion';
 import { If, Then, Else } from 'react-if';
 import { Loading } from '~/elements';
-import { useQueryHistory, useView } from '~/hooks';
+import { useHistoryView, useView } from '~/hooks';
 
 import type { NextPage } from 'next';
 
@@ -31,7 +31,7 @@ const HistoryResults = dynamic<Dict>(
 
 const Index: NextPage = () => {
   const view = useView();
-  const historyOpen = useQueryHistory(s => s.openId !== null);
+  const historyOpen = useHistoryView(s => s.openId !== null);
   return (
     <If condition={view === 'results'}>
       <Then>

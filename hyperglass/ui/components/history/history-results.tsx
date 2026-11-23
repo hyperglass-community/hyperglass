@@ -4,7 +4,7 @@ import { Path, ResultPanel, ResultsView, Tags } from '~/components';
 import { CopyButton } from '~/components/results/copy-button';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
-import { useColorValue, useQueryHistory, useStrf } from '~/hooks';
+import { useColorValue, useHistoryView, useQueryHistory, useStrf } from '~/hooks';
 import { formatTimestamp } from '~/util';
 
 import type { ResultQueryState } from '~/components';
@@ -58,14 +58,23 @@ export const HistoryResults = (): JSX.Element | null => {
   const { web } = useConfig();
   const strF = useStrf();
   const muted = useColorValue('gray.600', 'gray.400');
-  const entry = useQueryHistory(s => s.entries.find(e => e.id === s.openId));
-  const close = useQueryHistory(s => s.close);
+  const openId = useHistoryView(s => s.openId);
+  const close = useHistoryView(s => s.close);
+  const entry = useQueryHistory(s => s.entries.find(e => e.id === openId));
   const backRef = useRef<HTMLButtonElement>(null);
 
   // Move focus to the view that replaced the list.
   useEffect(() => {
     backRef.current?.focus();
   }, []);
+
+  // The entry was deleted, in another tab: return to the list.
+  const missing = entry === undefined;
+  useEffect(() => {
+    if (missing) {
+      close();
+    }
+  }, [missing, close]);
 
   if (entry === undefined) {
     return null;

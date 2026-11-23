@@ -2,7 +2,7 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
-import { useFormState, useQueryHistory } from '~/hooks';
+import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
 import { Layout } from './layout';
 
 // The page chrome has its own tests (or will); stub it so these tests cover what
@@ -53,7 +53,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => {
     useFormState.setState(initialFormState, true);
-    useQueryHistory.setState({ entries: [], openId: null });
+    useQueryHistory.setState({ entries: [] });
+    useHistoryView.setState({ openId: null, returnFocusId: null });
   });
   localStorage.clear();
   window.history.replaceState(null, '');
@@ -159,7 +160,7 @@ describe('Layout', () => {
       expect(pushState).not.toHaveBeenCalled();
 
       act(() => {
-        useQueryHistory.getState().open('saved');
+        useHistoryView.getState().open('saved');
       });
 
       expect(pushState).toHaveBeenCalledTimes(1);
@@ -171,19 +172,19 @@ describe('Layout', () => {
     });
 
     it('closes the saved query when the browser goes back', () => {
-      useQueryHistory.setState({ openId: 'saved' });
+      useHistoryView.setState({ openId: 'saved' });
       renderLayout();
 
       act(() => {
         window.dispatchEvent(new PopStateEvent('popstate'));
       });
 
-      expect(useQueryHistory.getState().openId).toBeNull();
+      expect(useHistoryView.getState().openId).toBeNull();
       expect(useFormState.getState().status).toBe('form');
     });
 
     it('does not show the reset button for a saved query', () => {
-      useQueryHistory.setState({ openId: 'saved' });
+      useHistoryView.setState({ openId: 'saved' });
       renderLayout();
 
       expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();

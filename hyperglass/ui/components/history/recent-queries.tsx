@@ -1,8 +1,13 @@
 import { Box, Button, Flex, HStack, Heading, List, Text } from '@chakra-ui/react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useConfig } from '~/context';
-import { useQueryHistory } from '~/hooks';
+import { useHistoryView, useQueryHistory } from '~/hooks';
 import { HistoryEntryRow } from './history-entry-row';
+
+/** Where focus goes when the list goes away: the page's main landmark (see `Layout`). */
+function focusTarget(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('main');
+}
 
 /**
  * The queries this browser saved, on the landing page: open one to see its results,
@@ -16,12 +21,14 @@ export const RecentQueries = (): JSX.Element | null => {
   const { web } = useConfig();
   const { enable, limit } = web.history;
   const entries = useQueryHistory(s => s.entries);
-  const { clear, prune, remove, open } = useQueryHistory.getState();
+  const { clear, prune, remove } = useQueryHistory.getState();
+  const { open } = useHistoryView.getState();
 
   const [mounted, setMounted] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const headingId = useId();
   const confirmId = useId();
+  const sectionRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const clearRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -44,6 +51,22 @@ export const RecentQueries = (): JSX.Element | null => {
     }
   }, [enable, limit, clear, prune]);
 
+  // Back from an opened entry: return focus to its Open button, or to the list if it is
+  // gone. Once the list has rendered.
+  useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+    const id = useHistoryView.getState().takeReturnFocus();
+    if (id === null) {
+      return;
+    }
+    const button = Array.from(
+      sectionRef.current?.querySelectorAll<HTMLElement>('[data-history-open]') ?? [],
+    ).find(b => b.dataset.historyOpen === id);
+    (button ?? headingRef.current ?? focusTarget())?.focus();
+  }, [mounted]);
+
   useEffect(() => {
     if (confirming) {
       cancelRef.current?.focus();
@@ -64,13 +87,26 @@ export const RecentQueries = (): JSX.Element | null => {
 
   function handleDelete(id: string): void {
     remove(id);
-    // The button that had focus is gone; keep focus in the list.
-    headingRef.current?.focus();
+    // The button that had focus is gone. Keep focus in the list, or, when the list goes
+    // with its last entry, on the page.
+    if (useQueryHistory.getState().entries.length > 0) {
+      headingRef.current?.focus();
+    } else {
+      focusTarget()?.focus();
+    }
+  }
+
+  function handleClear(): void {
+    setConfirming(false);
+    clear();
+    // The list is gone.
+    focusTarget()?.focus();
   }
 
   return (
     <Box
       as="section"
+      ref={sectionRef}
       aria-labelledby={headingId}
       w="100%"
       mx="auto"
@@ -110,14 +146,7 @@ export const RecentQueries = (): JSX.Element | null => {
             {web.text.historyClearConfirm}
           </Text>
           <HStack>
-            <Button
-              size="sm"
-              colorScheme="red"
-              onClick={() => {
-                setConfirming(false);
-                clear();
-              }}
-            >
+            <Button size="sm" colorScheme="red" onClick={handleClear}>
               {web.text.historyClearAll}
             </Button>
             <Button ref={cancelRef} size="sm" onClick={cancel}>

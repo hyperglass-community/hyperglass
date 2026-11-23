@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { isSafari } from 'react-device-detect';
 import { Case, Switch } from 'react-if';
 import { useConfig } from '~/context';
-import { useFormInteractive, useFormState, useMobile, useQueryHistory } from '~/hooks';
+import { useFormInteractive, useFormState, useHistoryView, useMobile } from '~/hooks';
 import { Logo } from './logo';
 import { SubtitleOnly } from './subtitle-only';
 import { TitleOnly } from './title-only';
@@ -120,7 +120,6 @@ export const Title = (props: FlexProps): JSX.Element => {
   const { titleMode } = web.text;
 
   const reset = useFormState(s => s.reset);
-  const closeHistory = useQueryHistory(s => s.close);
   const formInteractive = useFormInteractive();
 
   return (
@@ -146,8 +145,15 @@ export const Title = (props: FlexProps): JSX.Element => {
         flexWrap="wrap"
         flexDir="column"
         onClick={async () => {
-          // Return to the form from an opened history entry, too.
-          closeHistory();
+          // Return to the form from an opened history entry, too. Through the browser
+          // history entry `Layout` added for it, as the reset button does for results.
+          if (useHistoryView.getState().openId !== null) {
+            if (window.history.state?.ultraglass === 'history') {
+              window.history.back();
+            } else {
+              useHistoryView.getState().close();
+            }
+          }
           await reset();
         }}
         _focus={{ boxShadow: 'none' }}

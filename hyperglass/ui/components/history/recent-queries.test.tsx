@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
-import { HISTORY_KEY, useQueryHistory } from '~/hooks';
+import { HISTORY_KEY, useHistoryView, useQueryHistory } from '~/hooks';
 import { formatTimestamp } from '~/util';
 import { RecentQueries } from './recent-queries';
 
@@ -62,7 +62,7 @@ const ipv6 = entry('v6', '2001:db8::/32', {
 const ipv4 = entry('v4', '192.0.2.0/24');
 
 function seed(entries: HistoryEntry[]): void {
-  useQueryHistory.setState({ entries, openId: null });
+  useQueryHistory.setState({ entries });
 }
 
 function renderList(config?: Config) {
@@ -85,7 +85,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  useQueryHistory.setState({ entries: [], openId: null });
+  useQueryHistory.setState({ entries: [] });
+  useHistoryView.setState({ openId: null, returnFocusId: null });
   localStorage.clear();
   vi.restoreAllMocks();
 });
@@ -114,11 +115,11 @@ describe('RecentQueries', () => {
     expect(row).toHaveTextContent(`Saved ${formatTimestamp(new Date(savedAt).toISOString())}`);
   });
 
-  it("names each row's buttons after its query, since every row has the same button names", () => {
+  it("names each row's buttons after its target and locations, since every row has the same button names", () => {
     seed([ipv6, ipv4]);
     renderList();
 
-    const group = screen.getByRole('group', { name: /2001:db8::\/32/ });
+    const group = screen.getByRole('group', { name: '2001:db8::/32 Router One, Router Two' });
     expect(rows()[0]).toContainElement(group);
     expect(within(group).getByRole('button', { name: text.historyOpen })).toBeInTheDocument();
     expect(within(group).getByRole('button', { name: text.historyDelete })).toBeInTheDocument();
@@ -144,6 +145,21 @@ describe('RecentQueries', () => {
     expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
   });
 
+  it('never stores history again when history is disabled', () => {
+    seed([ipv4]);
+    renderList(makeConfig({ web: { history: { enable: false } } }));
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+    // As the header title does.
+    act(() => {
+      useHistoryView.getState().open('v4');
+      useHistoryView.getState().close();
+    });
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  });
+
   it('drops the entries beyond a lowered limit', () => {
     seed([ipv6, ipv4]);
 
@@ -159,7 +175,7 @@ describe('RecentQueries', () => {
 
     await userEvent.click(await rowButton(rows()[1], text.historyOpen));
 
-    expect(useQueryHistory.getState().openId).toBe('v4');
+    expect(useHistoryView.getState().openId).toBe('v4');
   });
 
   it('deletes a query and keeps focus in the list', async () => {
@@ -246,7 +262,7 @@ describe('RecentQueries', () => {
     expect(within(row).getByRole('button', { name: text.historyDelete })).toHaveFocus();
 
     await userEvent.keyboard('{Shift>}{Tab}{/Shift}{Enter}');
-    expect(useQueryHistory.getState().openId).toBe('v4');
+    expect(useHistoryView.getState().openId).toBe('v4');
   });
 
   it('uses the configured text', async () => {

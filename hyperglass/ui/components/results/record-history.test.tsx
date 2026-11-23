@@ -3,7 +3,7 @@ import { cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
-import { useFormState, useQueryHistory } from '~/hooks';
+import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
 import { Result } from './individual';
 
 import type { Config, Directive } from '~/types';
@@ -92,7 +92,8 @@ afterEach(() => {
   // Unmount before resetting the stores, so a mounted `Result` doesn't query again.
   cleanup();
   useFormState.setState(initialFormState, true);
-  useQueryHistory.setState({ entries: [], openId: null });
+  useQueryHistory.setState({ entries: [] });
+  useHistoryView.setState({ openId: null, returnFocusId: null });
   localStorage.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

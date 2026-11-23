@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
-import { useFormState, useQueryHistory } from '~/hooks';
+import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
 import { formatTimestamp } from '~/util';
 import { HistoryResults } from './history-results';
 
@@ -89,7 +89,8 @@ function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
 }
 
 function renderOpened(value: HistoryEntry = entry(), config?: Config) {
-  useQueryHistory.setState({ entries: [value], openId: value.id });
+  useQueryHistory.setState({ entries: [value] });
+  useHistoryView.setState({ openId: value.id });
   return renderWithProviders(<HistoryResults />, { config });
 }
 
@@ -108,7 +109,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  useQueryHistory.setState({ entries: [], openId: null });
+  useQueryHistory.setState({ entries: [] });
+  useHistoryView.setState({ openId: null, returnFocusId: null });
   useFormState.setState(initialFormState, true);
   localStorage.clear();
   window.history.replaceState(null, '');
@@ -189,7 +191,7 @@ describe('HistoryResults', () => {
 
     await userEvent.click(screen.getByRole('button', { name: text.historyBack }));
 
-    expect(useQueryHistory.getState().openId).toBeNull();
+    expect(useHistoryView.getState().openId).toBeNull();
   });
 
   it('goes back through browser history when the opened entry has its own', async () => {
@@ -201,17 +203,18 @@ describe('HistoryResults', () => {
 
     expect(back).toHaveBeenCalledTimes(1);
     // The popstate event that follows closes it (see `Layout`).
-    expect(useQueryHistory.getState().openId).toBe('saved');
+    expect(useHistoryView.getState().openId).toBe('saved');
   });
 
-  it('shows nothing when the opened entry no longer exists', () => {
+  it('closes when the opened entry no longer exists, as when another tab deleted it', () => {
     renderOpened();
 
     act(() => {
-      useQueryHistory.getState().remove('saved');
+      useQueryHistory.setState({ entries: [] });
     });
 
     expect(screen.queryByRole('button', { name: text.historyBack })).not.toBeInTheDocument();
+    expect(useHistoryView.getState().openId).toBeNull();
   });
 
   it('uses the configured text', () => {

@@ -14,8 +14,14 @@ interface HistoryEntryRowProps {
 }
 
 /** An icon-only button, named by its tooltip text. */
-const ActionButton = (props: { label: string; icon: string; onClick(): void }): JSX.Element => {
-  const { label, icon, onClick } = props;
+const ActionButton = (props: {
+  label: string;
+  icon: string;
+  onClick(): void;
+  /** The entry's ID, on the Open button only, so focus can return to it. */
+  openId?: string;
+}): JSX.Element => {
+  const { label, icon, onClick, openId } = props;
   return (
     <Tooltip hasArrow label={label} placement="top">
       <Button
@@ -24,6 +30,7 @@ const ActionButton = (props: { label: string; icon: string; onClick(): void }): 
         variant="ghost"
         colorScheme="secondary"
         aria-label={label}
+        data-history-open={openId}
         onClick={onClick}
       >
         <DynamicIcon icon={{ fi: icon }} boxSize="16px" />
@@ -40,7 +47,8 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
   const { entry, onOpen, onDelete } = props;
   const { web } = useConfig();
   const strF = useStrf();
-  const labelId = useId();
+  const targetId = useId();
+  const locationsId = useId();
   const muted = useColorValue('gray.600', 'gray.400');
   const { labels } = entry;
 
@@ -53,16 +61,16 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
       borderTopWidth="1px"
       _first={{ borderTopWidth: 0 }}
     >
-      <Box id={labelId} flex="1 1 auto" minW={0} mr={2}>
+      <Box flex="1 1 auto" minW={0} mr={2}>
         <Text fontSize="sm" overflowWrap="anywhere">
           <Text as="span" fontWeight="bold">
             {labels.type}
           </Text>{' '}
-          <Text as="span" fontFamily="mono">
+          <Text as="span" fontFamily="mono" id={targetId}>
             {labels.target}
           </Text>
         </Text>
-        <Text fontSize="sm" overflowWrap="anywhere">
+        <Text fontSize="sm" overflowWrap="anywhere" id={locationsId}>
           {labels.locations.join(', ')}
         </Text>
         {labels.variables.length > 0 && (
@@ -76,9 +84,20 @@ export const HistoryEntryRow = (props: HistoryEntryRowProps): JSX.Element => {
           })}
         </Text>
       </Box>
-      {/* Each row has the same button names: name the buttons' group after its query. */}
-      <HStack role="group" aria-labelledby={labelId} spacing={0} flex="0 0 auto">
-        <ActionButton label={web.text.historyOpen} icon="FiEye" onClick={() => onOpen(entry.id)} />
+      {/* Each row has the same button names: name the buttons' group after its query's
+          target and locations. */}
+      <HStack
+        role="group"
+        aria-labelledby={`${targetId} ${locationsId}`}
+        spacing={0}
+        flex="0 0 auto"
+      >
+        <ActionButton
+          label={web.text.historyOpen}
+          icon="FiEye"
+          openId={entry.id}
+          onClick={() => onOpen(entry.id)}
+        />
         <ActionButton
           label={web.text.historyDelete}
           icon="FiTrash2"

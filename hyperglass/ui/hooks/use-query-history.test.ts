@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HISTORY_KEY, isHistoryEntry, useQueryHistory } from './use-query-history';
+import { HISTORY_KEY, isHistoryEntry, useHistoryView, useQueryHistory } from './use-query-history';
 
 import type { HistoryEntry, RecordInput } from './use-query-history';
 
@@ -56,7 +56,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  useQueryHistory.setState({ entries: [], openId: null });
+  useQueryHistory.setState({ entries: [] });
+  useHistoryView.setState({ openId: null, returnFocusId: null });
   localStorage.clear();
   vi.useRealTimers();
 });
@@ -146,30 +147,45 @@ describe('useQueryHistory', () => {
     expect(stored().state.entries).toEqual([]);
   });
 
-  it('opens and closes an entry', () => {
+  it('opens and closes an entry, and remembers it to return focus to', () => {
     useQueryHistory.setState({ entries: [entry('a')] });
-    const { open, close } = useQueryHistory.getState();
+    const { open, close } = useHistoryView.getState();
 
     open('a');
-    expect(useQueryHistory.getState().openId).toBe('a');
+    expect(useHistoryView.getState().openId).toBe('a');
     close();
-    expect(useQueryHistory.getState().openId).toBeNull();
+    expect(useHistoryView.getState().openId).toBeNull();
+    expect(useHistoryView.getState().takeReturnFocus()).toBe('a');
+    expect(useHistoryView.getState().takeReturnFocus()).toBeNull();
+  });
+
+  it('opens and closes an entry without writing to storage', () => {
+    useQueryHistory.getState().record(input(), 10);
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+
+    useHistoryView.getState().open('s1');
+    useHistoryView.getState().close();
+
+    expect(setItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
   });
 
   it.each([
     ['deleting it', () => useQueryHistory.getState().remove('a')],
     ['clearing the history', () => useQueryHistory.getState().clear()],
   ])('closes the opened entry when %s', (_, act) => {
-    useQueryHistory.setState({ entries: [entry('a')], openId: 'a' });
+    useQueryHistory.setState({ entries: [entry('a')] });
+    useHistoryView.getState().open('a');
 
     act();
 
-    expect(useQueryHistory.getState().openId).toBeNull();
+    expect(useHistoryView.getState().openId).toBeNull();
   });
 
-  it(`stores the entries under ${HISTORY_KEY}, version 1, without the opened entry`, () => {
+  it(`stores the entries under ${HISTORY_KEY}, version 1`, () => {
     useQueryHistory.getState().record(input(), 10);
-    useQueryHistory.getState().open('s1');
+    useHistoryView.getState().open('s1');
 
     expect(stored()).toEqual({
       state: { entries: useQueryHistory.getState().entries },
@@ -177,7 +193,7 @@ describe('useQueryHistory', () => {
     });
   });
 
-  it('keeps every entry in memory when storage is full', () => {
+  it('keeps the newest entry when storage is full', () => {
     const full = new DOMException('The quota has been exceeded.', 'QuotaExceededError');
     const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw full;
@@ -187,7 +203,8 @@ describe('useQueryHistory', () => {
     record(input({ submissionId: 'b' }), 10);
     setItem.mockRestore();
 
-    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['b', 'a']);
+    // What is shown is what could be stored, plus the newest entry.
+    expect(useQueryHistory.getState().entries.map(e => e.id)).toEqual(['b']);
   });
 
   it('drops the oldest stored entries when storage is full', () => {
@@ -221,9 +238,23 @@ describe('useQueryHistory', () => {
   });
 });
 
+/** An entry whose one response has `data` changed. */
+function withData(data: Record<string, unknown>): unknown {
+  const value = entry('a');
+  const result = value.results.router_one;
+  return { ...value, results: { router_one: { ...result, data: { ...result.data, ...data } } } };
+}
+
 describe('isHistoryEntry', () => {
   it('accepts an entry', () => {
     expect(isHistoryEntry(entry('a'))).toBe(true);
+  });
+
+  it.each([
+    ['BGP routes', { routes: [{ prefix: '2001:db8::/32' }] }],
+    ['traceroute hops', { hops: [{ hop_number: 1 }] }],
+  ])('accepts structured output with %s', (_, output) => {
+    expect(isHistoryEntry(withData({ format: 'application/json', output }))).toBe(true);
   });
 
   it.each([
@@ -238,6 +269,28 @@ describe('isHistoryEntry', () => {
       { ...entry('a'), query: { ...entry('a').query, queryVariables: { vrf: 1 } } },
     ],
     ['an entry without labels', { ...entry('a'), labels: null }],
+    ['a response whose output is a number', withData({ output: 42 })],
+    ['a response that is not a success', withData({ level: 'danger' })],
+    ['an error response', withData({ level: 'error' })],
+    ['text output given as an object', withData({ output: { routes: [] } })],
+    [
+      'structured output without routes or hops',
+      withData({ format: 'application/json', output: {} }),
+    ],
+    [
+      'structured output whose routes are not a list',
+      withData({ format: 'application/json', output: { routes: 'x' } }),
+    ],
+    [
+      'structured output whose hops are not a list',
+      withData({ format: 'application/json', output: { hops: { 1: {} } } }),
+    ],
+    [
+      'structured output with a route that is not an object',
+      withData({ format: 'application/json', output: { routes: [1] } }),
+    ],
+    ['structured output given as text', withData({ format: 'application/json', output: 'x' })],
+    ['an unknown format', withData({ format: 'text/html' })],
   ])('rejects %s', (_, value) => {
     expect(isHistoryEntry(value)).toBe(false);
   });
@@ -260,7 +313,6 @@ describe('useQueryHistory rehydration', () => {
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([entry('b'), entry('a')]);
-    expect(store.getState().openId).toBeNull();
   });
 
   it('leaves out stored entries that are malformed', async () => {
@@ -272,6 +324,41 @@ describe('useQueryHistory rehydration', () => {
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([entry('b')]);
+  });
+
+  it('leaves out stored entries that the result view could not render', async () => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({
+        state: {
+          entries: [
+            entry('b'),
+            withData({ output: 42 }),
+            withData({ format: 'application/json', output: { routes: 'x' } }),
+          ],
+        },
+        version: 1,
+      }),
+    );
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([entry('b')]);
+  });
+
+  it('does not read history stored by another version, and replaces it on the next save', async () => {
+    const newer = JSON.stringify({ state: { entries: [entry('b')], other: 1 }, version: 2 });
+    localStorage.setItem(HISTORY_KEY, newer);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const store = await freshStore();
+
+    expect(store.getState().entries).toEqual([]);
+    // Loading alone leaves it.
+    expect(localStorage.getItem(HISTORY_KEY)).toBe(newer);
+    store.getState().record(input({ submissionId: 'new' }), 10);
+    expect(stored()).toEqual({ state: { entries: store.getState().entries }, version: 1 });
+    expect(store.getState().entries.map(e => e.id)).toEqual(['new']);
   });
 
   it('starts empty when the stored value is not JSON', async () => {
@@ -291,5 +378,65 @@ describe('useQueryHistory rehydration', () => {
     const store = await freshStore();
 
     expect(store.getState().entries).toEqual([]);
+  });
+});
+
+describe('useQueryHistory across tabs', () => {
+  // Each tab has its own store over the same storage: two copies of the module.
+  async function tab() {
+    vi.resetModules();
+    return (await import('./use-query-history')).useQueryHistory;
+  }
+
+  beforeEach(() => {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify({ state: { entries: [entry('b'), entry('a')] }, version: 1 }),
+    );
+  });
+
+  it.each([
+    ['Clear all', (store: typeof useQueryHistory) => store.getState().clear(), ['c']],
+    ['a deletion', (store: typeof useQueryHistory) => store.getState().remove('b'), ['c', 'a']],
+  ])('does not undo %s in another tab when saving a query', async (_, change, expected) => {
+    const one = await tab();
+    const two = await tab();
+
+    change(one);
+    two.getState().record(input({ submissionId: 'c' }), 10);
+
+    expect(stored().state.entries.map(e => e.id)).toEqual(expected);
+    expect(two.getState().entries.map(e => e.id)).toEqual(expected);
+  });
+
+  it('does not undo a deletion in another tab when deleting', async () => {
+    const one = await tab();
+    const two = await tab();
+
+    one.getState().remove('b');
+    two.getState().remove('a');
+
+    expect(stored().state.entries).toEqual([]);
+  });
+
+  it('shows the changes another tab stores', async () => {
+    const one = await tab();
+    const two = await tab();
+    one.getState().clear();
+    expect(two.getState().entries).toHaveLength(2);
+
+    window.dispatchEvent(new StorageEvent('storage', { key: HISTORY_KEY }));
+
+    expect(two.getState().entries).toEqual([]);
+  });
+
+  it('ignores changes to other keys', async () => {
+    const one = await tab();
+    const two = await tab();
+    one.getState().clear();
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'hyperglass-greeting' }));
+
+    expect(two.getState().entries).toHaveLength(2);
   });
 });
