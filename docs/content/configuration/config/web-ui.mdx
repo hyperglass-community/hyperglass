@@ -193,6 +193,7 @@ What is stored, and where:
 
 -   For each query: the locations, the query type, the target, the query's variables, the time it was saved, and each location's output, with the output's query ID.
 -   Only results that succeeded are saved. A query that failed on every location is not saved.
+-   Results of a directive with [`retain: false`](/configuration/directives.mdx#keep-results-out-of-history) are not saved.
 -   History is kept in the browser's local storage, under the `hyperglass.history` key. It is never sent to the Hyperglass server and is not shared between browsers or devices.
 -   The "My IP" button makes the visitor's own address the query target, so that address is saved with the query.
 -   When local storage is full, the oldest saved queries are removed until the new one fits. When the browser does not allow local storage (some private browsing modes), history lasts until the page is closed or reloaded.

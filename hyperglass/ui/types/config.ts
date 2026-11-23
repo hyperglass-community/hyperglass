@@ -142,6 +142,8 @@ type _DirectiveBase = {
   groups: string[];
   info: string | null;
   variables?: _DirectiveVariable[];
+  /** Whether results of this directive may be kept: in query history and share links. */
+  retain: boolean;
 };
 
 type _DirectiveOption = {

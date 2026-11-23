@@ -27,6 +27,7 @@
               "info": null,
               "name": "BGP Route",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -37,6 +38,7 @@
               "info": null,
               "name": "BGP AS Path",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -47,6 +49,7 @@
               "info": null,
               "name": "BGP Community",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -57,6 +60,7 @@
               "info": null,
               "name": "Ping",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -67,6 +71,7 @@
               "info": null,
               "name": "Traceroute",
               "options": null,
+              "retain": true,
               "variables": []
             }
           ],
@@ -86,6 +91,7 @@
               "info": null,
               "name": "BGP Route",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -96,6 +102,7 @@
               "info": null,
               "name": "BGP AS Path",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -106,6 +113,7 @@
               "info": null,
               "name": "BGP Community",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -116,6 +124,7 @@
               "info": null,
               "name": "Ping",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -126,6 +135,7 @@
               "info": null,
               "name": "Traceroute",
               "options": null,
+              "retain": true,
               "variables": []
             }
           ],
@@ -161,6 +171,7 @@
                   "value": "65000:2"
                 }
               ],
+              "retain": true,
               "variables": []
             },
             {
@@ -171,6 +182,7 @@
               "info": null,
               "name": "BGP AS Path",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -181,6 +193,7 @@
               "info": null,
               "name": "BGP Community",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -191,6 +204,7 @@
               "info": null,
               "name": "BGP Route",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -201,6 +215,7 @@
               "info": null,
               "name": "Ping",
               "options": null,
+              "retain": true,
               "variables": []
             },
             {
@@ -211,6 +226,7 @@
               "info": null,
               "name": "Traceroute",
               "options": null,
+              "retain": true,
               "variables": []
             }
           ],
