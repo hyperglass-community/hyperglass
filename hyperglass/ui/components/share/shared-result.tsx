@@ -137,6 +137,8 @@ export const SharedResult = (): JSX.Element | null => {
   // The loading text goes into its live region after the region is rendered: a region
   // that appears with its text already in it isn't announced.
   const [announce, setAnnounce] = useState(false);
+  // The results failed to render (see `ShareErrorBoundary`): nothing from them is shown.
+  const [renderFailed, setRenderFailed] = useState(false);
 
   // Move focus to the view that replaced the form, and fill the live region.
   useEffect(() => {
@@ -229,11 +231,13 @@ export const SharedResult = (): JSX.Element | null => {
           </Heading>
           {outcome.status === 'found' && (
             <>
-              <Text fontSize="sm" color={muted}>
-                {strF(web.text.shareResultTime, {
-                  time: formatTimestamp(outcome.snapshot.results[0].timestamp),
-                })}
-              </Text>
+              {!renderFailed && (
+                <Text fontSize="sm" color={muted}>
+                  {strF(web.text.shareResultTime, {
+                    time: formatTimestamp(outcome.snapshot.results[0].timestamp),
+                  })}
+                </Text>
+              )}
               <Text fontSize="sm" color={muted}>
                 {strF(web.text.shareExpires, {
                   time: formatTimestamp(outcome.snapshot.expiresAt),
@@ -243,7 +247,7 @@ export const SharedResult = (): JSX.Element | null => {
           )}
         </Box>
         <HStack spacing={2} flexWrap="wrap">
-          {outcome.status === 'found' && (
+          {outcome.status === 'found' && !renderFailed && (
             <Button
               size="sm"
               variant="ghost"
@@ -265,7 +269,7 @@ export const SharedResult = (): JSX.Element | null => {
         </HStack>
       )}
       {outcome.status === 'found' && (
-        <ShareErrorBoundary message={web.text.shareError}>
+        <ShareErrorBoundary message={web.text.shareError} onError={() => setRenderFailed(true)}>
           <SnapshotView snapshot={outcome.snapshot} />
         </ShareErrorBoundary>
       )}
