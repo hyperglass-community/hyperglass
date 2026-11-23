@@ -41,6 +41,41 @@ Select **Submit** to run the query. The page shows the response when the device 
 
 Use the browser Back button or the in-page back control to return to the form with your last query selections. Select the title link to clear the form.
 
+## Link to a filled-in form
+
+A link can fill in the form, for example from a ticket, a monitoring tool or documentation. Add these parameters to the address of the Hyperglass page:
+
+| Parameter        | Value                                                                                                                 |
+| :--------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| `location`       | A location's device ID. Repeat it to select several locations.                                                        |
+| `type`           | A query type's directive ID, or its name as the form shows it, such as `BGP Route`.                                   |
+| `target`         | The query target. For a query type with a list of targets, one of the listed values.                                  |
+| `var.<variable>` | The value of a directive variable, by the variable's ID, such as `var.vrf=default`. Use one of the variable's values. |
+
+```text
+https://lg.example.net/?location=router_one&location=router_two&type=BGP+Route&target=2001:db8::/32
+```
+
+A device ID is made from the device's `name` in `devices.yaml`: characters other than letters, digits, `_`, `-` and spaces are removed, each run of spaces becomes `_`, and the result is lowercased, so `Router One` becomes `router_one`. The `id` of each location is also listed by `/api/devices`.
+
+The link only fills in the form; the query runs when you select **Submit**. A required greeting must still be acknowledged, and a hostname target is still resolved first.
+
+Values that the deployment doesn't offer are left out without a message: an unknown location, a query type that the selected locations don't share, a target that isn't one of the listed values or that contains control characters or line breaks, or an unknown variable or value. The query type is only filled in when at least one location is valid, and the target and variables only when the query type is. When the selected locations have only one query type in common, the form chooses it; a link without `type` then fills in the target and variables for it, and a link with a different `type` doesn't.
+
+With locations from different vendors, the query type can be given by its name or by any selected location's directive ID for it.
+
+Encode the values as in any URL query string: a `+` reads as a space, so encode a literal `+` as `%2B`, and a `%` (such as in an IPv6 zone, `fe80::1%25eth0`) as `%25`. IPv6 addresses and prefixes need no other encoding. A link sets one target.
+
+Once the form is filled in, Hyperglass removes these parameters from the address bar, so the address doesn't keep describing a query you have since changed. Other parameters and the `#` fragment stay.
+
+### Copy a link to a query
+
+After you submit a query, select the link button above the results (**Copy Link**) to copy a link to it. The link has every selected location, the query type, the target and any variables, in the parameters above, added to the current address of the page (its origin and path). Other parameters of your address and the `#` fragment are not included. Behind a reverse proxy, the link is only as good as that address: after a link to a filled-in form has been opened, the address can end without its trailing slash (`/tools/lg` instead of `/tools/lg/`), so the proxy must serve that path too, or redirect it.
+
+The link shares the query, not its result: whoever opens it gets the form filled in and selects **Submit** to run the query again. When the query had a hostname target, the link has the address it was resolved to, as that is what was queried.
+
+If the browser can't copy (for example on a page served over plain HTTP, or when clipboard access is refused), the link appears in a read-only field below the button, selected, so you can copy it yourself.
+
 ## Hostname resolution
 
 When you enter a hostname instead of an address, Hyperglass resolves it through the configured DNS provider. The resolver returns available IPv4 and IPv6 addresses, and you choose which address to query.

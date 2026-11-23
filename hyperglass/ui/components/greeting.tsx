@@ -27,7 +27,11 @@ export const Greeting = (props: ModalContentProps): JSX.Element => {
     if (!web.greeting.enable && !web.greeting.required) {
       ack(true, false);
     }
-    if (!isAck && web.greeting.enable) {
+    // Read the acknowledgement from the store, not from the render. While React hydrates
+    // the prerendered page, zustand renders the store's initial state, so `isAck` is
+    // `false` here even for a visitor whose acknowledgement is stored. `isAck` stays a
+    // dependency so the effect runs again when it changes.
+    if (!useGreeting.getState().isAck && web.greeting.enable) {
       open();
     }
   }, [isAck, open, web.greeting.enable, web.greeting.required, ack]);

@@ -1,9 +1,11 @@
 import { Flex, ScaleFade, SlideFade, chakra } from '@chakra-ui/react';
 import { vestResolver } from '@hookform/resolvers/vest';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/router';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import isEqual from 'react-fast-compare';
 import { FormProvider, useForm } from 'react-hook-form';
 import vest, { test, enforce } from 'vest';
+import { useShallow } from 'zustand/react/shallow';
 import {
   DirectiveInfoModal,
   FormField,
@@ -15,14 +17,30 @@ import {
 } from '~/components';
 import { useConfig } from '~/context';
 import { FormRow } from '~/elements';
-import { useDevice, useFormState, useGreeting, useStrf } from '~/hooks';
+import {
+  parsePrefill,
+  useDevice,
+  useFormState,
+  useGreeting,
+  useStrf,
+  withoutPrefill,
+} from '~/hooks';
 import { Directive, isQueryField, isString } from '~/types';
 import { isFQDN } from '~/util';
 
 import type { FormData, OnChangeArgs } from '~/types';
 
+/** The store's form values before a query is entered, and after a reset. */
+const EMPTY_VALUES: FormData = {
+  queryLocation: [],
+  queryType: '',
+  queryTarget: [],
+  queryVariables: {},
+};
+
 export const LookingGlassForm = (): JSX.Element => {
   const { web, messages } = useConfig();
+  const router = useRouter();
 
   const greetingReady = useGreeting(s => s.greetingReady);
 
@@ -31,12 +49,15 @@ export const LookingGlassForm = (): JSX.Element => {
   const setLoading = useFormState(s => s.setLoading);
   const setStatus = useFormState(s => s.setStatus);
   const locationChange = useFormState(s => s.locationChange);
+  const prefillForm = useFormState(s => s.prefillForm);
   const setTarget = useFormState(s => s.setTarget);
   const setFormValue = useFormState(s => s.setFormValue);
   const { form, filtered, selections } = useFormState(
-    useCallback(({ form, filtered, selections }) => ({ form, filtered, selections }), []),
-    isEqual,
+    useShallow(({ form, filtered, selections }) => ({ form, filtered, selections })),
   );
+  // The store's own values object, compared by reference, so the mirror below also runs
+  // when a reset replaces values that were already empty.
+  const values = useFormState(s => s.form);
 
   const getDirective = useFormState(useCallback(s => s.getDirective, []));
   const resolvedOpen = useFormState(useCallback(s => s.resolvedOpen, []));
@@ -53,7 +74,8 @@ export const LookingGlassForm = (): JSX.Element => {
       enforce(data.queryLocation).isArrayOf(enforce.isString()).isNotEmpty();
     });
     test('queryTarget', noQueryTarget, () => {
-      enforce(data.queryTarget).isArrayOf(enforce.isString()).isNotEmpty();
+      // Every target needs a value: a cleared text input leaves `['']`.
+      enforce(data.queryTarget).isArrayOf(enforce.isString().matches(/\S/)).isNotEmpty();
     });
     test('queryType', noQueryType, () => {
       enforce(data.queryType).inside(queryTypes);
@@ -76,7 +98,7 @@ export const LookingGlassForm = (): JSX.Element => {
     },
   });
 
-  const { handleSubmit, register, setValue, setError, clearErrors } = formInstance;
+  const { handleSubmit, register, reset, setValue, setError, clearErrors } = formInstance;
 
   const isFqdnQuery = useCallback(
     (target: string | string[], fieldType: Directive['fieldType'] | null): boolean =>
@@ -191,13 +213,57 @@ export const LookingGlassForm = (): JSX.Element => {
   useEffect(() => {
     register('queryLocation', { required: true });
     register('queryType', { required: true });
-    // Restore the previous query after returning from results.
-    const { form } = useFormState.getState();
-    setValue('queryLocation', form.queryLocation);
-    setValue('queryType', form.queryType);
-    setValue('queryTarget', form.queryTarget);
-    setValue('queryVariables', form.queryVariables);
-  }, [register, setValue]);
+  }, [register]);
+
+  // The store is the source of the form values; mirror it into react-hook-form, which
+  // validates them. This covers values the store sets on its own: the previous query
+  // restored after returning from results, the query type chosen when the selected
+  // locations have only one, and a reset from the header.
+  useEffect(() => {
+    if (isEqual(values, EMPTY_VALUES)) {
+      // The store was reset (or every value was removed): reset react-hook-form as well,
+      // so the errors and submitted state of the previous query go with its values.
+      reset(values);
+      return;
+    }
+    setValue('queryLocation', values.queryLocation);
+    setValue('queryType', values.queryType);
+    setValue('queryTarget', values.queryTarget);
+    setValue('queryVariables', values.queryVariables);
+  }, [values, reset, setValue]);
+
+  // Fill the form from the parameters of the address, once the router is ready: the
+  // page is exported statically, and Next.js replaces the address once it has read the
+  // query string after hydration. This only fills the form: submitting still goes
+  // through `submitHandler`, with its greeting check and hostname resolution. The store
+  // change reaches react-hook-form through the mirror above. This effect comes after
+  // the mirror: on a mount with the router already ready, the mirror's reset of the
+  // empty form would otherwise clear an error that `locationChange` sets here.
+  const prefillRead = useRef(false);
+  useEffect(() => {
+    if (!router.isReady || prefillRead.current) {
+      return;
+    }
+    prefillRead.current = true;
+    const { pathname, search, hash } = window.location;
+    const prefill = parsePrefill(search);
+    if (prefill !== null) {
+      prefillForm(prefill, { setError, clearErrors, getDevice, text: web.text });
+    }
+    // Remove the parameters once read. The form unmounts while the results show, so
+    // they would otherwise be applied again over the user's changes on its return, and
+    // the address would no longer describe the form. Through the router, so the history
+    // entries Next.js keeps (and Back restores) have the new address too.
+    const rest = withoutPrefill(search);
+    if (rest !== search) {
+      // The route is the page's, not the address's path: the page can also be served as
+      // `/index.html`, which is not a route and would load the page again.
+      router.replace(`${router.pathname}${rest}`, `${pathname}${rest}${hash}`, {
+        shallow: true,
+        scroll: false,
+      });
+    }
+  }, [router.isReady]);
 
   return (
     <FormProvider {...formInstance}>

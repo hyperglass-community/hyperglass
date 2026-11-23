@@ -5,8 +5,7 @@ import { HyperglassContext } from '~/context';
 import { useFormState } from './use-form-state';
 import { useLGQuery } from './use-lg-query';
 
-import type { QueryClient } from '@tanstack/react-query';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Config, FormQuery } from '~/types';
 
 // `fetch` is replaced in every test. `useLGQuery` reads only `requestTimeout` from the
@@ -229,29 +228,191 @@ describe('useLGQuery timeout', () => {
     expect(error.message.toLowerCase().startsWith('timeout')).toBe(false);
   });
 
-  it('fails a refetch once the first request timeout has passed', async () => {
-    // Current behaviour, likely a bug: the hook keeps one AbortController for its life,
-    // and `fetchWithTimeout` never clears its timer. The timer aborts that controller
-    // even after the request succeeded, so every later refetch fails at once.
-    const delay = testConfig.requestTimeout * 1000;
-    const timer = captureTimeout(delay);
-    fetchMock.mockImplementationOnce(async () => jsonResponse(success));
+  it('gives each request its own signal', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
     const { result } = renderQuery();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    act(() => timer.fire());
     await act(async () => {
       await result.current.refetch();
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(true);
+    expect(fetchMock.mock.calls[1][1].signal).not.toBe(fetchMock.mock.calls[0][1].signal);
+  });
+});
+
+describe('useLGQuery timeout with a running clock', () => {
+  // Fake timers that also follow the real clock, so Testing Library's `waitFor` still runs.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not abort a finished request when its timeout passes', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
+    const { result } = renderQuery();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    act(() => {
+      vi.advanceTimersByTime(testConfig.requestTimeout * 1000 + 1);
+    });
+
+    expect(firstRequest()[1].signal?.aborted).toBe(false);
+  });
+
+  it('refetches after the first request timeout has passed', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(success));
+    const { result } = renderQuery();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    act(() => {
+      vi.advanceTimersByTime(testConfig.requestTimeout * 1000 + 1);
+    });
+    await act(async () => {
+      await result.current.refetch();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][1].signal.aborted).toBe(false);
+    expect(result.current.isSuccess).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+});
+
+describe('useLGQuery with the default client options', () => {
+  // A client with React Query's defaults, as the app creates in `HyperglassProvider`, not
+  // the test helper's client, which turns retries off for every query. The defaults retry
+  // a failed query three times, with backoff of up to 4 s between attempts, refetch a
+  // query when the browser comes back online, and refetch a failed query on remount.
+  let client: QueryClient;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    client = new QueryClient();
+  });
+
+  afterEach(() => {
+    client.clear();
+    vi.useRealTimers();
+  });
+
+  function renderWithDefaults() {
+    const { result } = renderQuery(query, { client });
+    // Read `isError` now, as a component would in render: React Query re-renders only for
+    // the result properties that have been read.
+    expect(result.current.isError).toBe(false);
+    return result;
+  }
+
+  /** Run the timers far past the request timeout and every default retry delay. */
+  async function runPastRetries(): Promise<void> {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4 * (testConfig.requestTimeout * 1000 + 30_000));
+    });
+  }
+
+  it('sends a query that times out once', async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('This operation was aborted', 'AbortError')),
+          );
+        }),
+    );
+    const result = renderWithDefaults();
+
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as DOMException).name).toBe('AbortError');
   });
 
+  it('sends a query whose request cannot be sent once', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const result = renderWithDefaults();
+
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+
+  it('sends a query whose response is not JSON once', async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response('<html>Bad Gateway</html>', { status: 502, statusText: 'Bad Gateway' }),
+    );
+    const result = renderWithDefaults();
+
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+
+  /** Tell React Query the browser is back online, as after a network drop. */
+  async function goOnline(): Promise<void> {
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+  }
+
+  it('does not resend a failed query when the browser comes back online', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const result = renderWithDefaults();
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    await goOnline();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not resend a successful query when the browser comes back online', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(success));
+    const { result } = renderQuery(query, { client });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    await goOnline();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not resend a failed query when its panel mounts again', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const first = renderQuery(query, { client });
+    await waitFor(() => expect(first.result.current.isError).toBe(true));
+    first.unmount();
+
+    const { result } = renderQuery(query, { client });
+    await runPastRetries();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.current.isError).toBe(true);
+  });
+});
+
+describe('useLGQuery cancellation', () => {
+  /** Answer every request with a promise that rejects when its signal aborts, as `fetch` does. */
+  function hangUntilAborted(): void {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('This operation was aborted', 'AbortError')),
+          );
+        }),
+    );
+  }
+
   it('aborts a running request on unmount', async () => {
-    captureTimeout(testConfig.requestTimeout * 1000);
+    hangUntilAborted();
     const { unmount } = renderQuery();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
 

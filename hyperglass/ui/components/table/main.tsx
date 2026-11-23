@@ -3,6 +3,7 @@
 import { Flex, Text } from '@chakra-ui/react';
 import { usePagination, useSortBy, useTable } from 'react-table';
 import { If, Then, Else } from 'react-if';
+import { useConfig } from '~/context';
 import { CardBody, CardFooter, CardHeader, DynamicIcon } from '~/elements';
 import { useMobile } from '~/hooks';
 import { TableMain } from './table';
@@ -42,6 +43,7 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
   } = props;
 
   const isMobile = useMobile();
+  const { web } = useConfig();
 
   const defaultColumn = {
     minWidth: 100,
@@ -164,12 +166,14 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
             mr={2}
             onClick={() => gotoPage(0)}
             isDisabled={!canPreviousPage}
+            aria-label={web.text.firstPage}
             icon={<DynamicIcon icon={{ fi: 'FiChevronsLeft' }} boxSize={4} />}
           />
           <TableIconButton
             mr={2}
             onClick={() => previousPage()}
             isDisabled={!canPreviousPage}
+            aria-label={web.text.previousPage}
             icon={<DynamicIcon icon={{ fa: 'FaChevronLeft' }} boxSize={3} />}
           />
         </Flex>
@@ -194,11 +198,13 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
             ml={2}
             onClick={nextPage}
             isDisabled={!canNextPage}
+            aria-label={web.text.nextPage}
             icon={<DynamicIcon icon={{ fa: 'FaChevronRight' }} boxSize={3} />}
           />
           <TableIconButton
             ml={2}
             isDisabled={!canNextPage}
+            aria-label={web.text.lastPage}
             icon={<DynamicIcon icon={{ fi: 'FiChevronsRight' }} boxSize={4} />}
             onClick={() => gotoPage(pageCount ? pageCount - 1 : 1)}
           />

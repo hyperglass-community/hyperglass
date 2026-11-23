@@ -1,6 +1,6 @@
 import { devtools } from 'zustand/middleware';
 
-import type { StateCreator, SetState, GetState, StoreApi } from 'zustand';
+import type { StateCreator } from 'zustand';
 
 /**
  * Wrap a zustand state function with devtools, if applicable.
@@ -9,11 +9,14 @@ import type { StateCreator, SetState, GetState, StoreApi } from 'zustand';
  * @param name Store name.
  */
 export function withDev<T extends object = {}>(
-  store: StateCreator<T>,
+  store: StateCreator<T, [], []>,
   name: string,
-): StateCreator<T> {
+): StateCreator<T, [], []> {
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    return devtools<T, SetState<T>, GetState<T>, StoreApi<T>>(store, { name });
+    // The devtools mutator only adds an optional action-name argument to `set`, so
+    // erasing it from the return type is safe and keeps the wrapper's type the same
+    // whether or not devtools is applied.
+    return devtools(store, { name }) as StateCreator<T, [], []>;
   }
   return store;
 }

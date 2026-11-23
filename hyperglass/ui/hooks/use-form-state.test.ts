@@ -2,9 +2,20 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import { testConfig } from '~/__tests__/render';
 import { queryClient } from '~/context';
-import { useFormInteractive, useFormSelections, useFormState, useView } from './use-form-state';
+import {
+  parsePrefill,
+  prefillLink,
+  prefillSearch,
+  queryPrefill,
+  withoutPrefill,
+  useFormInteractive,
+  useFormSelections,
+  useFormState,
+  useView,
+} from './use-form-state';
 
-import type { Device } from '~/types';
+import type { Device, Directive } from '~/types';
+import type { FormPrefill } from './use-form-state';
 
 test('back - returns to the form and keeps the last query', () => {
   const form = {
@@ -197,6 +208,262 @@ describe('useFormState', () => {
 
       expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_traceroute__');
       expect(useFormState.getState().form.queryVariables).toEqual({});
+      // The select shows the chosen query type.
+      expect(useFormState.getState().selections.queryType).toEqual({
+        value: '__hyperglass_juniper_traceroute__',
+        label: 'Traceroute',
+      });
+    });
+
+    it('clears the target when it chooses a different query type', () => {
+      const one = { ...device('router_one'), directives: device('router_one').directives.slice(4) };
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one'],
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: {},
+        },
+        filtered: { types: device('router_one').directives, groups: [] },
+        target: { display: '2001:db8::/32' },
+      });
+
+      changeLocations(['router_one'], id => (id === 'router_one' ? one : null));
+
+      const { form, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_traceroute__');
+      expect(form.queryTarget).toEqual([]);
+      expect(target.display).toBe('');
+    });
+
+    it('keeps the target when the only query type in common is the current one', () => {
+      const ping = (id: string): Device | null => {
+        const dev = getDevice(id);
+        return dev && { ...dev, directives: dev.directives.filter(d => d.name === 'Ping') };
+      };
+      const selection = { value: '__hyperglass_juniper_ping__', label: 'Ping' };
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one'],
+          queryType: '__hyperglass_juniper_ping__',
+          queryTarget: ['2001:db8::1'],
+          queryVariables: {},
+        },
+        filtered: { types: ping('router_one')?.directives ?? [], groups: [] },
+        selections: { queryLocation: [], queryType: selection },
+        target: { display: '2001:db8::1' },
+      });
+
+      changeLocations(['router_one', 'router_two'], ping);
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(form.queryTarget).toEqual(['2001:db8::1']);
+      expect(target.display).toBe('2001:db8::1');
+      expect(selections.queryType).toEqual(selection);
+    });
+
+    it('clears a query type the new locations do not offer, with its target and variables', () => {
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_three'],
+          queryType: 'peer_communities',
+          queryTarget: ['65000:1'],
+          queryVariables: { stale: 'value' },
+        },
+        filtered: { types: device('router_three').directives, groups: [] },
+        selections: {
+          queryLocation: [],
+          queryType: { value: 'peer_communities', label: 'Peer Communities' },
+        },
+        target: { display: '65000:1' },
+      });
+
+      changeLocations(['router_three', 'router_one']);
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('');
+      expect(form.queryTarget).toEqual([]);
+      expect(form.queryVariables).toEqual({});
+      expect(target.display).toBe('');
+      expect(selections.queryType).toBeNull();
+    });
+
+    it('clears the query type when every location is removed', () => {
+      changeLocations(['router_one']);
+      useFormState.setState(state => ({
+        form: {
+          ...state.form,
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['192.0.2.0/24'],
+        },
+        selections: {
+          ...state.selections,
+          queryType: { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' },
+        },
+      }));
+
+      changeLocations([]);
+
+      const { form, selections } = useFormState.getState();
+      expect(form.queryType).toBe('');
+      expect(form.queryTarget).toEqual([]);
+      expect(selections.queryType).toBeNull();
+    });
+
+    it('keeps a query type the new locations still offer, with its target and variables', () => {
+      const selection = { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' };
+      const form = {
+        queryLocation: ['router_one'],
+        queryType: '__hyperglass_juniper_bgp_route__',
+        queryTarget: ['2001:db8::/32'],
+        queryVariables: { kept: 'value' },
+      };
+      useFormState.setState({
+        form,
+        filtered: { types: device('router_one').directives, groups: [] },
+        selections: { queryLocation: [], queryType: selection },
+        target: { display: '2001:db8::/32' },
+      });
+
+      changeLocations(['router_one', 'router_two']);
+
+      const state = useFormState.getState();
+      expect(state.form).toEqual({ ...form, queryLocation: ['router_one', 'router_two'] });
+      expect(state.target.display).toBe('2001:db8::/32');
+      expect(state.selections.queryType).toEqual(selection);
+    });
+
+    it('moves the query type to the same-named directive of the remaining location', () => {
+      // With Router One and Router Three selected, the offered directives carry Router
+      // One's Juniper IDs. With Router One removed, BGP Route is still offered, under
+      // Router Three's FRR ID.
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one', 'router_three'],
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: {},
+        },
+        filtered: { types: device('router_one').directives, groups: [] },
+        selections: {
+          queryLocation: [],
+          queryType: { value: '__hyperglass_juniper_bgp_route__', label: 'BGP Route' },
+        },
+        target: { display: '2001:db8::/32' },
+      });
+
+      changeLocations(['router_three']);
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_frr_bgp_route__');
+      expect(selections.queryType).toEqual({
+        value: '__hyperglass_frr_bgp_route__',
+        label: 'BGP Route',
+      });
+      expect(form.queryTarget).toEqual(['2001:db8::/32']);
+      expect(target.display).toBe('2001:db8::/32');
+    });
+
+    describe('when the query type moves to a same-named directive with another ID', () => {
+      // Two custom directives may share a name and differ in everything else: their
+      // variables, their target options, even their field type.
+      const option = (value: string) => ({ name: value, value, description: null });
+      const variable = (id: string, values: string[]) => ({
+        id,
+        name: id,
+        required: false,
+        options: values.map(option),
+      });
+      const lookup = (id: string, extra: Record<string, unknown>): Directive =>
+        ({
+          ...device('router_one').directives[0],
+          id,
+          name: 'Lookup',
+          variables: [],
+          ...extra,
+        }) as Directive;
+
+      /**
+       * Select Router One (offering `first`) and Router Three (offering `second`) with
+       * `first`'s query type and these values, then remove Router One.
+       */
+      function removeFirst(
+        first: Directive,
+        second: Directive,
+        values: { queryTarget: string[]; queryVariables: Record<string, string> },
+      ) {
+        const one = { ...device('router_one'), directives: [first] };
+        const three = { ...device('router_three'), directives: [second] };
+        const byId = (id: string): Device | null =>
+          id === 'router_one' ? one : id === 'router_three' ? three : null;
+        useFormState.setState({
+          form: { queryLocation: ['router_one', 'router_three'], queryType: first.id, ...values },
+          filtered: { types: [first], groups: [] },
+          selections: { queryLocation: [], queryType: { value: first.id, label: 'Lookup' } },
+          target: { display: values.queryTarget[0] ?? '' },
+        });
+
+        changeLocations(['router_three'], byId);
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryType).toBe(second.id);
+        return { form, target };
+      }
+
+      it('keeps only the variables and values the new directive offers', () => {
+        const first = lookup('lookup_a', {
+          variables: [
+            variable('vrf', ['blue', 'red']),
+            variable('afi', ['ipv4', 'ipv6']),
+            variable('table', ['inet.0']),
+          ],
+        });
+        const second = lookup('lookup_b', {
+          variables: [variable('vrf', ['blue']), variable('afi', ['ipv4', 'ipv6'])],
+        });
+
+        const { form } = removeFirst(first, second, {
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: { vrf: 'red', afi: 'ipv6', table: 'inet.0' },
+        });
+
+        // `table` isn't defined and `red` isn't offered by the new directive.
+        expect(form.queryVariables).toEqual({ afi: 'ipv6' });
+        expect(form.queryTarget).toEqual(['2001:db8::/32']);
+      });
+
+      it.each([
+        ['keeps', '65000:1', ['65000:1']],
+        ['clears', '65000:2', []],
+      ])('%s a select target by whether the new options offer it (%s)', (_, value, expected) => {
+        const first = lookup('lookup_a', {
+          fieldType: 'select',
+          options: [option('65000:1'), option('65000:2')],
+        });
+        const second = lookup('lookup_b', { fieldType: 'select', options: [option('65000:1')] });
+
+        const { form, target } = removeFirst(first, second, {
+          queryTarget: [value],
+          queryVariables: {},
+        });
+
+        expect(form.queryTarget).toEqual(expected);
+        expect(target.display).toBe(expected[0] ?? '');
+      });
+
+      it('clears the target when the new directive has another field type', () => {
+        const first = lookup('lookup_a', { fieldType: 'select', options: [option('65000:1')] });
+        const second = lookup('lookup_b', {});
+
+        const { form, target } = removeFirst(first, second, {
+          queryTarget: ['65000:1'],
+          queryVariables: {},
+        });
+
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+      });
     });
 
     it('reports locations without directives in common', () => {
@@ -237,6 +504,428 @@ describe('useFormState', () => {
 
       expect(useFormState.getState().form.queryLocation).toEqual([]);
       expect(useFormState.getState().filtered.types).toEqual([]);
+    });
+  });
+
+  describe('prefillForm', () => {
+    /** Call `prefillForm` the way the form does, with spies for the form callbacks. */
+    function prefill(values: Partial<FormPrefill>, devicesById = getDevice) {
+      const setError = vi.fn();
+      const clearErrors = vi.fn();
+      useFormState
+        .getState()
+        .prefillForm(
+          { queryLocation: [], queryType: null, queryTarget: null, queryVariables: {}, ...values },
+          { setError, clearErrors, getDevice: devicesById, text: testConfig.web.text },
+        );
+      return { setError, clearErrors };
+    }
+
+    /** Router One with only the given directives. */
+    function routerOneWith(directives: Directive[]): (id: string) => Device | null {
+      const one = { ...device('router_one'), directives };
+      return id => (id === 'router_one' ? one : getDevice(id));
+    }
+
+    const vrf = {
+      id: 'vrf',
+      name: 'VRF',
+      required: false,
+      options: [
+        { name: 'Default', value: 'default', description: null },
+        { name: 'Customer', value: 'customer', description: null },
+      ],
+    };
+    // A variable may be called `location`, like the location parameter.
+    const location = { ...vrf, id: 'location', name: 'Location' };
+
+    it('selects a location and offers its query types', () => {
+      prefill({ queryLocation: ['router_three'] });
+
+      const { form, selections, filtered } = useFormState.getState();
+      expect(form.queryLocation).toEqual(['router_three']);
+      expect(selections.queryLocation).toEqual([{ value: 'router_three', label: 'Router Three' }]);
+      expect(filtered.types).toEqual(device('router_three').directives);
+      expect(form.queryType).toBe('');
+    });
+
+    it('selects several locations in order and offers their query types in common', () => {
+      prefill({ queryLocation: ['router_two', 'router_one'] });
+
+      const { form, selections, filtered } = useFormState.getState();
+      expect(form.queryLocation).toEqual(['router_two', 'router_one']);
+      expect(selections.queryLocation.map(s => s.value)).toEqual(['router_two', 'router_one']);
+      expect(filtered.types.map(t => t.id)).toEqual(device('router_two').directives.map(d => d.id));
+    });
+
+    it('leaves out unknown locations', () => {
+      prefill({ queryLocation: ['no_such_device', 'router_one'] });
+
+      expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
+      expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
+        'router_one',
+      ]);
+    });
+
+    it('changes nothing without a known location', () => {
+      const before = useFormState.getState();
+      prefill({
+        queryLocation: ['no_such_device'],
+        queryType: 'Ping',
+        queryTarget: '192.0.2.1',
+      });
+
+      const after = useFormState.getState();
+      expect(after.form).toEqual(before.form);
+      expect(after.selections).toEqual(before.selections);
+      expect(after.filtered).toEqual(before.filtered);
+    });
+
+    it('reports locations without query types in common, as a selection does', () => {
+      const one = {
+        ...device('router_one'),
+        directives: device('router_one').directives.slice(0, 1),
+      };
+      const three = {
+        ...device('router_three'),
+        directives: device('router_three').directives.slice(0, 1),
+      };
+      const byId = (id: string): Device | null =>
+        id === 'router_one' ? one : id === 'router_three' ? three : null;
+
+      const { setError } = prefill(
+        { queryLocation: ['router_one', 'router_three'], queryType: 'BGP Route' },
+        byId,
+      );
+
+      expect(setError).toHaveBeenCalledWith('queryLocation', {
+        message: 'Locations Router One & Router Three have no Query Types in common.',
+      });
+      expect(useFormState.getState().form.queryType).toBe('');
+    });
+
+    it('selects the query type by ID', () => {
+      prefill({ queryLocation: ['router_one'], queryType: '__hyperglass_juniper_ping__' });
+
+      const { form, selections } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(selections.queryType).toEqual({ value: '__hyperglass_juniper_ping__', label: 'Ping' });
+    });
+
+    it('selects the query type by name', () => {
+      prefill({ queryLocation: ['router_three'], queryType: 'BGP Route' });
+
+      const { form, selections } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_frr_bgp_route__');
+      expect(selections.queryType).toEqual({
+        value: '__hyperglass_frr_bgp_route__',
+        label: 'BGP Route',
+      });
+    });
+
+    it('selects the query type by the ID of another selected location', () => {
+      // The offered directives carry the first location's (FRR) IDs. The link has Router
+      // One's Juniper ID, as when it was made with Router One first.
+      prefill({
+        queryLocation: ['router_three', 'router_one'],
+        queryType: '__hyperglass_juniper_bgp_route__',
+      });
+
+      expect(useFormState.getState().form.queryType).toBe('__hyperglass_frr_bgp_route__');
+    });
+
+    it('leaves out a query type the locations do not offer, with its target', () => {
+      // Router One has no Peer Communities, and Router Three's directive ID is no use.
+      prefill({
+        queryLocation: ['router_one'],
+        queryType: 'peer_communities',
+        queryTarget: '65000:1',
+      });
+
+      const { form, selections, target } = useFormState.getState();
+      expect(form.queryType).toBe('');
+      expect(selections.queryType).toBeNull();
+      expect(form.queryTarget).toEqual([]);
+      expect(target.display).toBe('');
+    });
+
+    it('leaves out a target without a query type', () => {
+      prefill({ queryLocation: ['router_one'], queryTarget: '192.0.2.1' });
+
+      expect(useFormState.getState().form.queryTarget).toEqual([]);
+      expect(useFormState.getState().target.display).toBe('');
+    });
+
+    it.each([
+      ['an IPv4 address', '192.0.2.1'],
+      ['an IPv6 address', '2001:db8::1'],
+      ['an IPv6 prefix', '2001:db8::/32'],
+      ['an IPv6 address with a zone', 'fe80::1%eth0'],
+      ['a hostname', 'example.com'],
+    ])('sets the target and its display to %s', (_, value) => {
+      prefill({ queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: value });
+
+      expect(useFormState.getState().form.queryTarget).toEqual([value]);
+      expect(useFormState.getState().target.display).toBe(value);
+    });
+
+    it('sets a target for the only query type, chosen for the locations', () => {
+      // `locationChange` chooses the only query type and clears the target, so the
+      // target from the link is set after it.
+      const byId = routerOneWith(device('router_one').directives.slice(3, 4));
+      prefill({ queryLocation: ['router_one'], queryTarget: '2001:db8::1' }, byId);
+
+      const { form, selections } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(selections.queryType).toEqual({ value: '__hyperglass_juniper_ping__', label: 'Ping' });
+      expect(form.queryTarget).toEqual(['2001:db8::1']);
+    });
+
+    it('sets a select target that is one of the options', () => {
+      prefill({
+        queryLocation: ['router_three'],
+        queryType: 'Peer Communities',
+        queryTarget: '65000:2',
+      });
+
+      expect(useFormState.getState().form.queryTarget).toEqual(['65000:2']);
+      expect(useFormState.getState().target.display).toBe('65000:2');
+    });
+
+    it('leaves out a select target that is not one of the options', () => {
+      prefill({
+        queryLocation: ['router_three'],
+        queryType: 'Peer Communities',
+        queryTarget: '65000:3',
+      });
+
+      expect(useFormState.getState().form.queryType).toBe('peer_communities');
+      expect(useFormState.getState().form.queryTarget).toEqual([]);
+      expect(useFormState.getState().target.display).toBe('');
+    });
+
+    it('leaves out the target of a query type without a field', () => {
+      const ping = device('router_one').directives[3];
+      const byId = routerOneWith([{ ...ping, fieldType: null } as unknown as Directive]);
+      prefill({ queryLocation: ['router_one'], queryTarget: '192.0.2.1' }, byId);
+
+      // The form fills in `['null']` for such a query type.
+      expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(useFormState.getState().form.queryTarget).toEqual([]);
+    });
+
+    it('sets the variables of the query type with an allowed value, and only those', () => {
+      const route = device('router_one').directives[0];
+      const byId = routerOneWith([{ ...route, variables: [vrf, location] } as Directive]);
+      prefill(
+        {
+          queryLocation: ['router_one'],
+          queryType: 'BGP Route',
+          queryTarget: '2001:db8::/32',
+          queryVariables: { vrf: 'customer', location: 'not_an_option', other: 'default' },
+        },
+        byId,
+      );
+
+      expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'customer' });
+    });
+
+    it('sets a variable named like a parameter', () => {
+      const route = device('router_one').directives[0];
+      const byId = routerOneWith([{ ...route, variables: [location] } as Directive]);
+      prefill(
+        {
+          queryLocation: ['router_one'],
+          queryType: 'BGP Route',
+          queryVariables: { location: 'default' },
+        },
+        byId,
+      );
+
+      expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
+      expect(useFormState.getState().form.queryVariables).toEqual({ location: 'default' });
+    });
+
+    it('replaces the query type, target and variables of a query in the form', () => {
+      useFormState.setState({
+        form: {
+          queryLocation: ['router_one'],
+          queryType: '__hyperglass_juniper_bgp_route__',
+          queryTarget: ['192.0.2.1'],
+          queryVariables: { vrf: 'default' },
+        },
+        filtered: { types: device('router_one').directives, groups: [] },
+        target: { display: '192.0.2.1' },
+      });
+
+      prefill({ queryLocation: ['router_one'], queryType: 'Ping' });
+
+      const { form, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(form.queryTarget).toEqual([]);
+      expect(form.queryVariables).toEqual({});
+      expect(target.display).toBe('');
+    });
+
+    describe('with the same query type already in the form', () => {
+      // Router One with BGP Route and Ping, BGP Route taking both variables, and a BGP
+      // Route query with a target and a variable in the form.
+      const route = device('router_one').directives[0];
+      const ping = device('router_one').directives[3];
+      const byId = routerOneWith([{ ...route, variables: [vrf, location] } as Directive, ping]);
+
+      beforeEach(() => {
+        useFormState.setState({
+          form: {
+            queryLocation: ['router_one'],
+            queryType: route.id,
+            queryTarget: ['192.0.2.1'],
+            queryVariables: { vrf: 'default' },
+          },
+          filtered: { types: byId('router_one')?.directives ?? [], groups: [] },
+          selections: {
+            queryLocation: [{ value: 'router_one', label: 'Router One' }],
+            queryType: { value: route.id, label: route.name },
+          },
+          target: { display: '192.0.2.1' },
+        });
+      });
+
+      it('clears the target and variables for a target that is left out', () => {
+        prefill(
+          { queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: '192.0.2.9\n' },
+          byId,
+        );
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryType).toBe(route.id);
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it('clears the target and variables for a link without a target', () => {
+        prefill({ queryLocation: ['router_one'], queryType: route.id }, byId);
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryType).toBe(route.id);
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it("sets only the link's variables", () => {
+        prefill(
+          {
+            queryLocation: ['router_one'],
+            queryType: 'BGP Route',
+            queryTarget: '2001:db8::/32',
+            queryVariables: { location: 'customer' },
+          },
+          byId,
+        );
+
+        const { form, target } = useFormState.getState();
+        expect(form.queryTarget).toEqual(['2001:db8::/32']);
+        expect(target.display).toBe('2001:db8::/32');
+        expect(form.queryVariables).toEqual({ location: 'customer' });
+      });
+
+      it('clears the query for a query type the location does not offer', () => {
+        prefill(
+          { queryLocation: ['router_one'], queryType: 'Traceroute', queryTarget: '192.0.2.9' },
+          byId,
+        );
+
+        const { form, selections, target } = useFormState.getState();
+        expect(form.queryType).toBe('');
+        expect(selections.queryType).toBeNull();
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it('clears the query for a link without a query type', () => {
+        prefill({ queryLocation: ['router_one'], queryTarget: '192.0.2.9' }, byId);
+
+        const { form, selections, target } = useFormState.getState();
+        expect(form.queryType).toBe('');
+        expect(selections.queryType).toBeNull();
+        expect(form.queryTarget).toEqual([]);
+        expect(target.display).toBe('');
+        expect(form.queryVariables).toEqual({});
+      });
+
+      it('keeps the query for a link without a known location', () => {
+        const before = useFormState.getState().form;
+        prefill({ queryLocation: ['no_such_device'], queryType: 'Ping' }, byId);
+
+        expect(useFormState.getState().form).toEqual(before);
+      });
+    });
+
+    it('leaves out the target and variables of an unknown query type, also when one is chosen', () => {
+      // With only Ping offered, `locationChange` chooses it; the link's target was meant
+      // for another query type.
+      const ping = device('router_one').directives[3];
+      const byId = routerOneWith([{ ...ping, variables: [vrf] } as Directive]);
+      prefill(
+        {
+          queryLocation: ['router_one'],
+          queryType: 'Traceroute',
+          queryTarget: 'example.com',
+          queryVariables: { vrf: 'default' },
+        },
+        byId,
+      );
+
+      const { form, target } = useFormState.getState();
+      expect(form.queryType).toBe('__hyperglass_juniper_ping__');
+      expect(form.queryTarget).toEqual([]);
+      expect(form.queryVariables).toEqual({});
+      expect(target.display).toBe('');
+    });
+
+    it.each([
+      ['a line feed', '192.0.2.1\nshow running-config'],
+      ['a carriage return', '192.0.2.1\r'],
+      ['a NUL', '192.0.2.1\u0000'],
+      ['a zero-width space', '2001:db8::\u200b1'],
+      ['a line separator', '192.0.2.1\u2028'],
+    ])('leaves out a target with %s', (_, value) => {
+      prefill({ queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: value });
+
+      expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_bgp_route__');
+      expect(useFormState.getState().form.queryTarget).toEqual([]);
+      expect(useFormState.getState().target.display).toBe('');
+    });
+
+    it('sets variables named like Object properties, and no inherited value', () => {
+      const route = device('router_one').directives[0];
+      const constructorVar = { ...vrf, id: 'constructor', name: 'Constructor' };
+      const toStringVar = { ...vrf, id: 'toString', name: 'To String' };
+      const byId = routerOneWith([
+        { ...route, variables: [constructorVar, toStringVar] } as Directive,
+      ]);
+      prefill(
+        {
+          queryLocation: ['router_one'],
+          queryType: 'BGP Route',
+          queryVariables: { toString: 'default' },
+        },
+        byId,
+      );
+
+      // `constructor` isn't in the link: the object's inherited `constructor` is no value.
+      expect(useFormState.getState().form.queryVariables).toEqual({ toString: 'default' });
+    });
+
+    it('fills the form without submitting it', () => {
+      prefill({ queryLocation: ['router_one'], queryType: 'BGP Route', queryTarget: '192.0.2.1' });
+
+      expect(useFormState.getState().status).toBe('form');
+      expect(useFormState.getState().loading).toBe(false);
+      expect(useFormState.getState().resolvedIsOpen).toBe(false);
     });
   });
 
@@ -333,5 +1022,377 @@ describe('useFormState', () => {
     expect(result.current.queryType).toBeNull();
     act(() => useFormState.getState().setSelection('queryType', { value: 'ping', label: 'Ping' }));
     expect(result.current.queryType).toEqual({ value: 'ping', label: 'Ping' });
+  });
+});
+
+describe('parsePrefill', () => {
+  it.each([
+    ['an empty query string', ''],
+    ['only other parameters', '?utm_source=mail&share=abc'],
+    ['only empty values', '?location=&type=&target=&var.vrf='],
+  ])('returns null for %s', (_, search) => {
+    expect(parsePrefill(search)).toBeNull();
+  });
+
+  it('reads the locations, query type, target and variables', () => {
+    expect(
+      parsePrefill(
+        '?location=router_one&location=router_two&type=BGP+Route&target=192.0.2.0%2F24&var.vrf=default',
+      ),
+    ).toEqual({
+      queryLocation: ['router_one', 'router_two'],
+      queryType: 'BGP Route',
+      queryTarget: '192.0.2.0/24',
+      queryVariables: { vrf: 'default' },
+    });
+  });
+
+  it('reads the same query string with or without the leading question mark', () => {
+    expect(parsePrefill('location=router_one')).toEqual(parsePrefill('?location=router_one'));
+  });
+
+  it.each([
+    ['an encoded IPv6 address', 'target=2001%3Adb8%3A%3A1', '2001:db8::1'],
+    ['an IPv6 prefix as typed', 'target=2001:db8::/32', '2001:db8::/32'],
+    ['an IPv6 address with an encoded zone', 'target=fe80::1%25eth0', 'fe80::1%eth0'],
+    ['a bracketed IPv6 address', 'target=%5B2001:db8::1%5D', '[2001:db8::1]'],
+  ])('reads %s as the target', (_, search, target) => {
+    expect(parsePrefill(`?location=router_one&${search}`)?.queryTarget).toBe(target);
+  });
+
+  it('keeps variables apart from the parameters with the same name', () => {
+    expect(
+      parsePrefill('?location=router_one&type=ping&var.location=default&var.type=customer'),
+    ).toEqual({
+      queryLocation: ['router_one'],
+      queryType: 'ping',
+      queryTarget: null,
+      queryVariables: { location: 'default', type: 'customer' },
+    });
+  });
+
+  it('reads each location once and the first of other repeated parameters', () => {
+    expect(
+      parsePrefill(
+        '?location=router_one&location=router_one&type=a&type=b&target=c&target=d&var.vrf=e&var.vrf=f',
+      ),
+    ).toEqual({
+      queryLocation: ['router_one'],
+      queryType: 'a',
+      queryTarget: 'c',
+      queryVariables: { vrf: 'e' },
+    });
+  });
+
+  it('reads variables named like Object properties', () => {
+    expect(
+      parsePrefill('?location=router_one&var.constructor=default&var.toString=customer')
+        ?.queryVariables,
+    ).toEqual({ constructor: 'default', toString: 'customer' });
+  });
+
+  it('skips a variable without an ID or a value', () => {
+    expect(parsePrefill('?location=router_one&var.=default&var.vrf=')?.queryVariables).toEqual({});
+  });
+});
+
+describe('withoutPrefill', () => {
+  it('removes the parameters it reads and keeps the others in order', () => {
+    expect(
+      withoutPrefill(
+        '?a=1&location=router_one&type=Ping&b=2&target=2001:db8::1&var.vrf=default&location=x',
+      ),
+    ).toBe('?a=1&b=2');
+  });
+
+  it('returns an empty query string when only its parameters are there', () => {
+    expect(withoutPrefill('?location=router_one&target=')).toBe('');
+  });
+
+  it('keeps the other parameters as they were written', () => {
+    expect(withoutPrefill('?q=a%20b&location=router_one&flag&r=x+y&var.vrf=default')).toBe(
+      '?q=a%20b&flag&r=x+y',
+    );
+  });
+
+  it('removes its parameters however their names are encoded', () => {
+    expect(withoutPrefill('?%6Cocation=router_one&var%2Evrf=default&a=1')).toBe('?a=1');
+  });
+
+  it('returns a query string without its parameters unchanged', () => {
+    expect(withoutPrefill('?q=a%20b')).toBe('?q=a%20b');
+    expect(withoutPrefill('')).toBe('');
+  });
+});
+
+// #577: the link the results view copies is read back by `parsePrefill` (#567).
+describe('queryPrefill', () => {
+  const bgpRoute = device('router_one').directives[0];
+  const peerCommunities = device('router_three').directives[0];
+
+  it('takes the locations, query type, target and variables the form submitted', () => {
+    expect(
+      queryPrefill(
+        {
+          queryLocation: ['router_one', 'router_two'],
+          queryType: bgpRoute.id,
+          queryTarget: ['2001:db8::/32'],
+          queryVariables: { vrf: 'default' },
+        },
+        bgpRoute,
+      ),
+    ).toEqual({
+      queryLocation: ['router_one', 'router_two'],
+      queryType: '__hyperglass_juniper_bgp_route__',
+      queryTarget: '2001:db8::/32',
+      queryVariables: { vrf: 'default' },
+    });
+  });
+
+  it('takes a select target', () => {
+    expect(
+      queryPrefill(
+        {
+          queryLocation: ['router_three'],
+          queryType: 'peer_communities',
+          queryTarget: ['65000:1'],
+        },
+        peerCommunities,
+      ),
+    ).toEqual({
+      queryLocation: ['router_three'],
+      queryType: 'peer_communities',
+      queryTarget: '65000:1',
+      queryVariables: {},
+    });
+  });
+
+  it('leaves out the placeholder target of a query type without a target field', () => {
+    const fieldless = { ...bgpRoute, fieldType: null } as unknown as Directive;
+    expect(
+      queryPrefill(
+        { queryLocation: ['router_one'], queryType: bgpRoute.id, queryTarget: ['null'] },
+        fieldless,
+      ).queryTarget,
+    ).toBeNull();
+  });
+});
+
+describe('prefillSearch', () => {
+  const empty: FormPrefill = {
+    queryLocation: [],
+    queryType: null,
+    queryTarget: null,
+    queryVariables: {},
+  };
+
+  it('writes one location, the query type and the target', () => {
+    expect(
+      prefillSearch({
+        ...empty,
+        queryLocation: ['router_one'],
+        queryType: '__hyperglass_juniper_ping__',
+        queryTarget: '192.0.2.1',
+      }),
+    ).toBe('?location=router_one&type=__hyperglass_juniper_ping__&target=192.0.2.1');
+  });
+
+  it('repeats the location parameter for several locations, in order', () => {
+    const search = prefillSearch({
+      ...empty,
+      queryLocation: ['router_two', 'router_one', 'router_three'],
+      queryType: '__hyperglass_arista_eos_bgp_route__',
+      queryTarget: '192.0.2.0/24',
+    });
+    expect(new URLSearchParams(search).getAll('location')).toEqual([
+      'router_two',
+      'router_one',
+      'router_three',
+    ]);
+  });
+
+  it('writes the variables under the var. prefix', () => {
+    const search = prefillSearch({
+      ...empty,
+      queryLocation: ['router_one'],
+      queryType: 'bgp_vrf',
+      queryTarget: '192.0.2.0/24',
+      queryVariables: { vrf: 'customer', location: 'default' },
+    });
+    const params = new URLSearchParams(search);
+    expect(params.get('var.vrf')).toBe('customer');
+    expect(params.get('var.location')).toBe('default');
+    expect(params.getAll('location')).toEqual(['router_one']);
+  });
+
+  it('writes nothing for empty values', () => {
+    expect(prefillSearch(empty)).toBe('');
+    expect(
+      prefillSearch({ ...empty, queryLocation: ['router_one'], queryVariables: { vrf: '' } }),
+    ).toBe('?location=router_one');
+  });
+
+  it.each([
+    ['an IPv4 address', '192.0.2.1'],
+    ['an IPv4 prefix', '192.0.2.0/24'],
+    ['an IPv6 address', '2001:db8::1'],
+    ['an IPv6 prefix', '2001:db8::/32'],
+    ['an IPv6 address with a zone', 'fe80::1%eth0'],
+    ['a target with a plus sign and a space', 'a+b c'],
+    ['a target with an ampersand and an equals sign', 'x&target=y'],
+  ])('encodes %s so that parsePrefill reads it back', (_, target) => {
+    const prefill = { ...empty, queryLocation: ['router_one'], queryTarget: target };
+    expect(parsePrefill(prefillSearch(prefill))).toEqual(prefill);
+  });
+
+  it('encodes a zone as %25 and a plus sign as %2B', () => {
+    const search = prefillSearch({ ...empty, queryLocation: ['r'], queryTarget: 'fe80::1%eth0+' });
+    expect(search).toContain('%25eth0%2B');
+  });
+
+  it('round-trips several locations, a query type, a target and variables', () => {
+    const prefill = {
+      queryLocation: ['router_one', 'router_two'],
+      queryType: '__hyperglass_juniper_bgp_route__',
+      queryTarget: '2001:db8::/32',
+      queryVariables: { vrf: 'default', type: 'x' },
+    };
+    expect(parsePrefill(prefillSearch(prefill))).toEqual(prefill);
+  });
+});
+
+describe('prefillLink', () => {
+  const prefill: FormPrefill = {
+    queryLocation: ['router_one'],
+    queryType: '__hyperglass_juniper_ping__',
+    queryTarget: '2001:db8::1',
+    queryVariables: {},
+  };
+  const search = '?location=router_one&type=__hyperglass_juniper_ping__&target=2001%3Adb8%3A%3A1';
+
+  it('links to the page at its origin and path', () => {
+    expect(prefillLink(prefill, { origin: 'https://lg.example.net', pathname: '/' })).toBe(
+      `https://lg.example.net/${search}`,
+    );
+  });
+
+  it('keeps a sub-path, as behind a reverse proxy', () => {
+    expect(
+      prefillLink(prefill, { origin: 'https://example.net:8443', pathname: '/tools/lg/' }),
+    ).toBe(`https://example.net:8443/tools/lg/${search}`);
+  });
+
+  it('keeps a page served as /index.html', () => {
+    expect(
+      prefillLink(prefill, { origin: 'http://[2001:db8::1]', pathname: '/lg/index.html' }),
+    ).toBe(`http://[2001:db8::1]/lg/index.html${search}`);
+  });
+});
+
+describe('a copied link, opened', () => {
+  beforeEach(async () => {
+    queryClient.clear();
+    await useFormState.getState().reset();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+  });
+
+  /** Open `link` as the form does: parse its query string and prefill the form. */
+  function open(link: string, devicesById = getDevice): void {
+    const prefill = parsePrefill(new URL(link).search);
+    expect(prefill).not.toBeNull();
+    useFormState.getState().prefillForm(prefill as FormPrefill, {
+      setError: vi.fn(),
+      clearErrors: vi.fn(),
+      getDevice: devicesById,
+      text: testConfig.web.text,
+    });
+  }
+
+  /** The link the results view would copy for the query now in the form. */
+  function linkToForm(): string {
+    const { form, getDirective } = useFormState.getState();
+    return prefillLink(queryPrefill(form, getDirective()), {
+      origin: 'https://lg.example.net',
+      pathname: '/lg/',
+    });
+  }
+
+  /** Submit `form` from a fresh store, then copy the link and open it in another one. */
+  async function roundTrip(
+    form: { queryLocation: string[]; queryType: string; queryTarget: string[] },
+    variables: Record<string, string> = {},
+    devicesById = getDevice,
+  ) {
+    open(
+      `https://lg.example.net/?${new URLSearchParams([
+        ...form.queryLocation.map(l => ['location', l]),
+        ['type', form.queryType],
+      ]).toString()}`,
+      devicesById,
+    );
+    useFormState.getState().setFormValue('queryTarget', form.queryTarget);
+    useFormState.getState().setFormValue('queryVariables', variables);
+    const submitted = useFormState.getState().form;
+    const link = linkToForm();
+
+    await useFormState.getState().reset();
+    open(link, devicesById);
+    return { submitted, link };
+  }
+
+  it.each([
+    ['one location and an IPv4 target', ['router_one'], '__hyperglass_juniper_ping__', '192.0.2.1'],
+    [
+      'several locations and an IPv6 prefix',
+      ['router_one', 'router_two', 'router_three'],
+      '__hyperglass_juniper_bgp_route__',
+      '2001:db8::/32',
+    ],
+    ['an IPv4 prefix', ['router_two'], '__hyperglass_arista_eos_bgp_route__', '192.0.2.0/24'],
+    ['an IPv6 address', ['router_three'], '__hyperglass_frr_ping__', '2001:db8::1'],
+    ['an IPv6 address with a zone', ['router_one'], '__hyperglass_juniper_ping__', 'fe80::1%eth0'],
+    ['a select target', ['router_three'], 'peer_communities', '65000:2'],
+  ])('fills in the same query: %s', async (_, queryLocation, queryType, target) => {
+    const { submitted } = await roundTrip({ queryLocation, queryType, queryTarget: [target] });
+
+    const { form, target: display, status } = useFormState.getState();
+    expect(form).toEqual(submitted);
+    expect(form.queryTarget).toEqual([target]);
+    expect(display.display).toBe(target);
+    // Opening a link only fills in the form.
+    expect(status).toBe('form');
+  });
+
+  it('fills in the same variables', async () => {
+    const vrf = {
+      id: 'vrf',
+      name: 'VRF',
+      required: false,
+      options: [
+        { name: 'Default', value: 'default', description: null },
+        { name: 'Customer', value: 'customer', description: null },
+      ],
+    };
+    const withVrf = {
+      ...device('router_one').directives[0],
+      id: 'bgp_vrf',
+      name: 'BGP Route in a VRF',
+      variables: [vrf],
+    } as Directive;
+    const one = { ...device('router_one'), directives: [withVrf] };
+    const byId = (id: string): Device | null => (id === 'router_one' ? one : getDevice(id));
+
+    const { submitted, link } = await roundTrip(
+      { queryLocation: ['router_one'], queryType: 'bgp_vrf', queryTarget: ['2001:db8::/32'] },
+      { vrf: 'customer' },
+      byId,
+    );
+
+    expect(new URL(link).searchParams.get('var.vrf')).toBe('customer');
+    expect(useFormState.getState().form).toEqual(submitted);
+    expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'customer' });
   });
 });

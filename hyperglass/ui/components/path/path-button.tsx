@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@chakra-ui/react';
+import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 
 interface PathButtonProps {
@@ -7,9 +8,18 @@ interface PathButtonProps {
 
 export const PathButton = (props: PathButtonProps): JSX.Element => {
   const { onOpen } = props;
+  const { web } = useConfig();
+  const label = web.text.viewAsPath;
   return (
-    <Tooltip hasArrow label="View AS Path" placement="top">
-      <Button as="a" mx={1} size="sm" variant="ghost" onClick={onOpen} colorScheme="secondary">
+    <Tooltip hasArrow label={label} placement="top">
+      <Button
+        mx={1}
+        size="sm"
+        variant="ghost"
+        onClick={onOpen}
+        aria-label={label}
+        colorScheme="secondary"
+      >
         <DynamicIcon icon={{ bi: 'BiNetworkChart' }} boxSize="16px" />
       </Button>
     </Tooltip>

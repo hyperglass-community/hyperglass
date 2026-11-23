@@ -1,10 +1,11 @@
 import { Accordion } from '@chakra-ui/react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BiError } from 'react-icons/bi';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders, testConfig } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
+import { formatTimestamp } from '~/util';
 import { Result } from './individual';
 
 import type { Config } from '~/types';
@@ -169,8 +170,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unmount before resetting the store. Testing Library's own cleanup runs after this
+  // hook, and zustand 5 delivers the reset to a mounted `Result` at once: it would query
+  // the emptied form with the real `fetch`, and that request fails during the next test.
+  cleanup();
   useFormState.setState(initialFormState, true);
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -231,8 +237,12 @@ describe('Result', () => {
       expect(within(table).getByText('Prefix')).toBeInTheDocument();
       expect(within(table).getByText('192.0.2.0/24')).toBeInTheDocument();
       expect(container.querySelector('pre')).not.toBeInTheDocument();
-      // AS path, copy and requery.
-      expect(actionButtons()).toHaveLength(3);
+      // AS path, copy and requery, each named by its `web.text` label (#533).
+      expect(actionButtons()).toEqual([
+        screen.getByRole('button', { name: 'View AS Path' }),
+        screen.getByRole('button', { name: 'Copy Output' }),
+        screen.getByRole('button', { name: 'Reload Query' }),
+      ]);
       await userEvent.hover(actionButtons()[0]);
       expect(
         await screen.findByRole('tooltip', { name: 'View AS Path' }, IMPORT_WAIT),
@@ -456,7 +466,15 @@ describe('Result', () => {
       expect(screen.getByText(testConfig.web.text.cachePrefix.trim())).toBeInTheDocument();
     });
 
-    it('shows the cache time in a tooltip on wide screens', async () => {
+    it("shows the cache time in a tooltip on wide screens, in the viewer's time zone", async () => {
+      // The backend's timestamp is naive UTC. Run in a zone that isn't UTC (UTC-5 in
+      // November), so the formatted time differs from the raw value. `util/timestamp.test.ts`
+      // covers the conversion itself; this checks the tooltip uses it.
+      const timestamp = '2026-11-20 08:00:00';
+      vi.stubEnv('TZ', 'America/Toronto');
+      // Same locale as the component (the runner's), with the zone given explicitly.
+      const expected = formatTimestamp(timestamp, { timeZone: 'America/Toronto' });
+      expect(expected).not.toBe(timestamp);
       // Match only the open-ended widest breakpoint query, so Chakra picks a desktop layout.
       vi.spyOn(window, 'matchMedia').mockImplementation(
         query =>
@@ -471,7 +489,7 @@ describe('Result', () => {
             dispatchEvent: () => false,
           }) as MediaQueryList,
       );
-      stubFetch(answer(response({ cached: true, timestamp: '2026-11-20 08:00:00' })));
+      stubFetch(answer(response({ cached: true, timestamp })));
       const { container } = renderResult();
       await settled();
 
@@ -487,13 +505,8 @@ describe('Result', () => {
 
       await userEvent.hover(lightning);
 
-      expect(
-        await screen.findByRole(
-          'tooltip',
-          { name: 'Cached from 2026-11-20 08:00:00 UTC' },
-          IMPORT_WAIT,
-        ),
-      ).toBeInTheDocument();
+      const tooltip = await screen.findByRole('tooltip', {}, IMPORT_WAIT);
+      expect(tooltip.textContent).toBe(`Cached from ${expected}`);
     });
 
     it('hides the cache countdown for a fresh response', async () => {

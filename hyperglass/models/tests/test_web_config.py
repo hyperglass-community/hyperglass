@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from hyperglass.constants import DNS_OVER_HTTPS
 
 # Local
-from ..config.web import Logo, DnsOverHttps
+from ..config.web import Logo, Text, DnsOverHttps
 
 
 @pytest.mark.parametrize("value", (50, "50", "50%"))
@@ -61,3 +61,69 @@ def test_dns_provider_invalid(data):
     assert "web.dns_provider" in message
     for name in DNS_OVER_HTTPS:
         assert name in message
+
+
+def test_result_button_text_defaults():
+    """The icon-only result buttons keep their English labels by default (#533)."""
+    text = Text()
+    assert (text.copy_output, text.reload_query, text.view_as_path) == (
+        "Copy Output",
+        "Reload Query",
+        "View AS Path",
+    )
+
+
+def test_result_button_text_exported_camel_case():
+    """The UI reads the labels as camelCase keys of `web.text`."""
+    exported = Text(copy_output="Copier").model_dump(by_alias=True)
+    assert exported["copyOutput"] == "Copier"
+    assert exported["reloadQuery"] == "Reload Query"
+    assert exported["viewAsPath"] == "View AS Path"
+
+
+def test_copy_link_text_defaults():
+    """The copy link button's text defaults to English and is exported as camelCase (#577)."""
+    text = Text()
+    assert (text.copy_link, text.link_copied, text.query_link) == (
+        "Copy Link",
+        "Link copied",
+        "Link to this query",
+    )
+    exported = Text(copy_link="Copier le lien").model_dump(by_alias=True)
+    assert exported["copyLink"] == "Copier le lien"
+    assert exported["linkCopied"] == "Link copied"
+    assert exported["queryLink"] == "Link to this query"
+
+
+def test_as_path_and_pagination_text_defaults():
+    """The AS path chart and table pagination text defaults to English (#541)."""
+    text = Text()
+    assert text.as_path_title == "Path to {target}"
+    assert (text.zoom_in, text.zoom_out, text.fit_nodes) == ("Zoom In", "Zoom Out", "Fit Nodes")
+    assert (text.first_page, text.previous_page, text.next_page, text.last_page) == (
+        "First Page",
+        "Previous Page",
+        "Next Page",
+        "Last Page",
+    )
+
+
+def test_as_path_and_pagination_text_exported_camel_case():
+    """The UI reads the text as camelCase keys of `web.text`."""
+    exported = Text(as_path_title="Chemin vers {target}").model_dump(by_alias=True)
+    assert exported["asPathTitle"] == "Chemin vers {target}"
+    for key in (
+        "zoomIn",
+        "zoomOut",
+        "fitNodes",
+        "firstPage",
+        "previousPage",
+        "nextPage",
+        "lastPage",
+    ):
+        assert key in exported
+
+
+def test_cache_icon_default_has_no_time_zone():
+    """The UI shows `{time}` in the viewer's time zone, so the default doesn't say UTC (#551)."""
+    assert Text().cache_icon == "Cached from {time}"

@@ -298,7 +298,7 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.fqdn_error`        | String | Unable to resolve \{fqdn\}            | Text used when an FQDN is not resolvable.                                                                                                                               |
 | `web.text.fqdn_error_button` | String | Try Again                             | Button text used when an FQDN is not resolvable.                                                                                                                        |
 | `web.text.cache_prefix`      | String | Results cached for                    | Text displayed with the cache timeout countdown.                                                                                                                        |
-| `web.text.cache_icon`        | String | Cached from \{time\} UTC              | Text used when a user hovers over the cache icon, which is displayed when a response was a cached response. `{time}` is replaced with the _original_ query's timestamp. |
+| `web.text.cache_icon`        | String | Cached from \{time\}                  | Text used when a user hovers over the cache icon, which is displayed when a response was a cached response. `{time}` is replaced with the _original_ query's timestamp, shown in the viewer's locale and time zone. |
 | `web.text.complete_time`     | String | Completed in \{seconds\}              | Text used when a user hovers over the success icon for a query result. `{seconds}` will be replaced with 'n seconds' where n is the time a query took to complete.      |
 | `web.text.rpki_invalid`      | String | Invalid                               | Text used in table output when a route's RPKI status is invalid.                                                                                                        |
 | `web.text.rpki_valid`        | String | Valid                                 | Text used in table output when a route's RPKI status is valid.                                                                                                          |
@@ -311,6 +311,20 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.ip_button`         | String | My IP                                 | Text used for the user IP button.                                                                                                                                       |
 | `web.text.ip_lookup_notice` | String | This sends your IP address to myip.wtf to look it up. | Notice shown before the external My IP lookup. |
 | `web.text.ip_lookup_confirm` | String | Look up my IP | Button that confirms the external My IP lookup. |
+| `web.text.copy_output` | String | Copy Output | Tooltip and accessible name of the button that copies a result. |
+| `web.text.reload_query` | String | Reload Query | Tooltip and accessible name of the button that runs a query again. |
+| `web.text.view_as_path` | String | View AS Path | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.copy_link` | String | Copy Link | Tooltip and accessible name of the button that copies a link to the submitted query. |
+| `web.text.link_copied` | String | Link copied | Confirmation shown and announced after the link is copied. |
+| `web.text.query_link` | String | Link to this query | Label of the read-only field that shows the link when the browser can't copy it. |
+| `web.text.as_path_title` | String | Path to \{target\} | Heading of the AS path chart. `{target}` is replaced with the query target. |
+| `web.text.zoom_in` | String | Zoom In | Accessible name of the AS path chart's zoom in button. |
+| `web.text.zoom_out` | String | Zoom Out | Accessible name of the AS path chart's zoom out button. |
+| `web.text.fit_nodes` | String | Fit Nodes | Accessible name of the AS path chart's button that fits the whole path in view. |
+| `web.text.first_page` | String | First Page | Accessible name of the table button that shows the first page. |
+| `web.text.previous_page` | String | Previous Page | Accessible name of the table button that shows the previous page. |
+| `web.text.next_page` | String | Next Page | Accessible name of the table button that shows the next page. |
+| `web.text.last_page` | String | Last Page | Accessible name of the table button that shows the last page. |
 
 #### Title Mode
 

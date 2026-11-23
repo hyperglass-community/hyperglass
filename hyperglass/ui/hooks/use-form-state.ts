@@ -2,8 +2,10 @@ import intersectionWith from 'lodash/intersectionWith';
 import plur from 'plur';
 import { useMemo } from 'react';
 import isEqual from 'react-fast-compare';
-import create from 'zustand';
+import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { queryClient } from '~/context';
+import { isSelectDirective } from '~/types';
 import { all, andJoin, dedupObjectArray, withDev } from '~/util';
 
 import type { UseFormClearErrors, UseFormSetError } from 'react-hook-form';
@@ -42,6 +44,150 @@ interface Target {
   display: string;
 }
 
+/**
+ * Form values read from a link (see `parsePrefill`), not yet checked against the
+ * configuration. `prefillForm` applies the ones the configuration allows.
+ */
+export interface FormPrefill {
+  /** Location (device) IDs. */
+  queryLocation: string[];
+  /** A query type's directive ID or name. */
+  queryType: string | null;
+  queryTarget: string | null;
+  /** Variable values by variable ID. */
+  queryVariables: Record<string, string>;
+}
+
+/** What `locationChange` and `prefillForm` need from the form. */
+interface LocationChangeExtra {
+  setError: UseFormSetError<FormData>;
+  clearErrors: UseFormClearErrors<FormData>;
+  getDevice: UseDeviceReturn;
+  text: Text;
+}
+
+/**
+ * Control characters and line separators, which the backend rejects in a query target
+ * (`validate_query_target_characters` in `models/api/query.py`).
+ */
+const CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
+/** Query parameter prefix of directive variables, e.g. `var.vrf=default`. */
+const VARIABLE_PARAM = 'var.';
+
+/**
+ * Read form values from a URL query string such as `window.location.search`:
+ * `?location=<id>&location=<id>&type=<id or name>&target=<value>&var.<id>=<value>`.
+ *
+ * Variables are namespaced because a variable may be named `location` or `type`. Empty
+ * values are skipped; for `type`, `target` and each variable the first value is used.
+ * Returns `null` when the query string has none of these parameters.
+ */
+export function parsePrefill(search: string): FormPrefill | null {
+  const params = new URLSearchParams(search);
+  const queryLocation = Array.from(new Set(params.getAll('location').filter(l => l !== '')));
+  const queryType = params.get('type') || null;
+  const queryTarget = params.get('target') || null;
+  const queryVariables: Record<string, string> = {};
+  for (const [key, value] of params) {
+    const id = key.slice(VARIABLE_PARAM.length);
+    if (
+      key.startsWith(VARIABLE_PARAM) &&
+      id !== '' &&
+      value !== '' &&
+      !Object.hasOwn(queryVariables, id)
+    ) {
+      queryVariables[id] = value;
+    }
+  }
+  if (
+    queryLocation.length === 0 &&
+    queryType === null &&
+    queryTarget === null &&
+    Object.keys(queryVariables).length === 0
+  ) {
+    return null;
+  }
+  return { queryLocation, queryType, queryTarget, queryVariables };
+}
+
+/** Whether `parsePrefill` reads the query parameter with this (decoded) name. */
+function isPrefillParam(key: string): boolean {
+  return ['location', 'type', 'target'].includes(key) || key.startsWith(VARIABLE_PARAM);
+}
+
+/**
+ * The query string without the parameters `parsePrefill` reads, keeping the others as
+ * they were written: `''` or a string that starts with `?`. Without such parameters,
+ * `search` unchanged.
+ */
+export function withoutPrefill(search: string): string {
+  const parts = search.replace(/^\?/, '').split('&');
+  // Each part's name, decoded as `URLSearchParams` decodes it.
+  const keep = parts.filter(part => {
+    const [key] = Array.from(new URLSearchParams(part).keys());
+    return key !== undefined && !isPrefillParam(key);
+  });
+  if (keep.length === parts.filter(part => part !== '').length) {
+    return search;
+  }
+  return keep.length === 0 ? '' : `?${keep.join('&')}`;
+}
+
+/**
+ * The values of a submitted query for a link (see `prefillSearch`): its locations, query
+ * type, target and variables, as the form submitted them. A query type without a target
+ * field has no target in the link: the form submits a placeholder for it, which
+ * `prefillForm` would leave out anyway.
+ */
+export function queryPrefill(form: FormData, directive: Directive | null): FormPrefill {
+  return {
+    queryLocation: form.queryLocation,
+    queryType: form.queryType === '' ? null : form.queryType,
+    queryTarget: directive?.fieldType === null ? null : form.queryTarget[0] ?? null,
+    queryVariables: form.queryVariables ?? {},
+  };
+}
+
+/**
+ * The query string that `parsePrefill` reads back as `prefill`: `''` or a string that
+ * starts with `?`. Values are encoded by `URLSearchParams`, so an IPv6 address, a prefix
+ * or a zone (`%`) reads back as written. Empty values are left out, as `parsePrefill`
+ * skips them.
+ */
+export function prefillSearch(prefill: FormPrefill): string {
+  const params = new URLSearchParams();
+  for (const location of new Set(prefill.queryLocation)) {
+    if (location !== '') {
+      params.append('location', location);
+    }
+  }
+  if (prefill.queryType) {
+    params.append('type', prefill.queryType);
+  }
+  if (prefill.queryTarget) {
+    params.append('target', prefill.queryTarget);
+  }
+  for (const [id, value] of Object.entries(prefill.queryVariables)) {
+    if (id !== '' && value !== '') {
+      params.append(`${VARIABLE_PARAM}${id}`, value);
+    }
+  }
+  const search = params.toString();
+  return search === '' ? '' : `?${search}`;
+}
+
+/**
+ * A link that fills in the form with `prefill` on this page: the page's origin and path
+ * (so a sub-path behind a reverse proxy is kept), without its query string or fragment.
+ */
+export function prefillLink(
+  prefill: FormPrefill,
+  page: Pick<Location, 'origin' | 'pathname'>,
+): string {
+  return `${page.origin}${page.pathname}${prefillSearch(prefill)}`;
+}
+
 interface FormStateType<Opt extends SingleOption = SingleOption> {
   // Values
   filtered: Filtered;
@@ -69,15 +215,35 @@ interface FormStateType<Opt extends SingleOption = SingleOption> {
   reset(): Promise<void>;
   back(): void;
   setFormValue<K extends keyof FormValues>(field: K, value: FormValues[K]): void;
-  locationChange(
-    locations: string[],
-    extra: {
-      setError: UseFormSetError<FormData>;
-      clearErrors: UseFormClearErrors<FormData>;
-      getDevice: UseDeviceReturn;
-      text: Text;
-    },
-  ): void;
+  locationChange(locations: string[], extra: LocationChangeExtra): void;
+  prefillForm(prefill: FormPrefill, extra: LocationChangeExtra): void;
+}
+
+/**
+ * Whether `to` offers the target entered for `from`, a directive of the same name: it
+ * takes the same kind of target and, for a select, offers every selected value.
+ */
+function offersTarget(from: Directive, to: Directive, target: string[]): boolean {
+  if (from.fieldType !== to.fieldType) {
+    return false;
+  }
+  if (isSelectDirective(to)) {
+    return target.every(value => to.options.some(option => option.value === value));
+  }
+  return true;
+}
+
+/** The variable values that `directive` defines and offers, keyed by variable ID. */
+function offeredVariables(
+  directive: Directive,
+  values: Record<string, string>,
+): Record<string, string> {
+  const variables = directive.variables ?? [];
+  return Object.fromEntries(
+    Object.entries(values).filter(([id, value]) =>
+      variables.some(v => v.id === id && v.options.some(option => option.value === value)),
+    ),
+  );
 }
 
 const formState: StateCreator<FormStateType> = (set, get) => ({
@@ -134,16 +300,11 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
     return null;
   },
 
-  locationChange(
-    locations: string[],
-    extra: {
-      setError: UseFormSetError<FormData>;
-      clearErrors: UseFormClearErrors<FormData>;
-      getDevice: UseDeviceReturn;
-      text: Text;
-    },
-  ): void {
+  locationChange(locations: string[], extra: LocationChangeExtra): void {
     const { setError, clearErrors, getDevice, text } = extra;
+
+    // The current query type's directive among the ones offered until now.
+    const previous = get().getDirective();
 
     clearErrors('queryLocation');
     set(state => ({ form: { ...state.form, queryLocation: locations } }));
@@ -181,7 +342,6 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
 
     set({ filtered: { groups: intersecting, types: directives } });
 
-    // If there is only one intersecting group, set it as the form value so the user doesn't have to.
     const { selections, form } = get();
     if (
       (form.queryLocation.length > 1 || locations.length > 1) &&
@@ -192,11 +352,154 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       const types = plur(text.queryType, 2);
       const message = `${start} ${locationsAnd} have no ${types} in common.`;
       setError('queryLocation', { message });
+    }
+
+    // Keep the current query type if the new locations still offer it. Directives are
+    // intersected by `name` and the offered IDs are the first location's, so the same
+    // query type can be offered under another ID: follow it there.
+    const kept =
+      previous === null
+        ? undefined
+        : directives.find(d => d.id === previous.id) ??
+          directives.find(d => d.name === previous.name);
+
+    if (kept !== undefined && previous !== null) {
+      if (kept.id !== previous.id) {
+        // The same query type under another ID. Builtin directives differ only by vendor,
+        // but two custom directives can share a name and nothing else, so keep only what
+        // the new directive offers: values it doesn't define would be submitted unseen
+        // and rejected (or, for a select target, shown in a field that no longer offers
+        // them). A text target stays, as it is shown and checked against the new rules.
+        // While several locations stay selected, the same values go to each location's
+        // directive of that name, so custom directives that share a name must also share
+        // their variables and variable options, or the other locations reject the query.
+        set(state => {
+          const keepTarget = offersTarget(previous, kept, state.form.queryTarget);
+          return {
+            form: {
+              ...state.form,
+              queryType: kept.id,
+              queryTarget: keepTarget ? state.form.queryTarget : [],
+              queryVariables: offeredVariables(kept, state.form.queryVariables),
+            },
+            selections: { ...state.selections, queryType: { value: kept.id, label: kept.name } },
+            target: keepTarget ? state.target : { display: '' },
+          };
+        });
+      }
     } else if (intersectingDirectives.length === 1) {
+      // If there is only one intersecting directive, choose it so the user doesn't have to.
+      // It isn't the current query type (that one would be kept above), so clear the
+      // target as choosing another query type does: it may expect another kind of target.
+      const [only] = intersectingDirectives;
       set(state => ({
-        form: { ...state.form, queryType: intersectingDirectives[0].id, queryVariables: {} },
+        form: { ...state.form, queryType: only.id, queryTarget: [], queryVariables: {} },
+        // Select the option too, so the query type select shows it.
+        selections: { ...state.selections, queryType: { value: only.id, label: only.name } },
+        target: { display: '' },
+      }));
+    } else if (form.queryType !== '') {
+      // The new locations don't offer the current query type: clear it and what depends
+      // on it, as choosing another query type does.
+      set(state => ({
+        form: { ...state.form, queryType: '', queryTarget: [], queryVariables: {} },
+        selections: { ...state.selections, queryType: null },
+        target: { display: '' },
       }));
     }
+  },
+
+  prefillForm(prefill: FormPrefill, extra: LocationChangeExtra): void {
+    // Each value goes through the same steps as the user's input, in the form's order,
+    // so a value the configuration doesn't offer is left out as the form would.
+    const devices = prefill.queryLocation
+      .map(extra.getDevice)
+      .filter((device): device is Device => device !== null);
+    if (devices.length === 0) {
+      // The query type, target and variables depend on a location.
+      return;
+    }
+
+    // The link replaces the query in the form: clear its query type, target and
+    // variables first, so none of them is kept when the link's is left out or missing.
+    // Then, as `QueryLocation` does, select the options and change the locations.
+    set(state => ({
+      form: { ...state.form, queryType: '', queryTarget: [], queryVariables: {} },
+      selections: {
+        queryLocation: devices.map(d => ({ value: d.id, label: d.name })),
+        queryType: null,
+      },
+      target: { display: '' },
+    }));
+    get().locationChange(
+      devices.map(d => d.id),
+      extra,
+    );
+
+    // Query type: by the ID of an offered directive, then by name. Offered directives
+    // carry the first location's IDs, so another selected location's ID for the same
+    // query type is matched by that directive's name, as the backend resolves it.
+    const offered = get().filtered.types;
+    const wanted = prefill.queryType;
+    const ofLocation = devices.flatMap(d => d.directives).find(d => d.id === wanted);
+    const queryType =
+      wanted === null
+        ? undefined
+        : offered.find(d => d.id === wanted) ??
+          offered.find(d => d.name === wanted) ??
+          offered.find(d => d.name === ofLocation?.name);
+    if (wanted !== null && queryType === undefined) {
+      // A query type the locations don't offer: its target and variables can't apply,
+      // also not to a query type `locationChange` chose on its own.
+      return;
+    }
+    if (queryType !== undefined) {
+      // Its target and variables are empty: the query was cleared above, and
+      // `locationChange` clears them when it chooses the only query type.
+      set(state => ({
+        form: { ...state.form, queryType: queryType.id },
+        selections: {
+          ...state.selections,
+          queryType: { value: queryType.id, label: queryType.name },
+        },
+      }));
+    }
+
+    // The target and variables of the query type now selected, whether it came from the
+    // link or was the only one offered.
+    const directive = get().getDirective();
+    if (directive === null) {
+      return;
+    }
+    // A directive without a field type has no target; the form fills in its own. A
+    // select target must be one of the options. A text target is checked on submit, as
+    // a typed one is, except for control characters and line separators: the backend
+    // rejects them in any target, and the input wouldn't show them.
+    const target = prefill.queryTarget;
+    if (
+      target !== null &&
+      !CONTROL_CHARACTERS.test(target) &&
+      directive.fieldType !== null &&
+      (!isSelectDirective(directive) || directive.options.some(o => o.value === target))
+    ) {
+      set(state => ({
+        form: { ...state.form, queryTarget: [target] },
+        target: { display: target },
+      }));
+    }
+
+    const variables: Record<string, string> = {};
+    for (const variable of directive.variables ?? []) {
+      // Own values only: an ID such as `constructor` would otherwise read Object's.
+      if (!Object.hasOwn(prefill.queryVariables, variable.id)) {
+        continue;
+      }
+      const value = prefill.queryVariables[variable.id];
+      if (variable.options.some(o => o.value === value)) {
+        variables[variable.id] = value;
+      }
+    }
+    set(state => ({ form: { ...state.form, queryVariables: variables } }));
   },
 
   response(deviceId: string): QueryResponse | null {
@@ -257,7 +560,7 @@ export function useFormSelections<Opt extends SingleOption = SingleOption>(): Fo
 }
 
 export function useView(): FormStatus {
-  const { status, form } = useFormState(({ status, form }) => ({ status, form }));
+  const { status, form } = useFormState(useShallow(({ status, form }) => ({ status, form })));
   return useMemo(() => {
     const ready = all(
       status === 'results',
@@ -270,6 +573,8 @@ export function useView(): FormStatus {
 }
 
 export function useFormInteractive(): boolean {
-  const { status, selections } = useFormState(({ status, selections }) => ({ status, selections }));
+  const { status, selections } = useFormState(
+    useShallow(({ status, selections }) => ({ status, selections })),
+  );
   return status === 'results' || selections.queryLocation.length > 0;
 }

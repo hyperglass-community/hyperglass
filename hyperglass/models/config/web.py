@@ -136,7 +136,7 @@ class Text(HyperglassModel):
     fqdn_error: str = "Unable to resolve {fqdn}"  # Formatted by Javascript
     fqdn_error_button: str = "Try Again"
     cache_prefix: str = "Results cached for "
-    cache_icon: str = "Cached from {time} UTC"  # Formatted by Javascript
+    cache_icon: str = "Cached from {time}"  # Formatted by Javascript
     complete_time: str = "Completed in {seconds}"  # Formatted by Javascript
     rpki_invalid: str = "Invalid"
     rpki_valid: str = "Valid"
@@ -150,6 +150,25 @@ class Text(HyperglassModel):
     # Shown before the external lookup when `web.my_ip` is `external`.
     ip_lookup_notice: str = "This sends your IP address to myip.wtf to look it up."
     ip_lookup_confirm: str = "Look up my IP"
+    # Tooltips and accessible names of the icon-only result buttons.
+    copy_output: str = "Copy Output"
+    reload_query: str = "Reload Query"
+    view_as_path: str = "View AS Path"
+    # Results view: the button that copies a link to the query, its confirmation, and the
+    # label of the field that shows the link when the clipboard isn't available.
+    copy_link: str = "Copy Link"
+    link_copied: str = "Link copied"
+    query_link: str = "Link to this query"
+    # AS path chart: modal heading and the accessible names of its zoom controls.
+    as_path_title: str = "Path to {target}"  # Formatted by Javascript
+    zoom_in: str = "Zoom In"
+    zoom_out: str = "Zoom Out"
+    fit_nodes: str = "Fit Nodes"
+    # Accessible names of the table pagination buttons.
+    first_page: str = "First Page"
+    previous_page: str = "Previous Page"
+    next_page: str = "Next Page"
+    last_page: str = "Last Page"
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

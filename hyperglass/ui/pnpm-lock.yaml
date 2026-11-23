@@ -137,8 +137,8 @@ importers:
         specifier: ^3.2.8
         version: 3.2.8
       zustand:
-        specifier: ^3.7.2
-        version: 3.7.2(react@18.2.0)
+        specifier: ^5.0.16
+        version: 5.0.16(@types/react@18.2.60)(react@18.2.0)(use-sync-external-store@1.2.0(react@18.2.0))
     devDependencies:
       '@babel/core':
         specifier: ^7.29.13
@@ -4322,15 +4322,6 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  zustand@3.7.2:
-    resolution: {integrity: sha512-PIJDIZKtokhof+9+60cpockVOq05sJzHCriyvaLBmEJixseQ1a5Kdov6fWZfWOu5SK9c+FhH1jU0tntLxRJYMA==}
-    engines: {node: '>=12.7.0'}
-    peerDependencies:
-      react: '>=16.8'
-    peerDependenciesMeta:
-      react:
-        optional: true
-
   zustand@4.5.1:
     resolution: {integrity: sha512-XlauQmH64xXSC1qGYNv00ODaQ3B+tNPoy22jv2diYiP4eoDKr9LA+Bh5Bc3gplTrFdb6JVI+N4kc1DZ/tbtfPg==}
     engines: {node: '>=12.7.0'}
@@ -4344,6 +4335,24 @@ packages:
       immer:
         optional: true
       react:
+        optional: true
+
+  zustand@5.0.16:
+    resolution: {integrity: sha512-Uv7e327ihlCfayfja3hDc0M64Upev1LWBKpRobdK4NyovDDPeeX4imWXc/wzC1yc6fkYPoAY/ncKVPAs2jrtQw==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
         optional: true
 
   zwitch@1.0.5:
@@ -8942,15 +8951,17 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zustand@3.7.2(react@18.2.0):
-    optionalDependencies:
-      react: 18.2.0
-
   zustand@4.5.1(@types/react@18.2.60)(react@18.2.0):
     dependencies:
       use-sync-external-store: 1.2.0(react@18.2.0)
     optionalDependencies:
       '@types/react': 18.2.60
       react: 18.2.0
+
+  zustand@5.0.16(@types/react@18.2.60)(react@18.2.0)(use-sync-external-store@1.2.0(react@18.2.0)):
+    optionalDependencies:
+      '@types/react': 18.2.60
+      react: 18.2.0
+      use-sync-external-store: 1.2.0(react@18.2.0)
 
   zwitch@1.0.5: {}
