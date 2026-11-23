@@ -199,8 +199,9 @@ _health_redis: t.Dict[str, Redis] = {}
 def ping_redis(dsn: str) -> None:
     """Ping Redis over a dedicated, short-timeout connection.
 
-    The shared connection pool has no socket timeouts, so a ping through it can
-    hang for as long as the operating system waits on an unreachable host.
+    The shared connection pool's timeouts are set by the operator
+    (`HYPERGLASS_REDIS_CONNECT_TIMEOUT`, `HYPERGLASS_REDIS_SOCKET_TIMEOUT`) and
+    can be longer than the healthcheck's own timeout, so the probe uses its own.
     """
     client = _health_redis.get(dsn)
     if client is None:
@@ -291,8 +292,8 @@ shared_health_check = SharedHealthCheck()
 
 
 # Replaces the app-wide `recover_state` hook. That hook reads Redis through the
-# shared pool, which has no timeouts, so an unreachable Redis would hang the
-# check before it runs. The checks probe Redis first, then recover state.
+# shared pool, whose timeouts the operator sets, so an unreachable Redis could
+# delay the check before it runs. The checks probe Redis first, then recover state.
 @get("/api/health", before_request=skip_state_recovery, include_in_schema=False)
 async def health() -> Response:
     """Report whether hyperglass can serve queries.
