@@ -500,7 +500,7 @@ class Web(HyperglassModel):
     custom_html: t.Optional[FilePath] = None
     highlight: t.List[HighlightPattern] = []
     # BCP 47 language tag, such as `fr` or `pt-BR`, for the route table's age and the
-    # time in its tooltip. A language dayjs has no translation for falls back to English.
+    # time in its tooltip. Without a translation for it, both are English.
     locale: str = Field(default="en", pattern=LOCALE_PATTERN)
 
     @model_validator(mode="after")

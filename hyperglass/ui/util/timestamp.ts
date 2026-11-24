@@ -57,18 +57,9 @@ export function formatTimestamp(value: string, options: FormatTimestampOptions =
   if (parsed === null) {
     return value;
   }
-  return formatDate(parsed, options);
-}
-
-/**
- * Show a date with its date, time and zone, in the medium date and long time styles of
- * `options.locale` (the viewer's by default), in `options.timeZone` (the viewer's by
- * default).
- */
-export function formatDate(date: Date, options: FormatTimestampOptions = {}): string {
   return new Intl.DateTimeFormat(options.locale, {
     timeZone: options.timeZone,
     dateStyle: 'medium',
     timeStyle: 'long',
-  }).format(date);
+  }).format(parsed);
 }

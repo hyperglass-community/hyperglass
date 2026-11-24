@@ -6,7 +6,7 @@ import { useTableToString } from './use-table-to-string';
 
 vi.mock('~/context', () => ({
   useConfig: () => ({
-    web: { text: {} },
+    web: { text: {}, locale: 'en' },
     parsedDataFields: [],
     messages: { noOutput: 'No output' },
   }),

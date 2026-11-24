@@ -1,13 +1,20 @@
-import { Box, Flex, Link, Menu, MenuButton, MenuList, Text, Tooltip } from '@chakra-ui/react';
-import dayjs from 'dayjs';
-import relativeTimePlugin from 'dayjs/plugin/relativeTime';
-import utcPlugin from 'dayjs/plugin/utc';
-import { forwardRef } from 'react';
+import {
+  Box,
+  Flex,
+  Link,
+  Menu,
+  MenuButton,
+  MenuList,
+  Text,
+  Tooltip,
+  VisuallyHidden,
+} from '@chakra-ui/react';
+import { forwardRef, useId } from 'react';
 import { Else, If, Then } from 'react-if';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import { useColorValue, useDayjsLocale, useOpposingColor } from '~/hooks';
-import { formatDate, formatText } from '~/util';
+import { formatAge, formatText } from '~/util';
 
 import type { TextProps } from '@chakra-ui/react';
 
@@ -55,9 +62,6 @@ interface RPKIStateProps {
   active: boolean;
 }
 
-dayjs.extend(relativeTimePlugin);
-dayjs.extend(utcPlugin);
-
 interface MarkerProps {
   label: string;
   icon: Record<string, string>;
@@ -69,24 +73,34 @@ interface FocusableTooltipProps extends TextProps {
 
 /**
  * Text with a tooltip that keyboard and touch users can open too. The text takes focus,
- * so tabbing to it opens the tooltip, which the trigger names with `aria-describedby`
- * while it is open, and a tap shows it on touch screens; `closeOnClick` is off so the
- * tap that focuses it doesn't close it again.
+ * so tabbing to it opens the tooltip, and a tap shows it on touch screens; `closeOnClick`
+ * is off so the tap that focuses it doesn't close it again.
+ *
+ * Screen readers get `label` from a visually hidden description instead of the tooltip,
+ * which exists only while it is open: the text names it with `aria-describedby`, and
+ * reading the table without moving focus reads it after the text. The tooltip wraps the
+ * text and the description because it sets `aria-describedby` on its own trigger, and
+ * removes it while closed; focus and pointer events reach it from the text.
  */
 const FocusableTooltip = (props: FocusableTooltipProps): JSX.Element => {
   const { label, children, ...rest } = props;
+  const descriptionId = useId();
   return (
     <Tooltip hasArrow label={label} placement="right" closeOnClick={false}>
-      <Text
-        as="span"
-        tabIndex={0}
-        display="inline-block"
-        borderRadius="sm"
-        _focusVisible={{ boxShadow: 'outline', outline: 'none' }}
-        {...rest}
-      >
-        {children}
-      </Text>
+      <Box as="span" display="inline-block">
+        <Text
+          as="span"
+          tabIndex={0}
+          display="inline-block"
+          borderRadius="sm"
+          aria-describedby={descriptionId}
+          _focusVisible={{ boxShadow: 'outline', outline: 'none' }}
+          {...rest}
+        >
+          {children}
+        </Text>
+        <VisuallyHidden id={descriptionId}>{label}</VisuallyHidden>
+      </Box>
     </Tooltip>
   );
 };
@@ -148,23 +162,6 @@ export const Active = (props: ActiveProps): JSX.Element => {
     </If>
   );
 };
-
-/**
- * Format an age of `inSeconds` without a suffix ("2 hours"), and the time that long ago
- * in UTC, both in `locale`. The age uses `dayjsLocale`, the loaded dayjs locale for it.
- */
-function formatAge(
-  inSeconds: number,
-  locale: string,
-  dayjsLocale: string,
-): { relative: string; absolute: string } {
-  const now = dayjs.utc().locale(dayjsLocale);
-  const then = now.subtract(inSeconds, 'second');
-  return {
-    relative: now.to(then, true),
-    absolute: formatDate(then.toDate(), { locale, timeZone: 'UTC' }),
-  };
-}
 
 export const Age = (props: AgeProps): JSX.Element => {
   const { inSeconds, ...rest } = props;

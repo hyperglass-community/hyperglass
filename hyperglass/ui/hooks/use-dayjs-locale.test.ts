@@ -1,13 +1,17 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
+import relativeTimePlugin from 'dayjs/plugin/relativeTime';
 import { describe, expect, it, vi } from 'vitest';
 import { dayjsLocaleCandidates, loadDayjsLocale, useDayjsLocale } from './use-dayjs-locale';
+
+dayjs.extend(relativeTimePlugin);
 
 describe('dayjsLocaleCandidates', () => {
   it.each([
     ['en', ['en']],
     ['pt-BR', ['pt-br', 'pt']],
-    ['zh-Hant-TW', ['zh-hant-tw', 'zh-hant', 'zh']],
+    ['zh-Hant-TW', ['zh-hant-tw', 'zh-hant', 'zh-tw', 'zh']],
+    ['sr-Cyrl', ['sr-cyrl', 'sr']],
     ['fr_CA', ['fr-ca', 'fr']],
   ])('maps %s to dayjs names, most specific first', (locale, names) => {
     expect(dayjsLocaleCandidates(locale)).toEqual(names);
@@ -21,11 +25,29 @@ describe('loadDayjsLocale', () => {
     expect(dayjs().locale('pt-br').locale()).toBe('pt-br');
   });
 
+  it('loads the region of a tag with a script dayjs has no locale for (#605)', async () => {
+    expect(await loadDayjsLocale('zh-Hant-TW')).toBe('zh-tw');
+    const now = dayjs();
+    // Traditional Chinese, from zh-tw; zh-cn and zh write 小时.
+    expect(now.locale('zh-tw').to(now.subtract(2, 'hour'), true)).toBe('2 小時');
+  });
+
   it('falls back to English for a language dayjs has no locale for (#605)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     expect(await loadDayjsLocale('qq')).toBe('en');
     expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('tries a locale again after it failed to load (#605)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await loadDayjsLocale('qq');
+    await loadDayjsLocale('qq');
+
+    // Each call looked for the locale again; a cached failure would warn once.
+    expect(warn).toHaveBeenCalledTimes(2);
     warn.mockRestore();
   });
 });
