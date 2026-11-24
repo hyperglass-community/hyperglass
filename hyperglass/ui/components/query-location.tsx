@@ -1,5 +1,5 @@
-import { Flex, Stack, Wrap, chakra } from '@chakra-ui/react';
-import { useMemo } from 'react';
+import { Box, Flex, Stack, Wrap, chakra, useFormControlContext } from '@chakra-ui/react';
+import { useId, useMemo } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { useShallow } from 'zustand/react/shallow';
 import { LocationCard, Select } from '~/components';
@@ -57,6 +57,10 @@ export const QueryLocation = (props: QueryLocationProps): JSX.Element => {
   const setSelection = useFormState(s => s.setSelection);
   const { form, filtered } = useFormState(useShallow(({ form, filtered }) => ({ form, filtered })));
   const options = useMemo(() => buildOptions(devices), [devices]);
+  const groupId = useId();
+  // The form field around the cards: its visible label names their group, and its error
+  // message describes it.
+  const field = useFormControlContext();
 
   const element = useMemo(() => {
     if (locationDisplayMode === 'dropdown') {
@@ -120,51 +124,66 @@ export const QueryLocation = (props: QueryLocationProps): JSX.Element => {
   };
 
   if (element === 'cards') {
-    return (
-      <>
-        {options.length === 1 ? (
-          <Wrap
-            p={{ lg: 4 }}
-            align="flex-start"
-            shouldWrapChildren
-            spacing={{ base: 4, lg: 8 }}
-            justify={{ base: 'center', lg: 'center' }}
-          >
-            {options[0].options.map(opt => {
-              return (
-                <LocationCard
-                  key={opt.label}
-                  option={opt}
-                  onChange={handleCardChange}
-                  hasError={noOverlap}
-                  isChecked={form.queryLocation.includes(opt.value)}
-                />
-              );
-            })}
-          </Wrap>
-        ) : (
-          <>
-            {options.map(group => (
-              <Stack key={group.label} align="center">
-                <chakra.h3 fontSize={{ base: 'sm', md: 'md' }} alignSelf="flex-start" opacity={0.5}>
-                  {group.label}
-                </chakra.h3>
-                {group.options.map(opt => {
-                  return (
-                    <LocationCard
-                      key={opt.label}
-                      option={opt}
-                      onChange={handleCardChange}
-                      hasError={noOverlap}
-                      isChecked={form.queryLocation.includes(opt.value)}
-                    />
-                  );
-                })}
-              </Stack>
-            ))}
-          </>
+    const cards = (group: OptionGroup<LocationOption>) =>
+      group.options.map(opt => (
+        <LocationCard
+          key={opt.label}
+          option={opt}
+          onChange={handleCardChange}
+          hasError={noOverlap}
+          isChecked={form.queryLocation.includes(opt.value)}
+        />
+      ));
+    // The cards are checkboxes: group them under the field's label (or `label` outside a
+    // form field), invalid and described by the field's error message while it has one,
+    // and each named location group under its heading.
+    const isInvalid = 'queryLocation' in errors;
+    const groupProps = {
+      role: 'group',
+      'aria-labelledby': field?.labelId,
+      'aria-label': field ? undefined : label,
+      'aria-invalid': isInvalid || undefined,
+      'aria-describedby': isInvalid && field?.isInvalid ? field.feedbackId : undefined,
+    };
+    return options.length === 1 ? (
+      <Wrap
+        p={{ lg: 4 }}
+        align="flex-start"
+        shouldWrapChildren
+        spacing={{ base: 4, lg: 8 }}
+        justify={{ base: 'center', lg: 'center' }}
+        {...groupProps}
+      >
+        {cards(options[0])}
+      </Wrap>
+    ) : (
+      <Box {...groupProps}>
+        {options.map((group, index) =>
+          group.label ? (
+            <Stack
+              key={group.label}
+              align="center"
+              role="group"
+              aria-labelledby={`${groupId}-${index}`}
+            >
+              <chakra.h3
+                id={`${groupId}-${index}`}
+                fontSize={{ base: 'sm', md: 'md' }}
+                alignSelf="flex-start"
+                opacity={0.5}
+              >
+                {group.label}
+              </chakra.h3>
+              {cards(group)}
+            </Stack>
+          ) : (
+            // Locations without a group: no heading, and no group without a name.
+            <Stack key="" align="center">
+              {cards(group)}
+            </Stack>
+          ),
         )}
-      </>
+      </Box>
     );
   }
   if (element === 'select') {

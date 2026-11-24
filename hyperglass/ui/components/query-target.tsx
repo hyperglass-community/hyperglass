@@ -92,6 +92,8 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
       {isSelect ? (
         <Select<OptionWithDescription, false>
           name={name}
+          // The field's label is for this ID, which names the combobox.
+          inputId={name}
           options={options}
           value={selected}
           components={{ Option }}

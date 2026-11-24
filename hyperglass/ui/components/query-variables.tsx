@@ -28,6 +28,8 @@ export const QueryVariable = (props: QueryVariableProps): JSX.Element => {
   return (
     <Select<SingleOption, false>
       name={`queryVariables.${variable.id}`}
+      // The field's label is for this ID, which names the combobox.
+      inputId={variable.id}
       options={options}
       value={value}
       isClearable={!variable.required}

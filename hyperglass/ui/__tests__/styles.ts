@@ -50,3 +50,20 @@ export function lastValue(rules: StyleRule[], property: string): string | null {
   }
   return value;
 }
+
+/** Whether a `box-shadow` value draws nothing. */
+function isNoShadow(shadow: string | null): boolean {
+  return shadow === null || /^(none|var\(--chakra-shadows-none\))$/.test(shadow);
+}
+
+/**
+ * Whether the element draws a focus ring (a `box-shadow`) for keyboard focus: it has a
+ * `:focus-visible` rule with a shadow, and no later `:focus` rule removes it. `:focus`
+ * matches whenever `:focus-visible` does, with the same specificity, so a `:focus` rule
+ * that sets `box-shadow: none` after the ring hides it (#548).
+ */
+export function hasFocusRing(element: Element): boolean {
+  const ring = lastValue(classRules(element, [':focus-visible']), 'box-shadow');
+  const shown = lastValue(classRules(element, [':focus', ':focus-visible']), 'box-shadow');
+  return !isNoShadow(ring) && !isNoShadow(shown);
+}
