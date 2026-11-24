@@ -1,7 +1,13 @@
 name: Published image scan
 
-# New CVEs are published after an image ships. This rescans the published image
+# New CVEs are published after an image ships. This rescans the published images
 # every week, so a new finding is visible without waiting for the next release.
+#
+# A scheduled run scans the newest version tag, `latest` once a stable version
+# exists, and the newest `sha-<commit>` image that main published, so a finding
+# shows up whether or not a stable release exists. Images that share a digest
+# are scanned once. A run that cannot find an image it expects fails instead of
+# passing without a scan.
 
 on:
   schedule:
@@ -9,60 +15,172 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Image tag to scan
+        description: Image tag to scan. Leave empty to scan the newest version, latest and the newest main image.
         required: false
-        default: latest
+        default: ""
         type: string
 
-permissions:
-  contents: read
-  packages: read
+permissions: {}
 
 env:
+  # Trivy runs by the index digest of the aquasec/trivy:<TRIVY_VERSION> tag, as in
+  # ci.yml, so a replaced tag cannot change what runs. Renovate updates both
+  # lines together.
   TRIVY_VERSION: 0.74.0
+  TRIVY_DIGEST: sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
   IMAGE: ghcr.io/${{ github.repository }}
-  TAG: ${{ inputs.tag || 'latest' }}
 
 jobs:
-  scan:
-    name: Scan published image
+  resolve:
+    name: Find the published images
     runs-on: ubuntu-latest
+    permissions:
+      # Lists the recent commits on main.
+      contents: read
+    outputs:
+      images: ${{ steps.find.outputs.images }}
     steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # Pinned like the image job in ci.yml: the inspect output depends on the
+      # buildx version, so do not rely on the runner's copy.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Pull published image
-        id: pull
+      - name: Find the images to scan
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
         run: |
-          pull_log="$RUNNER_TEMP/image-pull.log"
-          if docker pull "${IMAGE}:${TAG}" > "$pull_log" 2>&1; then
-            cat "$pull_log"
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            status=$?
-            cat "$pull_log"
-            if grep -Eq '(^|: )manifest unknown(:|$)' "$pull_log"; then
-              echo "::notice title=Published image scan::${IMAGE}:${TAG} is not published. Nothing to scan."
-              echo "found=false" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          repo="${IMAGE#ghcr.io/}"
+
+          # Sets $digest to the manifest digest of $IMAGE:$1. Returns 1 when the
+          # tag does not exist; any other registry error fails the step.
+          lookup() {
+            local output
+            digest=""
+            if output=$(docker buildx imagetools inspect "$IMAGE:$1" --format '{{json .Manifest}}' 2>&1); then
+              digest=$(jq -r .digest <<< "$output")
+              if [[ "$digest" != sha256:* ]]; then
+                echo "::error::Could not read the digest of $IMAGE:$1."
+                exit 1
+              fi
+            elif grep -q ': not found' <<< "$output"; then
+              return 1
             else
-              echo "::error title=Published image scan::Failed to pull ${IMAGE}:${TAG}."
-              exit "$status"
+              echo "::error::Registry error while looking up $IMAGE:$1: $output"
+              exit 1
             fi
+          }
+
+          # Adds $IMAGE:$1 to the images to scan. Tags that share a digest are
+          # scanned once.
+          images='[]'
+          add() {
+            if ! lookup "$1"; then
+              echo "::error::$IMAGE:$1 is not published."
+              exit 1
+            fi
+            echo "$IMAGE:$1 is $digest"
+            images=$(jq -c --arg tag "$1" --arg digest "$digest" '
+              if any(.[]; .digest == $digest)
+              then map(if .digest == $digest then .tags += ", " + $tag else . end)
+              else . + [{tags: $tag, digest: $digest}]
+              end' <<< "$images")
+          }
+
+          if [ -n "$TAG" ]; then
+            if ! [[ "$TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+              echo "::error::'$TAG' is not a valid image tag."
+              exit 1
+            fi
+            add "$TAG"
+          else
+            # The registry's tag list, read anonymously, as Trivy pulls the image.
+            token=$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull&service=ghcr.io" | jq -r .token)
+            headers="$RUNNER_TEMP/tags-headers.txt"
+            url="https://ghcr.io/v2/${repo}/tags/list?n=1000"
+            tags=""
+            while [ -n "$url" ]; do
+              page=$(curl -fsSL -D "$headers" -H "Authorization: Bearer $token" "$url")
+              tags+=$(jq -r '.tags[]?' <<< "$page")$'\n'
+              next=$(tr -d '\r' < "$headers" | sed -n 's/^[Ll]ink: *<\([^>]*\)>; *rel="next".*/\1/p')
+              url="${next:+https://ghcr.io$next}"
+            done
+
+            # Version tags have the form the promote job in ci.yml publishes,
+            # 3.0.0 or 3.0.0-rc.2. A prerelease sorts before its version.
+            versions=$(grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$' <<< "$tags" || true)
+            version=$(python3 -c '
+          import re, sys
+          rank = {"alpha": 0, "beta": 1, "rc": 2}
+          def key(v):
+              a, b, c, pre, n = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?", v).groups()
+              return (int(a), int(b), int(c), (rank[pre], int(n)) if pre else (3, 0))
+          versions = sys.stdin.read().split()
+          print(max(versions, key=key) if versions else "")
+          ' <<< "$versions")
+            if [ -z "$version" ]; then
+              echo "::error::No version tag is published under $IMAGE."
+              exit 1
+            fi
+            add "$version"
+
+            # `latest` exists once a stable version is released, and must then.
+            if grep -qx latest <<< "$tags"; then
+              add latest
+            elif grep -qv -- '-' <<< "$versions"; then
+              echo "::error::A stable version is published, but $IMAGE:latest is not."
+              exit 1
+            else
+              echo "::notice::$IMAGE:latest is not published: no stable version is released yet."
+            fi
+
+            # The newest commit on main that has a published image. A commit
+            # whose CI run failed or has not finished yet has none.
+            commits=$(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&per_page=100" --jq '.[].sha')
+            commit=""
+            for sha in $commits; do
+              if grep -qx "sha-$sha" <<< "$tags"; then
+                commit="$sha"
+                break
+              fi
+            done
+            if [ -z "$commit" ]; then
+              echo "::error::None of the last 100 commits on main has a published sha- image."
+              exit 1
+            fi
+            add "sha-$commit"
           fi
 
-      - name: Scan published image
-        if: ${{ steps.pull.outputs.found == 'true' }}
+          {
+            echo "| Tags | Digest |"
+            echo "| --- | --- |"
+            jq -r '.[] | "| \(.tags) | `\(.digest)` |"' <<< "$images"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+
+  # Trivy pulls each image by digest itself, as the release-image job in ci.yml
+  # does, so nothing is pulled on the runner and no Docker socket is mounted.
+  scan:
+    name: Scan ${{ matrix.image.tags }}
+    needs: resolve
+    runs-on: ubuntu-latest
+    permissions: {}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.resolve.outputs.images) }}
+    steps:
+      - name: Scan the published image
+        env:
+          DIGEST: ${{ matrix.image.digest }}
         run: |
           docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            "aquasec/trivy:${TRIVY_VERSION}" image \
+            "aquasec/trivy:${TRIVY_VERSION}@${TRIVY_DIGEST}" image \
             --scanners vuln \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
             --timeout 20m \
-            "${IMAGE}:${TAG}"
+            "$IMAGE@$DIGEST"
