@@ -73,6 +73,26 @@ def directive_attr_keys(directives: t.Iterable[Directive], *, vrf: bool) -> t.Se
     }
 
 
+def _field_keys(model: t.Type[HyperglassModel]) -> t.List[str]:
+    """Return a model's field names and aliases, in declaration order."""
+    return list(
+        {
+            key: None
+            for name, field in model.model_fields.items()
+            for key in (name, field.alias)
+            if key is not None
+        }
+    )
+
+
+def _close_matches(key: str, known: t.List[str]) -> t.List[str]:
+    """Return up to two known keys close to `key`, the longest shared prefix first."""
+    return sorted(
+        difflib.get_close_matches(key, known, n=2, cutoff=0.6),
+        key=lambda match: -len(os.path.commonprefix((key, match))),
+    )
+
+
 class Device(HyperglassModelWithId, extra="allow"):
     """Validation model for per-router config in devices.yaml."""
 
@@ -125,25 +145,39 @@ class Device(HyperglassModelWithId, extra="allow"):
         self._validate_directive_attrs()
 
     def _warn_unknown_keys(self) -> None:
-        """Warn about keys the model does not know, which are otherwise silently ignored (#107)."""
-        known = list(
-            {
-                key: None
-                for name, field in type(self).model_fields.items()
-                for key in (name, field.alias)
-                if key is not None
-            }
-        )
+        """Warn about keys the model does not know, which are otherwise silently ignored (#107).
+
+        Unknown `credential` keys are reported too (#517). Only key names are logged, never
+        their values, which may be secrets.
+        """
+        device_keys = _field_keys(type(self))
         for key in self.model_extra or {}:
-            suggestion = sorted(
-                difflib.get_close_matches(key, known, n=2, cutoff=0.6),
-                key=lambda match: -len(os.path.commonprefix((key, match))),
-            )
+            suggestion = _close_matches(key, device_keys)
             log.bind(device=self.name, key=key, suggestion=suggestion or None).warning(
                 "Device {!r} has unknown key {!r}, which is ignored{}",
                 self.name,
                 key,
                 f"; did you mean {' or '.join(repr(s) for s in suggestion)}?" if suggestion else "",
+            )
+        credential_keys = _field_keys(type(self.credential))
+        for key in self.credential.model_extra or {}:
+            if key in device_keys:
+                hint = f"; {key!r} is a device key, set it at the device level"
+                suggestion = [key]
+            else:
+                suggestion = _close_matches(key, credential_keys)
+                hint = (
+                    f"; did you mean {' or '.join(repr(s) for s in suggestion)}?"
+                    if suggestion
+                    else ""
+                )
+            log.bind(
+                device=self.name, key=f"credential.{key}", suggestion=suggestion or None
+            ).warning(
+                "Device {!r} has unknown key {!r} under 'credential', which is ignored{}",
+                self.name,
+                key,
+                hint,
             )
 
     @property
@@ -272,15 +306,12 @@ class Device(HyperglassModelWithId, extra="allow"):
         return value
 
     @field_validator("platform", mode="before")
-    def validate_platform(cls: "Device", value: t.Any, info: ValidationInfo) -> str:
-        """Validate & rewrite device platform, set default `directives`."""
+    def validate_platform(cls: "Device", value: t.Any) -> str:
+        """Validate & rewrite device platform.
 
-        if value == "http":
-            if info.data.get("http") is None:
-                raise ConfigError(
-                    "Device '{device}' has platform 'http' configured, but no http parameters are defined.",
-                    device=info.data["name"],
-                )
+        `__init__` gives an `http` device the default `HttpConfiguration` when it has no
+        `http` block (#330).
+        """
 
         if value in SCRAPE_HELPERS.keys():
             # Rewrite platform to helper value if needed.
