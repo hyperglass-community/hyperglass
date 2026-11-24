@@ -7,6 +7,7 @@ import { Else, If, Then } from 'react-if';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import { useColorValue, useOpposingColor } from '~/hooks';
+import { formatText } from '~/util';
 
 import type { TextProps } from '@chakra-ui/react';
 
@@ -57,14 +58,44 @@ interface RPKIStateProps {
 dayjs.extend(relativeTimePlugin);
 dayjs.extend(utcPlugin);
 
+interface MarkerProps {
+  label: string;
+  icon: Record<string, string>;
+}
+
+/**
+ * An icon that stands for a value, named and explained by `label`. It takes focus, so
+ * keyboard users can open the tooltip and a tap shows it on touch screens;
+ * `closeOnClick` is off so the tap that focuses it doesn't close it again.
+ */
+const Marker = (props: MarkerProps): JSX.Element => {
+  const { label, icon } = props;
+  return (
+    <Tooltip hasArrow label={label} placement="right" closeOnClick={false}>
+      <Box
+        as="span"
+        role="img"
+        tabIndex={0}
+        display="inline-flex"
+        borderRadius="sm"
+        aria-label={label}
+        _focusVisible={{ boxShadow: 'outline', outline: 'none' }}
+      >
+        <DynamicIcon icon={icon} aria-hidden />
+      </Box>
+    </Tooltip>
+  );
+};
+
 export const MonoField = (props: MonoFieldProps): JSX.Element => {
   const { v, ...rest } = props;
+  const { web } = useConfig();
 
   // Handle empty or undefined values, but not zero values
   if (v === null || v === undefined || (typeof v === 'string' && v.trim() === '')) {
     return (
       <Text as="span" fontSize="sm" fontFamily="mono" color="gray.500" {...rest}>
-        N/A
+        {web.text.noValue}
       </Text>
     );
   }
@@ -112,10 +143,11 @@ export const Age = (props: AgeProps): JSX.Element => {
 
 export const Weight = (props: WeightProps): JSX.Element => {
   const { weight, winningWeight, ...rest } = props;
-  const fixMeText =
-    winningWeight === 'low' ? 'Lower Weight is Preferred' : 'Higher Weight is Preferred';
+  const { web } = useConfig();
+  const label =
+    winningWeight === 'low' ? web.text.weightLowPreferred : web.text.weightHighPreferred;
   return (
-    <Tooltip hasArrow label={fixMeText} placement="right">
+    <Tooltip hasArrow label={label} placement="right">
       <Text fontSize="sm" fontFamily="mono" {...rest}>
         {weight}
       </Text>
@@ -125,6 +157,7 @@ export const Weight = (props: WeightProps): JSX.Element => {
 
 export const ASPath = (props: ASPathProps): JSX.Element => {
   const { path, active, asnOrgs = {} } = props;
+  const { web } = useConfig();
   const color = useColorValue(
     // light: inactive, active
     ['blackAlpha.500', 'blackAlpha.500'],
@@ -133,13 +166,7 @@ export const ASPath = (props: ASPathProps): JSX.Element => {
   );
 
   if (path.length === 0) {
-    return (
-      <Tooltip hasArrow label="Internal" placement="right">
-        <Link>
-          <DynamicIcon icon={{ ri: 'RiHome2Fill' }} />
-        </Link>
-      </Tooltip>
-    );
+    return <Marker label={web.text.asPathInternal} icon={{ ri: 'RiHome2Fill' }} />;
   }
 
   const paths = [] as JSX.Element[];
@@ -147,7 +174,9 @@ export const ASPath = (props: ASPathProps): JSX.Element => {
   path.map((asn, i) => {
     const asnStr = String(asn);
     const orgName = asnOrgs?.[asnStr]?.name;
-    const tooltipLabel = orgName ? `${asnStr} - ${orgName}` : `AS${asnStr}`;
+    const tooltipLabel = orgName
+      ? `${asnStr} - ${orgName}`
+      : formatText(web.text.asPathAsn, { asn: asnStr });
     i !== 0 &&
       paths.push(
         <DynamicIcon
@@ -234,11 +263,7 @@ export const Communities = (props: CommunitiesProps): JSX.Element => {
   return (
     <If condition={communities.length === 0}>
       <Then>
-        <Tooltip placement="right" hasArrow label={web.text.noCommunities}>
-          <Link>
-            <DynamicIcon icon={{ bs: 'BsQuestionCircleFill' }} />
-          </Link>
-        </Tooltip>
+        <Marker label={web.text.noCommunities} icon={{ bs: 'BsQuestionCircleFill' }} />
       </Then>
       <Else>
         <Menu preventOverflow>

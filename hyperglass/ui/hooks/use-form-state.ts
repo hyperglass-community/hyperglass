@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { queryClient } from '~/context';
 import { isSelectDirective } from '~/types';
-import { all, andJoin, dedupObjectArray, randomId, withDev } from '~/util';
+import { all, dedupObjectArray, formatText, randomId, withDev } from '~/util';
 
 import type { UseFormClearErrors, UseFormSetError } from 'react-hook-form';
 import type { MultiValue, SingleValue } from 'react-select';
@@ -360,10 +360,14 @@ const formState: StateCreator<FormStateType> = (set, get) => ({
       (form.queryLocation.length > 1 || locations.length > 1) &&
       intersectingDirectives.length === 0
     ) {
-      const start = plur(text.queryLocation, selections.queryLocation.length);
-      const locationsAnd = andJoin(selections.queryLocation.map(s => s.label));
-      const types = plur(text.queryType, 2);
-      const message = `${start} ${locationsAnd} have no ${types} in common.`;
+      // The names are joined with commas only: a conjunction would be English. The
+      // plural nouns are English plurals of the configured labels, for the default text.
+      // A malformed template is shown as written instead of failing mid-update.
+      const message = formatText(text.noCommonQueryTypes, {
+        locations: selections.queryLocation.map(s => s.label).join(', '),
+        query_location_plural: plur(text.queryLocation, selections.queryLocation.length),
+        query_type_plural: plur(text.queryType, 2),
+      });
       setError('queryLocation', { message });
     }
 

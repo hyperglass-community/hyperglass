@@ -501,6 +501,7 @@ Customize almost all text displayed in the user interface.
 | `web.text.query_location` | String | `Location` | Label for location/router selection field. |
 | `web.text.query_type` | String | `Query Type` | Label for query type selection field. |
 | `web.text.query_target` | String | `Target` | Label for target input field. |
+| `web.text.no_common_query_types` | String | `{query_location_plural} {locations} have no {query_type_plural} in common.` | Error shown on the location field when the selected locations have no query type in common. `{locations}` is their names, separated by commas. `{query_location_plural}` and `{query_type_plural}` are `web.text.query_location` and `web.text.query_type` with an English plural (`s` added, for example); a translation can write its own words instead. |
 
 #### Title Display Mode
 
@@ -548,6 +549,10 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
 | `web.text.refresh_cooldown` | String | `Refresh available in {seconds}s` | Shown under a result's header when its requery button is pressed before a forced refresh is allowed, counting down to zero, and announced once to screen readers. `{seconds}` is the time left. Used only with `cache.refresh.enable`. |
 | `web.text.view_as_path` | String | `View AS Path` | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.submit_query` | String | `Submit Query` | Tooltip and accessible name of the form's submit button. |
+| `web.text.reset_form` | String | `Reset` | Accessible name of the button that leaves the results for the form. |
+| `web.text.as_path_internal` | String | `Internal` | Tooltip and accessible name of the AS path marker of a locally originated route (an empty AS path). |
+| `web.text.as_path_asn` | String | `AS{asn}` | Tooltip of an AS in a route's AS path when its organization isn't known. `{asn}` is the AS number. |
 | `web.text.copy_link` | String | `Copy Link` | Tooltip and accessible name of the button that copies a link to the submitted query. |
 | `web.text.link_copied` | String | `Link copied` | Confirmation shown and announced after the link is copied. |
 | `web.text.query_link` | String | `Link to this query` | Label of the read-only field that shows the link when the browser can't copy it. |
@@ -642,6 +647,9 @@ Text of "Your shared links", the share links created in this browser, and of the
 | `web.text.rpki_unknown` | String | `No ROAs Exist` | Text for RPKI unknown routes. |
 | `web.text.rpki_unverified` | String | `Not Verified` | Text for RPKI unverified routes. |
 | `web.text.no_communities` | String | `No Communities` | Text when route has no BGP communities. |
+| `web.text.no_value` | String | `N/A` | Text in a route table cell that has no value. |
+| `web.text.weight_low_preferred` | String | `Lower Weight is Preferred` | Tooltip of a route's weight when the device prefers the lower weight. |
+| `web.text.weight_high_preferred` | String | `Higher Weight is Preferred` | Tooltip of a route's weight when the device prefers the higher weight. |
 
 #### Example: Complete Text Customization
 ```yaml filename="config.yaml"
@@ -1434,6 +1442,10 @@ web:
     query_location: "Location"
     query_type: "Query Type"
     query_target: "Target"
+    # Error when the selected locations share no query type. {locations} is their
+    # names; {query_location_plural} and {query_type_plural} are the labels above
+    # with an English plural.
+    no_common_query_types: "{query_location_plural} {locations} have no {query_type_plural} in common."
     # Hostname resolution prompts.
     fqdn_tooltip: "Use {protocol}"
     fqdn_message: "Your browser has resolved {fqdn} to"
@@ -1449,6 +1461,10 @@ web:
     rpki_unknown: "No ROAs Exist"
     rpki_unverified: "Not Verified"
     no_communities: "No Communities"
+    # Route table: an empty cell, and the weight column's tooltip.
+    no_value: "N/A"
+    weight_low_preferred: "Lower Weight is Preferred"
+    weight_high_preferred: "Higher Weight is Preferred"
     # My IP button.
     ip_error: "Unable to determine IP Address"
     no_ip: "No {protocol} Address"
@@ -1461,6 +1477,13 @@ web:
     reload_query: "Reload Query"
     refresh_cooldown: "Refresh available in {seconds}s"
     view_as_path: "View AS Path"
+    # Form buttons: screen reader names (the submit button's is also its tooltip).
+    submit_query: "Submit Query"
+    reset_form: "Reset"
+    # AS path of a locally originated route: tooltip and screen reader name.
+    as_path_internal: "Internal"
+    # Tooltip of an AS in an AS path whose organization isn't known.
+    as_path_asn: "AS{asn}"
     # Results view: copy a link to the query, its confirmation, and the label of the
     # field that shows the link when the clipboard isn't available.
     copy_link: "Copy Link"

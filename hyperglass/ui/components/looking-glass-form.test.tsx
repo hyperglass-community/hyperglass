@@ -493,7 +493,7 @@ describe('LookingGlassForm rendering', () => {
     // The message is built in `useFormState.locationChange` from the configured labels.
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
     expect(useFormState.getState().filtered.types).toEqual([]);
@@ -515,6 +515,18 @@ describe('LookingGlassForm rendering', () => {
     const inputs = await screen.findAllByDisplayValue('192.0.2.1');
     expect(inputs.map(i => i.getAttribute('name'))).toEqual(['queryTarget', 'queryTargetDisplay']);
     expect(screen.getByRole('button', { name: 'Submit Query' })).toBeInTheDocument();
+  });
+});
+
+describe('LookingGlassForm submit button', () => {
+  it('names the submit button with web.text.submit_query (#581)', () => {
+    renderWithProviders(<LookingGlassForm />, {
+      config: makeConfig({ web: { text: { submitQuery: 'Envoyer' } } }),
+    });
+
+    const button = screen.getByRole('button', { name: 'Envoyer' });
+    expect(button).toHaveAttribute('title', 'Envoyer');
+    expect(screen.queryByRole('button', { name: 'Submit Query' })).not.toBeInTheDocument();
   });
 });
 
@@ -1246,7 +1258,7 @@ describe('LookingGlassForm prefill', () => {
 
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_one', 'router_three']);
@@ -1266,7 +1278,7 @@ describe('LookingGlassForm prefill', () => {
 
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
   });

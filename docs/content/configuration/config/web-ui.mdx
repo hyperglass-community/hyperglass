@@ -343,6 +343,7 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.query_location`    | String | Location                              | Text used to label the query location (router) field.                                                                                                                   |
 | `web.text.query_type`        | String | Query Type                            | Text used to label the query type (directive) field.                                                                                                                    |
 | `web.text.query_target`      | String | Target                                | Text used to label the query target field.                                                                                                                              |
+| `web.text.no_common_query_types` | String | \{query_location_plural\} \{locations\} have no \{query_type_plural\} in common. | Error shown on the location field when the selected locations have no query type in common. `{locations}` is their names, separated by commas. `{query_location_plural}` and `{query_type_plural}` are `web.text.query_location` and `web.text.query_type` with an English plural (`s` added, for example); a translation can write its own words instead. |
 | `web.text.fqdn_tooltip`      | String | Use \{protocol\}                      | Tooltip text used when a user hovers over the FQDN tooltip.                                                                                                             |
 | `web.text.fqdn_message`      | String | Your browser has resolved \{fqdn\} to | Text used when prompting a user to select a resolved IPv4 or IPv6 address for an FQDN query. With `web.dns_provider.name: server`, the default becomes `Hyperglass has resolved {fqdn} to`. |
 | `web.text.fqdn_error`        | String | Unable to resolve \{fqdn\}            | Text used when an FQDN is not resolvable.                                                                                                                               |
@@ -355,6 +356,9 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.rpki_unknown`      | String | No ROAs Exist                         | Text used in table output when a route's RPKI status is unknown.                                                                                                        |
 | `web.text.rpki_unverified`   | String | Not Verified                          | Text used in table output when a route's RPKI status is unverified.                                                                                                     |
 | `web.text.no_communities`    | String | No Communities                        | Text used in table output when a route has no communities.                                                                                                              |
+| `web.text.no_value` | String | N/A | Text in a route table cell that has no value. |
+| `web.text.weight_low_preferred` | String | Lower Weight is Preferred | Tooltip of a route's weight when the device prefers the lower weight. |
+| `web.text.weight_high_preferred` | String | Higher Weight is Preferred | Tooltip of a route's weight when the device prefers the higher weight. |
 | `web.text.ip_error`          | String | Unable to determine IP Address        | Error displayed if Hyperglass is unable to determine the user's IP.                                                                                                     |
 | `web.text.no_ip`             | String | No \{protocol\} Address               | Text displayed if the user doesn't have an IP address of \{protocol\} (IPv4 or IPv6).                                                                                   |
 | `web.text.ip_select`         | String | Select an IP Address                  | Text used to label the IP Address selection for the user's IP.                                                                                                          |
@@ -365,6 +369,10 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.reload_query` | String | Reload Query | Tooltip and accessible name of the button that runs a query again. |
 | `web.text.refresh_cooldown` | String | Refresh available in \{seconds\}s | Shown under a result's header when its requery button is pressed before a forced refresh is allowed, counting down to zero, and announced once to screen readers. `{seconds}` is the time left. Used only with `cache.refresh.enable`. |
 | `web.text.view_as_path` | String | View AS Path | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.submit_query` | String | Submit Query | Tooltip and accessible name of the form's submit button. |
+| `web.text.reset_form` | String | Reset | Accessible name of the button that leaves the results for the form. |
+| `web.text.as_path_internal` | String | Internal | Tooltip and accessible name of the AS path marker of a locally originated route (an empty AS path). |
+| `web.text.as_path_asn` | String | AS\{asn\} | Tooltip of an AS in a route's AS path when its organization isn't known. `{asn}` is the AS number. |
 | `web.text.copy_link` | String | Copy Link | Tooltip and accessible name of the button that copies a link to the submitted query. |
 | `web.text.link_copied` | String | Link copied | Confirmation shown and announced after the link is copied. |
 | `web.text.query_link` | String | Link to this query | Label of the read-only field that shows the link when the browser can't copy it. |
