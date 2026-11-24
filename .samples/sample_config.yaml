@@ -560,6 +560,10 @@ web:
     rpki_unknown: "No ROAs Exist"
     rpki_unverified: "Not Verified"
     no_communities: "No Communities"
+    # Route table: an empty cell, and the weight column's tooltip.
+    no_value: "N/A"
+    weight_low_preferred: "Lower Weight is Preferred"
+    weight_high_preferred: "Higher Weight is Preferred"
     # My IP button.
     ip_error: "Unable to determine IP Address"
     no_ip: "No {protocol} Address"
@@ -572,6 +576,13 @@ web:
     reload_query: "Reload Query"
     refresh_cooldown: "Refresh available in {seconds}s"
     view_as_path: "View AS Path"
+    # Form buttons: screen reader names (the submit button's is also its tooltip).
+    submit_query: "Submit Query"
+    reset_form: "Reset"
+    # AS path of a locally originated route: tooltip and screen reader name.
+    as_path_internal: "Internal"
+    # Tooltip of an AS in an AS path whose organization isn't known.
+    as_path_asn: "AS{asn}"
     # Results view: copy a link to the query, its confirmation, and the label of the
     # field that shows the link when the clipboard isn't available.
     copy_link: "Copy Link"

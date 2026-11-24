@@ -1,3 +1,5 @@
+import format from 'string-format';
+
 export function all<I extends unknown>(...iter: I[]): boolean {
   for (const i of iter) {
     if (!i) {
@@ -158,4 +160,20 @@ export function isFQDN(value: string | string[]): value is string {
 export function randomId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Fill the `{name}` placeholders of a configured text template with `values`.
+ *
+ * The template comes from the configuration, so a malformed one (such as `{}` next to
+ * a named placeholder, or an unknown `!transformer`) makes `string-format` throw. The
+ * template is then returned as written, so a typo shows up as text instead of breaking
+ * the component or state update that formats it.
+ */
+export function formatText(template: string, values: Record<string, unknown>): string {
+  try {
+    return format(template, values);
+  } catch {
+    return template;
+  }
 }

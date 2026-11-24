@@ -82,6 +82,19 @@ describe('Layout', () => {
     expect(screen.getByTestId('debugger')).toBeInTheDocument();
   });
 
+  it('names the reset button with web.text.reset_form (#581)', async () => {
+    useFormState.setState({ form, status: 'results' });
+    renderWithProviders(
+      <Layout>
+        <p>page content</p>
+      </Layout>,
+      { config: makeConfig({ web: { text: { resetForm: 'Nouvelle requête' } } }) },
+    );
+
+    expect(await screen.findByRole('button', { name: 'Nouvelle requête' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+  });
+
   it('hides the reset button on the form view', () => {
     renderLayout();
 

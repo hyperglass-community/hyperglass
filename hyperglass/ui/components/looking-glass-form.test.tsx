@@ -496,6 +496,18 @@ describe('LookingGlassForm rendering', () => {
   });
 });
 
+describe('LookingGlassForm submit button', () => {
+  it('names the submit button with web.text.submit_query (#581)', () => {
+    renderWithProviders(<LookingGlassForm />, {
+      config: makeConfig({ web: { text: { submitQuery: 'Envoyer' } } }),
+    });
+
+    const button = screen.getByRole('button', { name: 'Envoyer' });
+    expect(button).toHaveAttribute('title', 'Envoyer');
+    expect(screen.queryByRole('button', { name: 'Submit Query' })).not.toBeInTheDocument();
+  });
+});
+
 describe('LookingGlassForm validation', () => {
   it('reports every missing field with the configured message on an empty submit', async () => {
     const { container } = renderWithProviders(<LookingGlassForm />);

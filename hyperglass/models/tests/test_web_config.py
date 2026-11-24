@@ -174,3 +174,17 @@ def test_share_page_text_exported():
         "shareRunQuery": "Lancer cette requête",
         "shareNewQuery": "New query",
     }.items() <= exported.items()
+
+
+def test_form_button_and_route_table_text():
+    """The form buttons and the route table's labels are configurable text (#581)."""
+    exported = Text(submit_query="Envoyer").model_dump(by_alias=True)
+    assert {
+        "resetForm": "Reset",
+        "submitQuery": "Envoyer",
+        "asPathInternal": "Internal",
+        "asPathAsn": "AS{asn}",
+        "noValue": "N/A",
+        "weightLowPreferred": "Lower Weight is Preferred",
+        "weightHighPreferred": "Higher Weight is Preferred",
+    }.items() <= exported.items()

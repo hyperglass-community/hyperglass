@@ -6,6 +6,7 @@ import {
   dedupObjectArray,
   entries,
   fetchWithTimeout,
+  formatText,
   isFQDN,
   randomId,
 } from './common';
@@ -241,5 +242,14 @@ describe('randomId', () => {
 
   it('returns a new ID each time', () => {
     expect(randomId()).not.toBe(randomId());
+  });
+});
+
+describe('formatText - fill a configured text template', () => {
+  test('fills named placeholders', () => {
+    expect(formatText('AS{asn}', { asn: 13335 })).toBe('AS13335');
+  });
+  test.each(['{} {asn}', '{asn!r}'])('returns a malformed template (%s) as written', template => {
+    expect(formatText(template, { asn: 13335 })).toBe(template);
   });
 });

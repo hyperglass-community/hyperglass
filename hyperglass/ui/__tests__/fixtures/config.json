@@ -404,6 +404,8 @@
       "image": "hyperglass/images/hyperglass-opengraph.jpg"
     },
     "text": {
+      "asPathAsn": "AS{asn}",
+      "asPathInternal": "Internal",
       "asPathTitle": "Path to {target}",
       "cacheIcon": "Cached from {time}",
       "cachePrefix": "Results cached for ",
@@ -438,6 +440,7 @@
       "nextPage": "Next Page",
       "noCommunities": "No Communities",
       "noIp": "No {protocol} Address",
+      "noValue": "N/A",
       "previousPage": "Previous Page",
       "queryLink": "Link to this query",
       "queryLocation": "Location",
@@ -445,6 +448,7 @@
       "queryType": "Query Type",
       "refreshCooldown": "Refresh available in {seconds}s",
       "reloadQuery": "Reload Query",
+      "resetForm": "Reset",
       "rpkiInvalid": "Invalid",
       "rpkiUnknown": "No ROAs Exist",
       "rpkiUnverified": "Not Verified",
@@ -456,10 +460,13 @@
       "shareResultTime": "Result from {time}",
       "shareRunQuery": "Run this query",
       "shareTitle": "Shared result",
+      "submitQuery": "Submit Query",
       "subtitle": "Network Looking Glass",
       "title": "Hyperglass",
       "titleMode": "logo_only",
       "viewAsPath": "View AS Path",
+      "weightHighPreferred": "Higher Weight is Preferred",
+      "weightLowPreferred": "Lower Weight is Preferred",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out"
     },

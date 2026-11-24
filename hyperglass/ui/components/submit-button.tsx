@@ -17,6 +17,7 @@ import { useFormContext } from 'react-hook-form';
 import { Else, If, Then } from 'react-if';
 import { useShallow } from 'zustand/react/shallow';
 import { ResolvedTarget } from '~/components';
+import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import { useColorValue, useFormState, useMobile } from '~/hooks';
 
@@ -35,6 +36,7 @@ const _SubmitIcon: React.ForwardRefRenderFunction<
   Omit<IconButtonProps, 'aria-label'>
 > = (props: Omit<IconButtonProps, 'aria-label'>, ref) => {
   const { isLoading, ...rest } = props;
+  const { web } = useConfig();
   return (
     <IconButton
       ref={ref}
@@ -42,10 +44,10 @@ const _SubmitIcon: React.ForwardRefRenderFunction<
       width={16}
       type="submit"
       icon={<DynamicIcon icon={{ fi: 'FiSearch' }} />}
-      title="Submit Query"
+      title={web.text.submitQuery}
       colorScheme="primary"
       isLoading={isLoading}
-      aria-label="Submit Query"
+      aria-label={web.text.submitQuery}
       {...rest}
     />
   );

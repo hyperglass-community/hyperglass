@@ -51,6 +51,9 @@ interface _Text {
   rpki_unknown: string;
   rpki_unverified: string;
   no_communities: string;
+  no_value: string;
+  weight_low_preferred: string;
+  weight_high_preferred: string;
   ip_error: string;
   no_ip: string;
   ip_select: string;
@@ -59,8 +62,12 @@ interface _Text {
   ip_lookup_confirm: string;
   copy_output: string;
   reload_query: string;
+  submit_query: string;
+  reset_form: string;
   refresh_cooldown: string;
   view_as_path: string;
+  as_path_internal: string;
+  as_path_asn: string;
   copy_link: string;
   link_copied: string;
   query_link: string;

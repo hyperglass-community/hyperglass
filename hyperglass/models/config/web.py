@@ -143,6 +143,11 @@ class Text(HyperglassModel):
     rpki_unknown: str = "No ROAs Exist"
     rpki_unverified: str = "Not Verified"
     no_communities: str = "No Communities"
+    # Route table: an empty cell, and the tooltip of the weight column, which depends on
+    # whether the platform prefers the lower or the higher weight.
+    no_value: str = "N/A"
+    weight_low_preferred: str = "Lower Weight is Preferred"
+    weight_high_preferred: str = "Higher Weight is Preferred"
     ip_error: str = "Unable to determine IP Address"
     no_ip: str = "No {protocol} Address"
     ip_select: str = "Select an IP Address"
@@ -153,10 +158,18 @@ class Text(HyperglassModel):
     # Tooltips and accessible names of the icon-only result buttons.
     copy_output: str = "Copy Output"
     reload_query: str = "Reload Query"
+    # Accessible names of the form's submit button (also its tooltip) and of the button
+    # that leaves the results for the form.
+    submit_query: str = "Submit Query"
+    reset_form: str = "Reset"
     # Shown under a result's header when its requery button is pressed during a forced
     # refresh cooldown, counting down.
     refresh_cooldown: str = "Refresh available in {seconds}s"  # Formatted by Javascript
     view_as_path: str = "View AS Path"
+    # Accessible name and tooltip of the AS path marker of a locally originated route.
+    as_path_internal: str = "Internal"
+    # Tooltip of an AS in a route's AS path when its organization isn't known.
+    as_path_asn: str = "AS{asn}"  # Formatted by Javascript
     # Results view: the button that copies a link to the query, its confirmation, and the
     # label of the field that shows the link when the clipboard isn't available.
     copy_link: str = "Copy Link"
