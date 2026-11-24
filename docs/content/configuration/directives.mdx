@@ -61,6 +61,10 @@ Templates support literal command words, quoted arguments, pipelines and redirec
 | `allow_loopback`    | Boolean | `false`       | Allow [loopback](https://www.rfc-editor.org/rfc/rfc1700.html) targets (`127.0.0.0/8` `::1`). |
 | `allow_link_local`  | Boolean | `false`       | Allow link-local targets: IPv4 `169.254.0.0/16` and IPv6 `fe80::/10`. A prefix such as `fe80::/64` is link-local; `::/0` is not. An IPv6 zone, such as `fe80::1%eth0`, lets the visitor choose the router interface for the query. Zones are refused unless this option is set, and then only on a link-local host address: never on prefixes (`fe80::%eth0/64`) or other addresses (`2001:db8::1%eth0`). |
 
+The `allow_*` options apply only through the IP rule that contains the target and accepts it. In a directive with IP rules, an IP address or prefix accepted by a pattern rule or a rule without validation, wherever that rule is in the list, is checked as if by an IP rule with every option off: zoned, loopback, unspecified, link-local and reserved targets are refused. To accept one of these, add an IP rule that contains it, with the matching option, before the other rule. A directive without IP rules does not check address classes.
+
+Put IP rules first to get the class policy. When a pattern rule or a rule without validation comes before the IP rules, the check is best-effort: it applies only to values that parse as an IP address or prefix, so values such as `localhost`, `127.1`, `0x7f.0.0.1`, `2130706433`, `010.0.0.1` or `8.8.8.8 ::1` still pass, and some devices read them as addresses the policy would refuse.
+
 #### Examples
 
 ##### Require IPv4 Queries between /8 and /24
