@@ -272,15 +272,12 @@ class Device(HyperglassModelWithId, extra="allow"):
         return value
 
     @field_validator("platform", mode="before")
-    def validate_platform(cls: "Device", value: t.Any, info: ValidationInfo) -> str:
-        """Validate & rewrite device platform, set default `directives`."""
+    def validate_platform(cls: "Device", value: t.Any) -> str:
+        """Validate & rewrite device platform.
 
-        if value == "http":
-            if info.data.get("http") is None:
-                raise ConfigError(
-                    "Device '{device}' has platform 'http' configured, but no http parameters are defined.",
-                    device=info.data["name"],
-                )
+        `__init__` gives an `http` device the default `HttpConfiguration` when it has no
+        `http` block (#330).
+        """
 
         if value in SCRAPE_HELPERS.keys():
             # Rewrite platform to helper value if needed.

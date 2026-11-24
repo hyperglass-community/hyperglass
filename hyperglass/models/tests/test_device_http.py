@@ -2,6 +2,7 @@
 
 # Third Party
 import pytest
+from pydantic import ValidationError
 
 # Project
 from hyperglass.models.config.devices import Device
@@ -19,6 +20,26 @@ def test_http_platform_defaults_http_block(explicit_null):
     device = Device(**CONFIG, platform="http", **kwargs)
     client = device.http.create_client(device=device)
     assert str(client.base_url).rstrip("/") == "https://192.0.2.10"
+
+
+def test_http_platform_without_http_block_uses_documented_defaults():
+    """A `platform: http` device without `http` loads with the defaults, not an error (#330)."""
+    device = Device(**CONFIG, platform="http")
+
+    assert (device.http.method, device.http.scheme, device.http.path) == ("GET", "https", "/")
+
+
+@pytest.mark.parametrize(
+    ("http", "location"),
+    [({"method": "FOO"}, ("http", "method")), (True, ("http",)), ({"bogus": 1}, ("http", "bogus"))],
+)
+def test_invalid_http_block_reports_its_own_error(http, location):
+    """An invalid `http` block reports the failed field, not "no http parameters" (#330)."""
+    with pytest.raises(ValidationError) as error:
+        Device(**CONFIG, platform="http", http=http)
+
+    assert [e["loc"] for e in error.value.errors()] == [location]
+    assert "no http parameters" not in str(error.value)
 
 
 def test_http_driver_defaults_http_block():
