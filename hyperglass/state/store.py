@@ -9,7 +9,8 @@ from hyperglass.exceptions.private import StateError
 
 # Local
 from .manager import StateManager
-from .recovery import rebuild_state
+from .recovery import mark_stale, rebuild_state
+from .recovery import ensure_ready as check_ready
 
 if t.TYPE_CHECKING:
     # Project
@@ -63,6 +64,7 @@ class HyperglassState(StateManager):
         namespace and will clear each other on start; give each its own
         `HYPERGLASS_REDIS_DB`.
         """
+        mark_stale()
         batch = []
         for key in self.redis.instance.scan_iter(match=f"{self.redis.namespace}.*", count=500):
             batch.append(key)
@@ -77,6 +79,9 @@ class HyperglassState(StateManager):
         try:
             return self.redis.get(key, raise_if_none=True)
         except StateError:
+            # State is missing, so the next request must check it again rather than
+            # trust the last check.
+            mark_stale()
             try:
                 asyncio.get_running_loop()
             except RuntimeError:
@@ -91,8 +96,11 @@ class HyperglassState(StateManager):
             return self.redis.get(key, raise_if_none=True)
 
     async def ensure_ready(self) -> None:
-        """Recover configuration and plugins outside the request event loop."""
-        if not await asyncio.to_thread(rebuild_state, self.redis):
+        """Recover configuration and plugins outside the request event loop.
+
+        Cheap while state is present: see `recovery.ensure_ready`.
+        """
+        if not await check_ready(self.redis):
             raise StateError(STATE_UNAVAILABLE)
 
     @property

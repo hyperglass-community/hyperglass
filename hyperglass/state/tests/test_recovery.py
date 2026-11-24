@@ -422,3 +422,190 @@ def test_api_requests_get_503_after_failed_rebuild(monkeypatch):
         statuses = [client.get("/api/info").status_code for _ in range(3)]
     assert statuses == [503] * 3
     assert calls == [True]
+
+
+@pytest.fixture
+def to_thread_calls(monkeypatch):
+    """Record the functions `recovery` hands to the thread pool."""
+    calls = []
+    original = asyncio.to_thread
+
+    async def to_thread(func, *args, **kwargs):
+        calls.append(func.__name__)
+        return await original(func, *args, **kwargs)
+
+    monkeypatch.setattr(recovery.asyncio, "to_thread", to_thread)
+    return calls
+
+
+@pytest.mark.asyncio
+async def test_ready_state_is_checked_without_the_thread_pool(to_thread_calls):
+    """Once state is found complete, requests do not take a thread-pool job (#532)."""
+    state = state_with(cache_with(*STATE_KEYS))
+
+    await state.ensure_ready()
+    assert to_thread_calls == ["is_populated"]
+
+    for _ in range(50):
+        await state.ensure_ready()
+    assert to_thread_calls == ["is_populated"], "checked state in a thread on the hot path"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_requests_share_one_check(monkeypatch, to_thread_calls):
+    """Requests arriving while a check is in flight wait for it instead of starting more."""
+    state = state_with(cache_with(*STATE_KEYS))
+    release = threading.Event()
+    original = recovery.is_populated
+
+    def is_populated(cache):
+        if not release.wait(timeout=2):
+            raise RuntimeError("check was never released")
+        return original(cache)
+
+    monkeypatch.setattr(recovery, "is_populated", is_populated)
+    requests = [asyncio.create_task(state.ensure_ready()) for _ in range(20)]
+    await asyncio.sleep(0.05)
+    release.set()
+    async with asyncio.timeout(3):
+        await asyncio.gather(*requests)
+    assert to_thread_calls == ["is_populated"]
+
+
+@pytest.mark.asyncio
+async def test_ready_state_is_rechecked_after_the_interval(monkeypatch):
+    """State lost without any request noticing is rebuilt once the interval passes."""
+    cache = cache_with(*STATE_KEYS)
+    state = state_with(cache)
+    now = [1000.0]
+    monkeypatch.setattr(recovery.time, "monotonic", lambda: now[0])
+    calls = []
+
+    def initialize():
+        calls.append(True)
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    await state.ensure_ready()
+
+    cache.instance.data.clear()
+    await state.ensure_ready()
+    assert calls == [], "rechecked state inside the interval"
+
+    now[0] += recovery.READY_INTERVAL
+    await state.ensure_ready()
+    assert calls == [True]
+    assert recovery.is_populated(cache)
+
+
+@pytest.mark.asyncio
+async def test_missing_state_read_ends_the_interval(monkeypatch):
+    """A request that finds state missing makes the next one recover at once."""
+    cache = cache_with(*STATE_KEYS)
+    state = state_with(cache)
+    calls = []
+
+    def initialize():
+        calls.append(True)
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    await state.ensure_ready()
+
+    cache.instance.data.clear()
+    with pytest.raises(StateError):
+        _ = state.devices
+
+    await state.ensure_ready()
+    assert calls == [True]
+
+
+@pytest.mark.asyncio
+async def test_clear_ends_the_interval(monkeypatch):
+    cache = cache_with(*STATE_KEYS)
+    state = state_with(cache)
+    calls = []
+
+    def initialize():
+        calls.append(True)
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    await state.ensure_ready()
+    state.clear()
+    await state.ensure_ready()
+    assert calls == [True]
+
+
+@pytest.mark.asyncio
+async def test_check_started_before_state_was_lost_does_not_mark_it_ready(monkeypatch):
+    """A check that saw complete state must not vouch for it after a read found it gone."""
+    state = state_with(cache_with(*STATE_KEYS))
+    started = threading.Event()
+    release = threading.Event()
+    original = recovery.is_populated
+
+    def is_populated(cache):
+        started.set()
+        if not release.wait(timeout=2):
+            raise RuntimeError("check was never released")
+        return original(cache)
+
+    monkeypatch.setattr(recovery, "is_populated", is_populated)
+    request = asyncio.create_task(state.ensure_ready())
+    async with asyncio.timeout(3):
+        while not started.is_set():
+            await asyncio.sleep(0)
+    recovery.mark_stale()
+    release.set()
+    await request
+    assert recovery._ready_until == 0.0
+
+
+@pytest.mark.asyncio
+async def test_cooldown_fails_without_a_thread_per_request(monkeypatch, to_thread_calls):
+    """During the failure cooldown, requests share one check and do not rebuild."""
+
+    def initialize():
+        raise RuntimeError("bad config")
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    state = state_with(cache_with())
+
+    with pytest.raises(StateError):
+        await state.ensure_ready()
+    assert to_thread_calls == ["is_populated", "rebuild_state"]
+
+    for _ in range(5):
+        with pytest.raises(StateError):
+            await state.ensure_ready()
+    assert "rebuild_state" not in to_thread_calls[2:]
+
+
+def test_api_requests_check_state_once_per_interval(monkeypatch):
+    """A burst of requests to any route costs one state check per worker (#532)."""
+    from litestar.testing import TestClient
+
+    from hyperglass.settings import Settings
+
+    monkeypatch.setattr(Settings, "disable_ui", True)
+    from hyperglass.api import app
+
+    from hyperglass.state import use_state
+
+    state = use_state()
+    for key in recovery.REQUIRED_KEYS:
+        if not state.cache.instance.exists(state.cache.key(key)):
+            state.cache.set(key, None)
+    checks = []
+    original = recovery.is_populated
+
+    def is_populated(cache):
+        checks.append(True)
+        return original(cache)
+
+    monkeypatch.setattr(recovery, "is_populated", is_populated)
+    with TestClient(app=app) as client:
+        statuses = [client.get("/api/info").status_code for _ in range(20)]
+    assert statuses == [200] * 20
+    assert len(checks) == 1
