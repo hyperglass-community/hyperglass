@@ -197,6 +197,20 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().target.display).toBe('65000:1');
   });
 
+  // #573: the label was for an ID the select's input didn't have.
+  it('names the select target by its field label', async () => {
+    renderWithProviders(<LookingGlassForm />);
+    await chooseLocation('Router Three');
+    await chooseQueryType('Peer Communities');
+
+    const [, targetSelect] = screen.getAllByRole('combobox');
+    expect(targetSelect).toBe(screen.getByRole('combobox', { name: web.text.queryTarget }));
+    expect(screen.getByText(web.text.queryTarget, { selector: 'label' })).toHaveAttribute(
+      'for',
+      targetSelect.id,
+    );
+  });
+
   it('removes a select target when the select is cleared', async () => {
     const { container } = renderWithProviders(<LookingGlassForm />);
     await chooseLocation('Router Three');
@@ -221,9 +235,12 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().form.queryTarget).toEqual([]);
     expect(useFormState.getState().target.display).toBe('');
     // The target is required again.
+    expect(targetSelect).not.toHaveAttribute('aria-invalid');
     submit(container);
     expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: and the select shows it.
+    expect(screen.getAllByRole('combobox')[1]).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('chooses the query type when the selected location has only one', async () => {
@@ -332,6 +349,11 @@ describe('LookingGlassForm rendering', () => {
 
     expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: the select shows the error too.
+    expect(screen.getByRole('combobox', { name: web.text.queryType })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
   });
 
   it('keeps the query type and target when the remaining location offers it by name', async () => {
@@ -389,7 +411,7 @@ describe('LookingGlassForm rendering', () => {
     await chooseLocation('Router Three');
     await chooseQueryType('Lookup');
     await user.type(await targetInput(), '2001:db8::/32');
-    await userEvent.click(screen.getAllByRole('combobox').at(-1) as HTMLElement);
+    await userEvent.click(screen.getByRole('combobox', { name: 'VRF' }));
     await userEvent.click(within(await openMenu()).getByText('vrf one'));
     expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'one' });
 
@@ -471,7 +493,7 @@ describe('LookingGlassForm rendering', () => {
     // The message is built in `useFormState.locationChange` from the configured labels.
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
     expect(useFormState.getState().filtered.types).toEqual([]);
@@ -493,6 +515,18 @@ describe('LookingGlassForm rendering', () => {
     const inputs = await screen.findAllByDisplayValue('192.0.2.1');
     expect(inputs.map(i => i.getAttribute('name'))).toEqual(['queryTarget', 'queryTargetDisplay']);
     expect(screen.getByRole('button', { name: 'Submit Query' })).toBeInTheDocument();
+  });
+});
+
+describe('LookingGlassForm submit button', () => {
+  it('names the submit button with web.text.submit_query (#581)', () => {
+    renderWithProviders(<LookingGlassForm />, {
+      config: makeConfig({ web: { text: { submitQuery: 'Envoyer' } } }),
+    });
+
+    const button = screen.getByRole('button', { name: 'Envoyer' });
+    expect(button).toHaveAttribute('title', 'Envoyer');
+    expect(screen.queryByRole('button', { name: 'Submit Query' })).not.toBeInTheDocument();
   });
 });
 
@@ -528,6 +562,12 @@ describe('LookingGlassForm validation', () => {
 
     expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: the select shows the error too, and is described by its message.
+    const select = screen.getByRole('combobox', { name: web.text.queryType });
+    expect(select).toHaveAttribute('aria-invalid', 'true');
+    expect(select).toHaveAccessibleDescription(
+      expect.stringContaining(noInput(web.text.queryType)),
+    );
   });
 
   it('uses the configured message text, not a built-in one', async () => {
@@ -569,13 +609,17 @@ describe('LookingGlassForm validation', () => {
 
     expect(await screen.findByText(noInput('VRF'))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: the variable's select shows the error.
+    // #573: named by its field label.
+    const variableSelect = screen.getByRole('combobox', { name: 'VRF' });
+    expect(variableSelect).toHaveAttribute('aria-invalid', 'true');
 
     // Choosing a value clears the error and lets the query through.
-    const variableSelect = screen.getAllByRole('combobox').at(-1);
-    await userEvent.click(variableSelect as HTMLElement);
+    await userEvent.click(variableSelect);
     await userEvent.click(within(await openMenu()).getByText('Default'));
     expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'default' });
     await waitFor(() => expect(screen.queryByText(noInput('VRF'))).not.toBeInTheDocument());
+    expect(variableSelect).not.toHaveAttribute('aria-invalid');
 
     submit(container);
     await waitFor(() => expect(useFormState.getState().status).toBe('results'));
@@ -741,11 +785,7 @@ describe('LookingGlassForm submission', () => {
 describe('LookingGlassForm location cards', () => {
   /** The card of the location with this name. */
   function card(name: string): HTMLElement {
-    const found = screen.getByText(name).closest<HTMLElement>('[data-checked]');
-    if (found === null) {
-      throw new Error(`No card for '${name}'`);
-    }
-    return found;
+    return screen.getByRole('checkbox', { name });
   }
 
   /** Select locations in the store without clicking, as a prefilled link does. */
@@ -762,17 +802,17 @@ describe('LookingGlassForm location cards', () => {
   it('selects a card with one click after the form is reset', async () => {
     renderWithProviders(<LookingGlassForm />);
     await chooseLocation('Router One');
-    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router One')).toBeChecked();
 
     // The header title resets the store while the form stays mounted.
     await act(async () => {
       await useFormState.getState().reset();
     });
-    expect(card('Router One')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router One')).not.toBeChecked();
 
     await chooseLocation('Router One');
 
-    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router One')).toBeChecked();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
     expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
       'router_one',
@@ -781,7 +821,7 @@ describe('LookingGlassForm location cards', () => {
 
   it('shows the locations selected in the store without a click', async () => {
     renderWithProviders(<LookingGlassForm />);
-    expect(card('Router Three')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router Three')).not.toBeChecked();
 
     // Only `form.queryLocation`, which the cards follow.
     act(() => {
@@ -790,14 +830,14 @@ describe('LookingGlassForm location cards', () => {
       }));
     });
 
-    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
-    expect(card('Router Two')).toHaveAttribute('data-checked', 'false');
-    expect(card('Router Three')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router One')).toBeChecked();
+    expect(card('Router Two')).not.toBeChecked();
+    expect(card('Router Three')).toBeChecked();
 
     // One click removes a location selected that way, from the card and the store.
     await chooseLocation('Router Three');
 
-    expect(card('Router Three')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router Three')).not.toBeChecked();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
   });
 
@@ -805,16 +845,107 @@ describe('LookingGlassForm location cards', () => {
     renderWithProviders(<LookingGlassForm />);
 
     selectInStore('router_one', 'router_three');
-    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
-    expect(card('Router Three')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router One')).toBeChecked();
+    expect(card('Router Three')).toBeChecked();
 
     await chooseLocation('Router One');
 
-    expect(card('Router One')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router One')).not.toBeChecked();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_three']);
     expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
       'router_three',
     ]);
+  });
+
+  // #573: the cards were `div`s that only a pointer could use.
+  it('groups the cards under the field label and each location group', () => {
+    renderWithProviders(<LookingGlassForm />);
+
+    const field = screen.getByRole('group', { name: web.text.queryLocation });
+    for (const group of testConfig.devices) {
+      const named = within(field).getByRole('group', { name: group.group ?? '' });
+      expect(
+        within(named)
+          .getAllByRole('checkbox')
+          .map(c => c.textContent),
+      ).toEqual(group.locations.map(l => expect.stringContaining(l.name)));
+    }
+  });
+
+  it('names the card group by the visible field label', () => {
+    renderWithProviders(<LookingGlassForm />);
+
+    const label = screen.getByText(web.text.queryLocation, { selector: 'label' });
+    expect(screen.getByRole('group', { name: web.text.queryLocation })).toHaveAttribute(
+      'aria-labelledby',
+      label.id,
+    );
+  });
+
+  it('marks the card group invalid and describes it by the error message', async () => {
+    const { container } = renderWithProviders(<LookingGlassForm />);
+    const field = screen.getByRole('group', { name: web.text.queryLocation });
+    expect(field).not.toHaveAttribute('aria-invalid');
+    expect(field).not.toHaveAttribute('aria-describedby');
+
+    submit(container);
+
+    const message = await screen.findByText(noInput(web.text.queryLocation));
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field).toHaveAccessibleDescription(noInput(web.text.queryLocation));
+    expect(field).toHaveAttribute('aria-describedby', message.id);
+
+    // Choosing a location clears the error.
+    await chooseLocation('Router One');
+    await waitFor(() => expect(field).not.toHaveAttribute('aria-invalid'));
+    expect(field).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('adds no unnamed group for locations without a group', () => {
+    const config = makeConfig({
+      devices: [
+        { group: null, locations: [device('router_one')] },
+        { group: 'Europe', locations: [device('router_three')] },
+      ],
+    } as never);
+    renderWithProviders(<LookingGlassForm />, { config });
+
+    const field = screen.getByRole('group', { name: web.text.queryLocation });
+    expect(
+      within(field)
+        .getAllByRole('group')
+        .map(g => g.getAttribute('aria-labelledby')),
+    ).toEqual([expect.any(String)]);
+    expect(within(field).getByRole('group', { name: 'Europe' })).toBeInTheDocument();
+    expect(within(field).getByRole('checkbox', { name: 'Router One' })).toBeInTheDocument();
+    expect(within(field).getAllByRole('heading')).toHaveLength(1);
+  });
+
+  it('groups the cards of a single location group under the field label', () => {
+    renderWithProviders(<LookingGlassForm />, {
+      config: oneDeviceConfig(dev => dev),
+    });
+
+    const field = screen.getByRole('group', { name: web.text.queryLocation });
+    expect(within(field).getByRole('checkbox', { name: 'Router One' })).not.toBeChecked();
+  });
+
+  it('selects and removes a location with the keyboard alone', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LookingGlassForm />);
+
+    await user.tab();
+    const first = screen.getAllByRole('checkbox')[0];
+    expect(first).toHaveFocus();
+    await user.keyboard(' ');
+
+    await waitFor(() => expect(first).toBeChecked());
+    expect(useFormState.getState().form.queryLocation).toHaveLength(1);
+    expect(await screen.findByRole('combobox', { name: web.text.queryType })).toBeInTheDocument();
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(first).not.toBeChecked());
+    expect(useFormState.getState().form.queryLocation).toEqual([]);
   });
 
   it('shows the store in the location select too', async () => {
@@ -908,29 +1039,29 @@ describe('LookingGlassForm prefill', () => {
   it('shows the location from the link as a selected card that a click toggles', async () => {
     const config = makeConfig({ web: { locationDisplayMode: 'gallery' } });
     renderPrefilled({ location: 'router_one', type: 'BGP Route' }, config);
-    const card = (name: string) => screen.getByText(name).closest('[data-checked]');
+    const card = (name: string) => screen.getByRole('checkbox', { name });
 
     await waitFor(() =>
       expect(useFormState.getState().form.queryType).toBe('__hyperglass_juniper_bgp_route__'),
     );
-    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
-    expect(card('Router Two')).toHaveAttribute('data-checked', 'false');
-    expect(card('Router Three')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router One')).toBeChecked();
+    expect(card('Router Two')).not.toBeChecked();
+    expect(card('Router Three')).not.toBeChecked();
 
     // One click removes the prefilled location, from the store and the card.
     await chooseLocation('Router One');
-    expect(card('Router One')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router One')).not.toBeChecked();
     expect(useFormState.getState().form.queryLocation).toEqual([]);
     expect(useFormState.getState().selections.queryLocation).toEqual([]);
 
     // A second click selects it again.
     await chooseLocation('Router One');
-    expect(card('Router One')).toHaveAttribute('data-checked', 'true');
+    expect(card('Router One')).toBeChecked();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_one']);
     expect(useFormState.getState().selections.queryLocation.map(s => s.value)).toEqual([
       'router_one',
     ]);
-    expect(card('Router Two')).toHaveAttribute('data-checked', 'false');
+    expect(card('Router Two')).not.toBeChecked();
   });
 
   it('submits the query type of a mixed-vendor link under the first location', async () => {
@@ -1127,7 +1258,7 @@ describe('LookingGlassForm prefill', () => {
 
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_one', 'router_three']);
@@ -1147,7 +1278,7 @@ describe('LookingGlassForm prefill', () => {
 
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
   });

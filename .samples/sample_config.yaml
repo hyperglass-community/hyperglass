@@ -101,6 +101,11 @@ share:
   # its link can read until it expires. Snapshots are kept in Redis outside
   # the state that a restart clears. Default: false
   enable: false
+  # Keep the links a browser creates, with their delete tokens, in its local
+  # storage, to copy or delete later under "Your shared links". Turn it off on
+  # kiosks and shared terminals: links then last until the page is closed or
+  # reloaded. Default: true
+  remember_links: true
   # Seconds a snapshot is kept when the visitor doesn't choose. Must be one of
   # timeout_choices. Reading a snapshot doesn't extend it. Default: 2592000 (30 days)
   timeout: 2592000
@@ -545,6 +550,10 @@ web:
     query_location: "Location"
     query_type: "Query Type"
     query_target: "Target"
+    # Error when the selected locations share no query type. {locations} is their
+    # names; {query_location_plural} and {query_type_plural} are the labels above
+    # with an English plural.
+    no_common_query_types: "{query_location_plural} {locations} have no {query_type_plural} in common."
     # Hostname resolution prompts.
     fqdn_tooltip: "Use {protocol}"
     fqdn_message: "Your browser has resolved {fqdn} to"
@@ -560,6 +569,10 @@ web:
     rpki_unknown: "No ROAs Exist"
     rpki_unverified: "Not Verified"
     no_communities: "No Communities"
+    # Route table: an empty cell, and the weight column's tooltip.
+    no_value: "N/A"
+    weight_low_preferred: "Lower Weight is Preferred"
+    weight_high_preferred: "Higher Weight is Preferred"
     # My IP button.
     ip_error: "Unable to determine IP Address"
     no_ip: "No {protocol} Address"
@@ -572,6 +585,13 @@ web:
     reload_query: "Reload Query"
     refresh_cooldown: "Refresh available in {seconds}s"
     view_as_path: "View AS Path"
+    # Form buttons: screen reader names (the submit button's is also its tooltip).
+    submit_query: "Submit Query"
+    reset_form: "Reset"
+    # AS path of a locally originated route: tooltip and screen reader name.
+    as_path_internal: "Internal"
+    # Tooltip of an AS in an AS path whose organization isn't known.
+    as_path_asn: "AS{asn}"
     # Results view: copy a link to the query, its confirmation, and the label of the
     # field that shows the link when the clipboard isn't available.
     copy_link: "Copy Link"
@@ -587,6 +607,11 @@ web:
     previous_page: "Previous Page"
     next_page: "Next Page"
     last_page: "Last Page"
+    # Table pagination: the page size select's screen reader name, its options
+    # ({count} is the number of rows) and the page count.
+    page_size: "Rows per page"
+    page_size_option: "Show {count}"
+    page_count: "Page {page} of {pages}"
     # Recent queries. {time} is when the query was saved, in the viewer's time
     # zone.
     history_title: "Recent queries"
@@ -610,6 +635,39 @@ web:
     share_expires: "Link expires {time}"
     share_run_query: "Run this query"
     share_new_query: "New query"
+    # A result's Share button and its popover. Each time a visitor can keep the
+    # link for (share.timeout_choices) is shown in the largest unit it is a whole
+    # number of, with {count} in that unit.
+    share_result: "Share Result"
+    share_keep_for: "Keep for"
+    share_create: "Create Link"
+    share_link: "Link to this result"
+    share_notice: "Anyone with the link can see this result, including the target."
+    share_delete: "Delete Link"
+    share_deleted: "Link deleted"
+    # A link made from an earlier result of the same query, before it ran again
+    # ({time} in the viewer's time zone), who can delete a link, the note when it
+    # was shared again elsewhere, and what is announced when a link expires.
+    share_earlier_link: "Link to the result from {time}"
+    share_delete_scope: "You can delete the link from this browser, here or under {shares}, until it expires."
+    share_delete_rotated: "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: "The link has expired."
+    share_minute: "{count} minute"
+    share_minutes: "{count} minutes"
+    share_hour: "{count} hour"
+    share_hours: "{count} hours"
+    share_day: "{count} day"
+    share_days: "{count} days"
+    # Saved queries whose result has a share link, and "Your shared links", the
+    # links created in this browser.
+    history_shared: "Link shared"
+    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire."
+    shares_title: "Your shared links"
+    shares_forget: "Forget"
+    shares_clear_all: "Forget all"
+    shares_clear_confirm: "Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here."
+    shares_clear_cancel: "Cancel"
+    share_delete_scope_page: "You can delete the link from this page until you close or reload it."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

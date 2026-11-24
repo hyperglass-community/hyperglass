@@ -1,3 +1,5 @@
+import format from 'string-format';
+
 export function all<I extends unknown>(...iter: I[]): boolean {
   for (const i of iter) {
     if (!i) {
@@ -77,56 +79,6 @@ export function dedupObjectArray<E extends Record<string, unknown>, P extends ke
   }, []);
 }
 
-interface AndJoinOptions {
-  /**
-   * Separator for last item.
-   *
-   * @default '&'
-   */
-  separator?: string;
-
-  /**
-   * Use the oxford comma.
-   *
-   * @default true
-   */
-  oxfordComma?: boolean;
-
-  /**
-   * Wrap each item in a character.
-   *
-   * @default ''
-   */
-  wrap?: string;
-}
-
-/**
- * Create a natural list of values from an array of strings
- * @param values
- * @param options
- * @returns
- */
-export function andJoin(values: string[], options?: AndJoinOptions): string {
-  let mergedOptions = { separator: '&', oxfordComma: true, wrap: '' } as Required<AndJoinOptions>;
-  if (typeof options === 'object' && options !== null) {
-    mergedOptions = { ...mergedOptions, ...options };
-  }
-  const { separator, oxfordComma, wrap } = mergedOptions;
-  const parts = values.filter(v => typeof v === 'string');
-  const lastElement = parts.pop();
-  if (typeof lastElement === 'undefined') {
-    return '';
-  }
-  const last = [wrap, lastElement, wrap].join('');
-  if (parts.length > 0) {
-    const main = parts.map(p => [wrap, p, wrap].join('')).join(', ');
-    const comma = oxfordComma && parts.length >= 2 ? ',' : '';
-    const result = `${main}${comma} ${separator} ${last}`;
-    return result.trim();
-  }
-  return last;
-}
-
 /**
  * Determine if an input value is an FQDN string.
  *
@@ -158,4 +110,20 @@ export function isFQDN(value: string | string[]): value is string {
 export function randomId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Fill the `{name}` placeholders of a configured text template with `values`.
+ *
+ * The template comes from the configuration, so a malformed one (such as `{}` next to
+ * a named placeholder, or an unknown `!transformer`) makes `string-format` throw. The
+ * template is then returned as written, so a typo shows up as text instead of breaking
+ * the component or state update that formats it.
+ */
+export function formatText(template: string, values: Record<string, unknown>): string {
+  try {
+    return format(template, values);
+  } catch {
+    return template;
+  }
 }

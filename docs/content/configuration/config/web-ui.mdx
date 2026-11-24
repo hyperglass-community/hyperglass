@@ -205,8 +205,10 @@ What is stored, and where:
 
 Visitors delete history with the **Delete** button of a query, with **Clear all**, or by clearing the site's data in their browser.
 
+Share links are not part of the history. With [sharing](/configuration/config/share#sharing-from-the-query-history) on, a saved result can be shared, and the links, with their delete tokens, are kept under `hyperglass.shares` (unless `share.remember_links` is `false`) and listed under "Your shared links" ([details](/configuration/config/share#your-shared-links)), whether history is on or off. Deleting or clearing history leaves them there.
+
 <Callout type="warning">
-Turn history off on kiosks and shared terminals, where the next person to use the browser would see the previous person's queries. With `enable: false`, nothing is saved and the history a browser saved before is deleted when it next loads the page.
+On kiosks and shared terminals, where the next person to use the browser would see the previous person's queries and share links, turn off both `web.history.enable` and, with sharing on, [`share.remember_links`](/configuration/config/share). With `web.history.enable: false`, nothing is saved and the history a browser saved before is deleted when it next loads the page. With `share.remember_links: false`, share links and their delete tokens are kept in the page's memory only, and the links a browser saved before are deleted when it next loads the page. Reload the page, or close the tab, between users: the links created on a page stay listed, also after **Reset**, until it is reloaded.
 </Callout>
 
 ##### Example
@@ -341,6 +343,7 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.query_location`    | String | Location                              | Text used to label the query location (router) field.                                                                                                                   |
 | `web.text.query_type`        | String | Query Type                            | Text used to label the query type (directive) field.                                                                                                                    |
 | `web.text.query_target`      | String | Target                                | Text used to label the query target field.                                                                                                                              |
+| `web.text.no_common_query_types` | String | \{query_location_plural\} \{locations\} have no \{query_type_plural\} in common. | Error shown on the location field when the selected locations have no query type in common. `{locations}` is their names, separated by commas. `{query_location_plural}` and `{query_type_plural}` are `web.text.query_location` and `web.text.query_type` with an English plural (`s` added, for example); a translation can write its own words instead. |
 | `web.text.fqdn_tooltip`      | String | Use \{protocol\}                      | Tooltip text used when a user hovers over the FQDN tooltip.                                                                                                             |
 | `web.text.fqdn_message`      | String | Your browser has resolved \{fqdn\} to | Text used when prompting a user to select a resolved IPv4 or IPv6 address for an FQDN query. With `web.dns_provider.name: server`, the default becomes `Hyperglass has resolved {fqdn} to`. |
 | `web.text.fqdn_error`        | String | Unable to resolve \{fqdn\}            | Text used when an FQDN is not resolvable.                                                                                                                               |
@@ -353,6 +356,9 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.rpki_unknown`      | String | No ROAs Exist                         | Text used in table output when a route's RPKI status is unknown.                                                                                                        |
 | `web.text.rpki_unverified`   | String | Not Verified                          | Text used in table output when a route's RPKI status is unverified.                                                                                                     |
 | `web.text.no_communities`    | String | No Communities                        | Text used in table output when a route has no communities.                                                                                                              |
+| `web.text.no_value` | String | N/A | Text in a route table cell that has no value. |
+| `web.text.weight_low_preferred` | String | Lower Weight is Preferred | Tooltip of a route's weight when the device prefers the lower weight. |
+| `web.text.weight_high_preferred` | String | Higher Weight is Preferred | Tooltip of a route's weight when the device prefers the higher weight. |
 | `web.text.ip_error`          | String | Unable to determine IP Address        | Error displayed if Hyperglass is unable to determine the user's IP.                                                                                                     |
 | `web.text.no_ip`             | String | No \{protocol\} Address               | Text displayed if the user doesn't have an IP address of \{protocol\} (IPv4 or IPv6).                                                                                   |
 | `web.text.ip_select`         | String | Select an IP Address                  | Text used to label the IP Address selection for the user's IP.                                                                                                          |
@@ -363,6 +369,10 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.reload_query` | String | Reload Query | Tooltip and accessible name of the button that runs a query again. |
 | `web.text.refresh_cooldown` | String | Refresh available in \{seconds\}s | Shown under a result's header when its requery button is pressed before a forced refresh is allowed, counting down to zero, and announced once to screen readers. `{seconds}` is the time left. Used only with `cache.refresh.enable`. |
 | `web.text.view_as_path` | String | View AS Path | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.submit_query` | String | Submit Query | Tooltip and accessible name of the form's submit button. |
+| `web.text.reset_form` | String | Reset | Accessible name of the button that leaves the results for the form. |
+| `web.text.as_path_internal` | String | Internal | Tooltip and accessible name of the AS path marker of a locally originated route (an empty AS path). |
+| `web.text.as_path_asn` | String | AS\{asn\} | Tooltip of an AS in a route's AS path when its organization isn't known. `{asn}` is the AS number. |
 | `web.text.copy_link` | String | Copy Link | Tooltip and accessible name of the button that copies a link to the submitted query. |
 | `web.text.link_copied` | String | Link copied | Confirmation shown and announced after the link is copied. |
 | `web.text.query_link` | String | Link to this query | Label of the read-only field that shows the link when the browser can't copy it. |
@@ -374,6 +384,9 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.previous_page` | String | Previous Page | Accessible name of the table button that shows the previous page. |
 | `web.text.next_page` | String | Next Page | Accessible name of the table button that shows the next page. |
 | `web.text.last_page` | String | Last Page | Accessible name of the table button that shows the last page. |
+| `web.text.page_size` | String | Rows per page | Accessible name of the table's page size select. |
+| `web.text.page_size_option` | String | Show \{count\} | Each option of the table's page size select. `{count}` is replaced with the number of rows. |
+| `web.text.page_count` | String | Page \{page\} of \{pages\} | The table's page count. `{page}` is replaced with the current page and `{pages}` with the number of pages. |
 | `web.text.history_title` | String | Recent queries | Heading of the list of saved queries on the landing page. |
 | `web.text.history_open` | String | Open | Tooltip and accessible name of the button that shows a saved query's results. |
 | `web.text.history_delete` | String | Delete | Tooltip and accessible name of the button that deletes a saved query. |
@@ -393,6 +406,31 @@ Most of the text in the Hyperglass UI can be overridden to suit your needs.
 | `web.text.share_expires` | String | Link expires \{time\} | When the share link stops working. `{time}` is shown in the viewer's locale and time zone. |
 | `web.text.share_run_query` | String | Run this query | Button that fills the form with the shared query, for the visitor to submit. |
 | `web.text.share_new_query` | String | New query | Button that leaves the shared result for an empty form. |
+| `web.text.share_result` | String | Share Result | Tooltip and accessible name of a result's [Share button](/configuration/config/share#the-share-button), and heading of its popover. |
+| `web.text.share_keep_for` | String | Keep for | Label of the choice of how long the link is kept (`share.timeout_choices`, `share.timeout` selected). |
+| `web.text.share_create` | String | Create Link | Button that creates the link. |
+| `web.text.share_link` | String | Link to this result | Label of the read-only field that shows the link. |
+| `web.text.share_notice` | String | Anyone with the link can see this result, including the target. | Shown under a created link. |
+| `web.text.share_delete` | String | Delete Link | Button that deletes the link. |
+| `web.text.share_deleted` | String | Link deleted | Shown and announced once the link is deleted. |
+| `web.text.share_earlier_link` | String | Link to the result from \{time\} | Label of a link created for an earlier result of the same query, before it ran again. `{time}` is shown in the viewer's locale and time zone. |
+| `web.text.share_delete_scope` | String | You can delete the link from this browser, here or under \{shares\}, until it expires. | Shown under the links this browser can delete. `{shares}` is `web.text.shares_title`. |
+| `web.text.share_delete_rotated` | String | This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires. | Shown in place of **Delete Link** when the link still exists but its token was replaced by sharing the result again elsewhere. |
+| `web.text.share_link_expired` | String | The link has expired. | Announced when a link expires while the popover is open. |
+| `web.text.share_minute` | String | \{count\} minute | A time to keep the link of exactly one minute. |
+| `web.text.share_minutes` | String | \{count\} minutes | A time to keep the link in minutes, when it isn't a whole number of hours. `{count}` has decimals when it isn't whole. |
+| `web.text.share_hour` | String | \{count\} hour | A time to keep the link of exactly one hour. |
+| `web.text.share_hours` | String | \{count\} hours | A time to keep the link in hours, when it is a whole number of hours but not of days. |
+| `web.text.share_day` | String | \{count\} day | A time to keep the link of exactly one day. |
+| `web.text.share_days` | String | \{count\} days | A time to keep the link in days, when it is a whole number of days. |
+| `web.text.shares_title` | String | Your shared links | Heading of the list of [share links created in this browser](/configuration/config/share#your-shared-links). |
+| `web.text.shares_forget` | String | Forget | Button that removes a link this browser can no longer delete from the list. |
+| `web.text.shares_clear_all` | String | Forget all | Button that removes every link from the list, and the button that confirms it. |
+| `web.text.shares_clear_confirm` | String | Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here. | Question shown before every link is removed from the list. |
+| `web.text.shares_clear_cancel` | String | Cancel | Button that keeps the links. |
+| `web.text.share_delete_scope_page` | String | You can delete the link from this page until you close or reload it. | Shown in place of `share_delete_scope` with [`share.remember_links: false`](/configuration/config/share), when links are kept in the page's memory only. |
+| `web.text.history_shared` | String | Link shared | Shown on a saved query whose result has a share link that hasn't expired. |
+| `web.text.history_share_kept` | String | Deleting saved queries doesn't delete their share links: they stay under \{shares\} and keep working until they expire. | Shown before every saved query is deleted, when any of them has a share link. `{shares}` is `web.text.shares_title`. |
 
 #### Title Mode
 

@@ -156,7 +156,6 @@ export const Title = (props: FlexProps): JSX.Element => {
           }
           await reset();
         }}
-        _focus={{ boxShadow: 'none' }}
         _hover={{ textDecoration: 'none' }}
       >
         <Switch>

@@ -1,5 +1,6 @@
 import { Flex, IconButton } from '@chakra-ui/react';
 import { AnimatePresence } from 'framer-motion';
+import { useConfig } from '~/context';
 import { AnimatedDiv, DynamicIcon } from '~/elements';
 import { useColorValue, useOpposingColor, useFormState } from '~/hooks';
 
@@ -12,6 +13,7 @@ interface ResetButtonProps extends FlexProps {
 
 export const ResetButton = (props: ResetButtonProps): JSX.Element => {
   const { developerMode, resetForm, ...rest } = props;
+  const { web } = useConfig();
   const status = useFormState(s => s.status);
   const bg = useColorValue('primary.500', 'primary.300');
   const color = useOpposingColor(bg);
@@ -38,7 +40,7 @@ export const ResetButton = (props: ResetButtonProps): JSX.Element => {
               lineHeight={0}
               color="current"
               variant="unstyled"
-              aria-label="Reset"
+              aria-label={web.text.resetForm}
               onClick={resetForm}
               icon={<DynamicIcon icon={{ fa: 'FaAngleLeft' }} boxSize={8} />}
             />

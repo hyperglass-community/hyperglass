@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { Debugger, Footer, Greeting, Header, ResetButton } from '~/components';
 import { useConfig } from '~/context';
 import { motionChakra } from '~/elements';
-import { useFormState, useHistoryView } from '~/hooks';
+import { useFormState, useHistoryView, useRememberLinks } from '~/hooks';
 
 import type { FlexProps } from '@chakra-ui/react';
 
@@ -28,6 +28,9 @@ export const Layout = (props: FlexProps): JSX.Element => {
   const { developerMode } = useConfig();
   const { status, back } = useFormState(useShallow(({ status, back }) => ({ status, back })));
   const historyOpen = useHistoryView(s => s.openId !== null);
+  // Apply `share.remember_links` on every page, also one that shows no share links (a
+  // shared result's): with `false`, what this browser stored is deleted when it loads.
+  useRememberLinks();
 
   const containerRef = useRef<HTMLDivElement>({} as HTMLDivElement);
 

@@ -20,6 +20,7 @@ import { BGPTable, TracerouteTable, Path, TextOutput } from '~/components';
 import { useConfig } from '~/context';
 import { Countdown, DynamicIcon } from '~/elements';
 import {
+  directiveRetains,
   useColorValue,
   useDevice,
   useFormState,
@@ -41,6 +42,7 @@ import { FormattedError } from './formatted-error';
 import { isFetchError, isLGError, isLGOutputOrError, isQueryError, isStackError } from './guards';
 import { ResultHeader } from './header';
 import { RequeryButton, RequeryCountdown, useRequeryCooldown } from './requery-button';
+import { ResultShareButton } from './share-button';
 
 import type { ErrorLevels } from '~/types';
 
@@ -110,12 +112,13 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
 ) => {
   const { index, queryLocation } = props;
   const toast = useToast();
-  const { messages } = useConfig();
+  const { messages, share } = useConfig();
   const getDevice = useDevice();
   const device = getDevice(queryLocation);
 
   const addResponse = useFormState(s => s.addResponse);
   const form = useFormState(s => s.form);
+  const getDirective = useFormState(s => s.getDirective);
   const [errorLevel, _setErrorLevel] = useState<ErrorLevels>('error');
 
   const setErrorLevel = (level: ResponseLevel): void => {
@@ -157,9 +160,28 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
     },
   );
 
+  const isError = isQueryError(query.data, query.error);
   // Save a successful response to the query history.
-  useRecordHistory(queryLocation, query.data, isQueryError(query.data, query.error));
+  useRecordHistory(queryLocation, query.data, isError);
   const cooldown = useRequeryCooldown(query.requery, query.refreshAt);
+
+  // Whether this location's directive lets its results be kept (`retain`), checked as the
+  // history does, which is at least as strict as the server (see `directiveRetains`).
+  const retains = useMemo(() => {
+    if (device === null) {
+      return false;
+    }
+    const queryTypeName = getDirective()?.name ?? form.queryType;
+    return directiveRetains(device, { queryType: form.queryType, queryTypeName }) === true;
+  }, [device, form.queryType, getDirective]);
+  // Offer a share only for a result the server would share: a success whose enrichment
+  // has finished, from a directive that retains its results.
+  const shareable =
+    share.enable &&
+    retains &&
+    !isError &&
+    query.data !== undefined &&
+    query.data.enrichment !== 'pending';
 
   if (device === null) {
     const id = `toast-queryLocation-${index}-${queryLocation}`;
@@ -188,7 +210,7 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
       notice={
         cooldown.until !== null && <RequeryCountdown key={cooldown.until} until={cooldown.until} />
       }
-      buttons={({ copyValue, isQuerying, showPath }) => (
+      buttons={({ data, copyValue, isQuerying, showPath }) => (
         <>
           {showPath && <FormPath device={device.id} />}
           <CopyButton copyValue={copyValue} isDisabled={isQuerying} />
@@ -197,6 +219,21 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
             announcement={cooldown.announcement}
             isDisabled={isQuerying}
           />
+          {shareable && data !== undefined && (
+            <ResultShareButton
+              queryId={data.id}
+              timestamp={data.timestamp}
+              labels={{
+                location: device.name,
+                type:
+                  device.directives.find(d => d.id === form.queryType)?.name ??
+                  getDirective()?.name ??
+                  form.queryType,
+                target: form.queryTarget.join(', '),
+              }}
+              isDisabled={isQuerying}
+            />
+          )}
         </>
       )}
     />
@@ -316,7 +353,18 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
       <AccordionHeaderWrapper>
         {/* Shrinks, wrapping a long device name, so the buttons stay in view on a narrow
         screen instead of widening the row past the results box, which clips it. */}
-        <AccordionButton py={2} w="unset" _hover={{}} _focus={{}} flex="1 1 auto" minW={0}>
+        {/* Tighter on a phone, with the buttons closer together below: with four buttons
+        (AS path, copy, requery, share) a long name otherwise gets too little width to wrap
+        between words at 360px. */}
+        <AccordionButton
+          py={2}
+          px={{ base: 2, sm: 4 }}
+          w="unset"
+          _hover={{}}
+          _focus={{}}
+          flex="1 1 auto"
+          minW={0}
+        >
           <ResultHeader
             isError={isError}
             loading={isQuerying}
@@ -326,7 +374,7 @@ const _ResultPanel: React.ForwardRefRenderFunction<HTMLDivElement, ResultPanelPr
             title={location.name}
           />
         </AccordionButton>
-        <HStack py={2} spacing={1}>
+        <HStack py={2} pr={{ base: 1, sm: 0 }} spacing={{ base: 0, sm: 1 }}>
           {buttons({
             data,
             copyValue,

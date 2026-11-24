@@ -39,6 +39,7 @@ interface _Text {
   query_location: string;
   query_type: string;
   query_target: string;
+  no_common_query_types: string;
   fqdn_tooltip: string;
   fqdn_message: string;
   fqdn_error: string;
@@ -51,6 +52,9 @@ interface _Text {
   rpki_unknown: string;
   rpki_unverified: string;
   no_communities: string;
+  no_value: string;
+  weight_low_preferred: string;
+  weight_high_preferred: string;
   ip_error: string;
   no_ip: string;
   ip_select: string;
@@ -59,8 +63,12 @@ interface _Text {
   ip_lookup_confirm: string;
   copy_output: string;
   reload_query: string;
+  submit_query: string;
+  reset_form: string;
   refresh_cooldown: string;
   view_as_path: string;
+  as_path_internal: string;
+  as_path_asn: string;
   copy_link: string;
   link_copied: string;
   query_link: string;
@@ -72,6 +80,9 @@ interface _Text {
   previous_page: string;
   next_page: string;
   last_page: string;
+  page_size: string;
+  page_size_option: string;
+  page_count: string;
   history_title: string;
   history_open: string;
   history_delete: string;
@@ -91,6 +102,31 @@ interface _Text {
   share_expires: string;
   share_run_query: string;
   share_new_query: string;
+  share_result: string;
+  share_keep_for: string;
+  share_create: string;
+  share_link: string;
+  share_notice: string;
+  share_delete: string;
+  share_deleted: string;
+  share_earlier_link: string;
+  share_delete_scope: string;
+  share_delete_rotated: string;
+  share_link_expired: string;
+  share_minute: string;
+  share_minutes: string;
+  share_hour: string;
+  share_hours: string;
+  share_day: string;
+  share_days: string;
+  history_shared: string;
+  history_share_kept: string;
+  shares_title: string;
+  shares_forget: string;
+  shares_clear_all: string;
+  shares_clear_confirm: string;
+  shares_clear_cancel: string;
+  share_delete_scope_page: string;
 }
 
 interface _History {
@@ -216,6 +252,8 @@ interface _DeviceGroup {
 }
 
 interface _Share {
+  enable: boolean;
+  remember_links: boolean;
   timeout: number;
   timeout_choices: number[];
 }

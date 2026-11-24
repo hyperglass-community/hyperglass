@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeConfig, renderWithProviders } from '~/__tests__/render';
+import { hasFocusRing } from '~/__tests__/styles';
 import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
 import { Title } from './title';
 
@@ -38,6 +39,16 @@ describe('Title', () => {
       expect(screen.getByRole('img', { name: 'Hyperglass' }).tagName).toBe('IMG'),
     );
     expect(screen.getByRole('button', { name: 'Hyperglass' })).toBeInTheDocument();
+  });
+
+  // #548: `_focus={{ boxShadow: 'none' }}` hid the focus ring from keyboard users.
+  it('keeps the focus ring for keyboard focus', async () => {
+    renderWithProviders(<Title />);
+    const button = screen.getByRole('button', { name: 'Hyperglass' });
+
+    await userEvent.tab();
+    expect(button).toHaveFocus();
+    expect(hasFocusRing(button)).toBe(true);
   });
 
   it('uses the configured title', () => {

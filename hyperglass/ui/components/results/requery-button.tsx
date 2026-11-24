@@ -139,7 +139,7 @@ const _RequeryButton: React.ForwardRefRenderFunction<HTMLButtonElement, RequeryB
     <>
       <Tooltip hasArrow label={label} placement="top">
         <Button
-          mx={1}
+          mx={{ base: 0, sm: 1 }}
           ref={ref}
           size="sm"
           zIndex="1"
