@@ -32,22 +32,31 @@ describe('loadDayjsLocale', () => {
     expect(now.locale('zh-tw').to(now.subtract(2, 'hour'), true)).toBe('2 小時');
   });
 
-  it('falls back to English for a language dayjs has no locale for (#605)', async () => {
+  it('uses English for a language dayjs has no locale for, and warns once (#605)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     expect(await loadDayjsLocale('qq')).toBe('en');
+    expect(await loadDayjsLocale('qq')).toBe('en');
+
+    // The missing file is remembered, so the second call neither looks nor warns.
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
 
-  it('tries a locale again after it failed to load (#605)', async () => {
+  it('tries a locale again after its chunk failed to download (#605)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const chunkError = Object.assign(new Error('Loading chunk 123 failed.'), {
+      name: 'ChunkLoadError',
+    });
+    const failing = vi.fn().mockRejectedValue(chunkError);
 
-    await loadDayjsLocale('qq');
-    await loadDayjsLocale('qq');
+    expect(await loadDayjsLocale('fi-FI', failing)).toBe('en');
+    // The failure stops the lookup, so `fi` isn't remembered in place of `fi-fi`.
+    expect(failing).toHaveBeenCalledOnce();
+    expect(failing).toHaveBeenCalledWith('fi-fi');
 
-    // Each call looked for the locale again; a cached failure would warn once.
-    expect(warn).toHaveBeenCalledTimes(2);
+    // The failure wasn't remembered: the next load finds the locale.
+    expect(await loadDayjsLocale('fi-FI')).toBe('fi');
     warn.mockRestore();
   });
 });
