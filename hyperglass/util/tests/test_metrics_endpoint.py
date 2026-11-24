@@ -573,7 +573,7 @@ def test_redis_down_query_counted(metrics_client):
 def test_non_query_errors_not_counted(metrics_client):
     labels = {"device": "unknown", "query_type": "unknown", "status": "error"}
     before = sample("hyperglass_queries_total", **labels)
-    assert metrics_client.get("/api/devices/nonexistent").status_code >= 400
+    assert metrics_client.get("/api/devices/nonexistent").status_code == 404
     assert sample("hyperglass_queries_total", **labels) == before
 
 
