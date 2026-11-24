@@ -131,6 +131,13 @@ class Text(HyperglassModel):
     query_location: str = "Location"
     query_type: str = "Query Type"
     query_target: str = "Target"
+    # Shown on the location field when the selected locations share no query type.
+    # `{locations}` is their names, joined with commas; `{query_location_plural}` and
+    # `{query_type_plural}` are `query_location` and `query_type` with an English plural
+    # (formatted by Javascript).
+    no_common_query_types: str = (
+        "{query_location_plural} {locations} have no {query_type_plural} in common."
+    )
     fqdn_tooltip: str = "Use {protocol}"  # Formatted by Javascript
     fqdn_message: str = "Your browser has resolved {fqdn} to"  # Formatted by Javascript
     fqdn_error: str = "Unable to resolve {fqdn}"  # Formatted by Javascript

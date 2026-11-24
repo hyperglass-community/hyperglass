@@ -545,6 +545,10 @@ web:
     query_location: "Location"
     query_type: "Query Type"
     query_target: "Target"
+    # Error when the selected locations share no query type. {locations} is their
+    # names; {query_location_plural} and {query_type_plural} are the labels above
+    # with an English plural.
+    no_common_query_types: "{query_location_plural} {locations} have no {query_type_plural} in common."
     # Hostname resolution prompts.
     fqdn_tooltip: "Use {protocol}"
     fqdn_message: "Your browser has resolved {fqdn} to"

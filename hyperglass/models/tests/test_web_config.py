@@ -188,3 +188,14 @@ def test_form_button_and_route_table_text():
         "weightLowPreferred": "Lower Weight is Preferred",
         "weightHighPreferred": "Higher Weight is Preferred",
     }.items() <= exported.items()
+
+
+def test_no_common_query_types_text():
+    """The error for locations without a query type in common is configurable (#521)."""
+    assert Text().no_common_query_types == (
+        "{query_location_plural} {locations} have no {query_type_plural} in common."
+    )
+    exported = Text(no_common_query_types="{locations}: aucun type commun").model_dump(
+        by_alias=True
+    )
+    assert exported["noCommonQueryTypes"] == "{locations}: aucun type commun"

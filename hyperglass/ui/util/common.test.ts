@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import {
   all,
-  andJoin,
   chunkArray,
   dedupObjectArray,
   entries,
@@ -57,34 +56,6 @@ describe('dedupObjectArray - deduplicate object array', () => {
   });
   test.each(result)('verify objects', obj => {
     expect(obj).toEqual(expect.not.objectContaining(objArray[3]));
-  });
-});
-
-describe('andJoin - join array of strings to sentence structure', () => {
-  test('basic sentence', () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry']);
-    expect(result).toBe('Tom, Dick, & Harry');
-  });
-  test('one item', () => {
-    const result = andJoin(['Tom']);
-    expect(result).toBe('Tom');
-  });
-  test('mixed types', () => {
-    // @ts-expect-error Test case
-    const result = andJoin(['Tom', 100, 'Harry']);
-    expect(result).toBe('Tom & Harry');
-  });
-  test('(options) wrapped', () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry'], { wrap: '*' });
-    expect(result).toBe('*Tom*, *Dick*, & *Harry*');
-  });
-  test("(options) 'and' separator", () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry'], { separator: 'and' });
-    expect(result).toBe('Tom, Dick, and Harry');
-  });
-  test('(options) no oxford comma', () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry'], { oxfordComma: false });
-    expect(result).toBe('Tom, Dick & Harry');
   });
 });
 

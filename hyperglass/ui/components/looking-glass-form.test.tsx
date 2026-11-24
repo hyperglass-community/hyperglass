@@ -471,7 +471,7 @@ describe('LookingGlassForm rendering', () => {
     // The message is built in `useFormState.locationChange` from the configured labels.
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
     expect(useFormState.getState().filtered.types).toEqual([]);
@@ -1139,7 +1139,7 @@ describe('LookingGlassForm prefill', () => {
 
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
     expect(useFormState.getState().form.queryLocation).toEqual(['router_one', 'router_three']);
@@ -1159,7 +1159,7 @@ describe('LookingGlassForm prefill', () => {
 
     expect(
       await screen.findByText(
-        `${web.text.queryLocation}s Router One & Router Three have no ${web.text.queryType}s in common.`,
+        `${web.text.queryLocation}s Router One, Router Three have no ${web.text.queryType}s in common.`,
       ),
     ).toBeInTheDocument();
   });

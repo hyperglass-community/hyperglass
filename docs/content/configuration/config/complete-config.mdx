@@ -500,6 +500,7 @@ Customize almost all text displayed in the user interface.
 | `web.text.query_location` | String | `Location` | Label for location/router selection field. |
 | `web.text.query_type` | String | `Query Type` | Label for query type selection field. |
 | `web.text.query_target` | String | `Target` | Label for target input field. |
+| `web.text.no_common_query_types` | String | `{query_location_plural} {locations} have no {query_type_plural} in common.` | Error shown on the location field when the selected locations have no query type in common. `{locations}` is their names, separated by commas. `{query_location_plural}` and `{query_type_plural}` are `web.text.query_location` and `web.text.query_type` with an English plural (`s` added, for example); a translation can write its own words instead. |
 
 #### Title Display Mode
 
@@ -1393,6 +1394,10 @@ web:
     query_location: "Location"
     query_type: "Query Type"
     query_target: "Target"
+    # Error when the selected locations share no query type. {locations} is their
+    # names; {query_location_plural} and {query_type_plural} are the labels above
+    # with an English plural.
+    no_common_query_types: "{query_location_plural} {locations} have no {query_type_plural} in common."
     # Hostname resolution prompts.
     fqdn_tooltip: "Use {protocol}"
     fqdn_message: "Your browser has resolved {fqdn} to"

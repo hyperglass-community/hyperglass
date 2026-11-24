@@ -438,6 +438,7 @@
       "lastPage": "Last Page",
       "linkCopied": "Link copied",
       "nextPage": "Next Page",
+      "noCommonQueryTypes": "{query_location_plural} {locations} have no {query_type_plural} in common.",
       "noCommunities": "No Communities",
       "noIp": "No {protocol} Address",
       "noValue": "N/A",

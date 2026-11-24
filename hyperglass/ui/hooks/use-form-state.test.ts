@@ -56,14 +56,14 @@ function device(id: string): Device {
 }
 
 /** Call `locationChange` the way the form does, with spies for the form callbacks. */
-function changeLocations(locations: string[], devicesById = getDevice) {
+function changeLocations(locations: string[], devicesById = getDevice, text = testConfig.web.text) {
   const setError = vi.fn();
   const clearErrors = vi.fn();
   useFormState.getState().locationChange(locations, {
     setError,
     clearErrors,
     getDevice: devicesById,
-    text: testConfig.web.text,
+    text,
   });
   return { setError, clearErrors };
 }
@@ -519,7 +519,98 @@ describe('useFormState', () => {
 
       expect(useFormState.getState().filtered.types).toEqual([]);
       expect(setError).toHaveBeenCalledWith('queryLocation', {
-        message: 'Locations Router One & Router Three have no Query Types in common.',
+        message: 'Locations Router One, Router Three have no Query Types in common.',
+      });
+    });
+
+    it('words the error with web.text.no_common_query_types (#521)', () => {
+      const one = {
+        ...device('router_one'),
+        directives: device('router_one').directives.slice(0, 1),
+      };
+      const three = {
+        ...device('router_three'),
+        directives: device('router_three').directives.slice(0, 1),
+      };
+      // Router Two offers no query type at all, so no two of the three share one.
+      const two = { ...device('router_two'), directives: [] };
+      const byId = (id: string): Device | null =>
+        ({ router_one: one, router_two: two, router_three: three })[id] ?? null;
+      useFormState.getState().setSelection('queryLocation', [
+        { value: 'router_one', label: 'Router One' },
+        { value: 'router_two', label: 'Router Two' },
+        { value: 'router_three', label: 'Router Three' },
+      ]);
+      const text = {
+        ...testConfig.web.text,
+        queryLocation: 'Standort',
+        noCommonQueryTypes: 'Die Standorte {locations} haben keine gemeinsame Abfrage.',
+      };
+
+      const { setError } = changeLocations(
+        ['router_one', 'router_two', 'router_three'],
+        byId,
+        text,
+      );
+
+      // Only the configured sentence: no English plural of the configured noun, and
+      // the names joined with commas, without an English conjunction.
+      expect(setError).toHaveBeenCalledWith('queryLocation', {
+        message:
+          'Die Standorte Router One, Router Two, Router Three haben keine gemeinsame Abfrage.',
+      });
+    });
+
+    it.each(['{} {locations}', '{locations!r}'])(
+      'shows a malformed web.text.no_common_query_types (%s) as written',
+      template => {
+        const one = {
+          ...device('router_one'),
+          directives: device('router_one').directives.slice(0, 1),
+        };
+        const three = {
+          ...device('router_three'),
+          directives: device('router_three').directives.slice(0, 1),
+        };
+        const byId = (id: string): Device | null =>
+          id === 'router_one' ? one : id === 'router_three' ? three : null;
+        useFormState.getState().setSelection('queryLocation', [
+          { value: 'router_one', label: 'Router One' },
+          { value: 'router_three', label: 'Router Three' },
+        ]);
+        const text = { ...testConfig.web.text, noCommonQueryTypes: template };
+
+        const { setError } = changeLocations(['router_one', 'router_three'], byId, text);
+
+        expect(setError).toHaveBeenCalledWith('queryLocation', { message: template });
+        // The update still completes: the locations are set and nothing is offered.
+        const { form, filtered } = useFormState.getState();
+        expect(form.queryLocation).toEqual(['router_one', 'router_three']);
+        expect(filtered.types).toEqual([]);
+      },
+    );
+
+    it('fills the configured nouns, pluralised, into the default error (#521)', () => {
+      const one = {
+        ...device('router_one'),
+        directives: device('router_one').directives.slice(0, 1),
+      };
+      const three = {
+        ...device('router_three'),
+        directives: device('router_three').directives.slice(0, 1),
+      };
+      const byId = (id: string): Device | null =>
+        id === 'router_one' ? one : id === 'router_three' ? three : null;
+      useFormState.getState().setSelection('queryLocation', [
+        { value: 'router_one', label: 'Router One' },
+        { value: 'router_three', label: 'Router Three' },
+      ]);
+      const text = { ...testConfig.web.text, queryLocation: 'Router', queryType: 'Command' };
+
+      const { setError } = changeLocations(['router_one', 'router_three'], byId, text);
+
+      expect(setError).toHaveBeenCalledWith('queryLocation', {
+        message: 'Routers Router One, Router Three have no Commands in common.',
       });
     });
 
@@ -632,7 +723,7 @@ describe('useFormState', () => {
       );
 
       expect(setError).toHaveBeenCalledWith('queryLocation', {
-        message: 'Locations Router One & Router Three have no Query Types in common.',
+        message: 'Locations Router One, Router Three have no Query Types in common.',
       });
       expect(useFormState.getState().form.queryType).toBe('');
     });
