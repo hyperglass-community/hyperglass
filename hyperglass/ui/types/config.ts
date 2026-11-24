@@ -187,6 +187,8 @@ interface _Web {
   my_ip: 'external' | 'server' | 'off';
   aspath_enrichment: boolean;
   highlight: _Highlight[];
+  /** BCP 47 language tag for the route table's dates and times. */
+  locale: string;
 }
 
 type _DirectiveBase = {

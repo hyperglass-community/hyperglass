@@ -377,6 +377,7 @@
         "url": "https://www.peeringdb.com/asn/65000"
       }
     ],
+    "locale": "en",
     "locationDisplayMode": "auto",
     "logo": {
       "dark": "hyperglass/images/hyperglass-dark.svg",

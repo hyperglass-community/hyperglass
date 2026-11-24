@@ -391,6 +391,7 @@ Extensive customization options for the web interface appearance and behavior.
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `web.location_display_mode` | String | `auto` | Location selector style: `auto`, `dropdown`, or `gallery`. |
+| `web.locale` | String | `en` | BCP 47 language tag, such as `fr` or `pt-BR`, for the route table's age column and the date and time in its tooltip (always in UTC). A region without its own translation uses its language's (`de-LU` uses `de`); a language without one uses English. |
 | `web.my_ip` | String | `server` | How the My IP button finds the visitor's address. `server` reads it from the request to Hyperglass and shows a public address only. `external` looks it up with myip.wtf after the visitor confirms. `off` hides the button. |
 | `web.client_ip.header` | String | | Single-address request header that a trusted proxy overwrites, for example `X-Real-IP`, or `CF-Connecting-IP` behind a CDN. When unset, Hyperglass reads `X-Forwarded-For`. |
 | `web.client_ip.trusted_proxies` | List of networks | `[]` | Networks of the proxies that connect to Hyperglass. Client address headers are read only from these peers. When empty, the headers are ignored. |
@@ -1353,6 +1354,12 @@ web:
   # groups that each have fewer than 9 locations, otherwise dropdown).
   # Default: auto
   location_display_mode: "auto"
+
+  # Language of the route table's age column ("2 hours") and of the time in its
+  # tooltip: a BCP 47 tag such as fr or pt-BR. A language the UI has no translation
+  # of the age for shows it in English.
+  # Default: en
+  locale: "en"
 
   # Footer links. {primary_asn} is replaced. side is left or right; order sorts
   # items on the same side; show_icon adds an external-link icon.

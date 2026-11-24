@@ -6,8 +6,8 @@ import { forwardRef } from 'react';
 import { Else, If, Then } from 'react-if';
 import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
-import { useColorValue, useOpposingColor } from '~/hooks';
-import { formatText } from '~/util';
+import { useColorValue, useDayjsLocale, useOpposingColor } from '~/hooks';
+import { formatDate, formatText } from '~/util';
 
 import type { TextProps } from '@chakra-ui/react';
 
@@ -63,10 +63,37 @@ interface MarkerProps {
   icon: Record<string, string>;
 }
 
+interface FocusableTooltipProps extends TextProps {
+  label: string;
+}
+
 /**
- * An icon that stands for a value, named and explained by `label`. It takes focus, so
- * keyboard users can open the tooltip and a tap shows it on touch screens;
- * `closeOnClick` is off so the tap that focuses it doesn't close it again.
+ * Text with a tooltip that keyboard and touch users can open too. The text takes focus,
+ * so tabbing to it opens the tooltip, which the trigger names with `aria-describedby`
+ * while it is open, and a tap shows it on touch screens; `closeOnClick` is off so the
+ * tap that focuses it doesn't close it again.
+ */
+const FocusableTooltip = (props: FocusableTooltipProps): JSX.Element => {
+  const { label, children, ...rest } = props;
+  return (
+    <Tooltip hasArrow label={label} placement="right" closeOnClick={false}>
+      <Text
+        as="span"
+        tabIndex={0}
+        display="inline-block"
+        borderRadius="sm"
+        _focusVisible={{ boxShadow: 'outline', outline: 'none' }}
+        {...rest}
+      >
+        {children}
+      </Text>
+    </Tooltip>
+  );
+};
+
+/**
+ * An icon that stands for a value, named and explained by `label`. Like
+ * `FocusableTooltip`, it takes focus, so keyboard and touch users can open the tooltip.
  */
 const Marker = (props: MarkerProps): JSX.Element => {
   const { label, icon } = props;
@@ -122,22 +149,38 @@ export const Active = (props: ActiveProps): JSX.Element => {
   );
 };
 
+/**
+ * Format an age of `inSeconds` without a suffix ("2 hours"), and the time that long ago
+ * in UTC, both in `locale`. The age uses `dayjsLocale`, the loaded dayjs locale for it.
+ */
+function formatAge(
+  inSeconds: number,
+  locale: string,
+  dayjsLocale: string,
+): { relative: string; absolute: string } {
+  const now = dayjs.utc().locale(dayjsLocale);
+  const then = now.subtract(inSeconds, 'second');
+  return {
+    relative: now.to(then, true),
+    absolute: formatDate(then.toDate(), { locale, timeZone: 'UTC' }),
+  };
+}
+
 export const Age = (props: AgeProps): JSX.Element => {
   const { inSeconds, ...rest } = props;
+  const { web } = useConfig();
+  const dayjsLocale = useDayjsLocale(web.locale);
 
   // Handle case where age is not available (e.g., MikroTik) - hide the field entirely
   if (inSeconds === -1) {
     return <></>;
   }
 
-  const now = dayjs.utc();
-  const then = now.subtract(inSeconds, 'second');
+  const { relative, absolute } = formatAge(inSeconds, web.locale, dayjsLocale);
   return (
-    <Tooltip hasArrow label={then.toString().replace('GMT', 'UTC')} placement="right">
-      <Text fontSize="sm" {...rest}>
-        {now.to(then, true)}
-      </Text>
-    </Tooltip>
+    <FocusableTooltip label={absolute} fontSize="sm" {...rest}>
+      {relative}
+    </FocusableTooltip>
   );
 };
 
@@ -147,11 +190,9 @@ export const Weight = (props: WeightProps): JSX.Element => {
   const label =
     winningWeight === 'low' ? web.text.weightLowPreferred : web.text.weightHighPreferred;
   return (
-    <Tooltip hasArrow label={label} placement="right">
-      <Text fontSize="sm" fontFamily="mono" {...rest}>
-        {weight}
-      </Text>
-    </Tooltip>
+    <FocusableTooltip label={label} fontSize="sm" fontFamily="mono" {...rest}>
+      {weight}
+    </FocusableTooltip>
   );
 };
 
