@@ -2,12 +2,14 @@
 
 # Third Party
 import pytest
-from litestar.testing import create_test_client
 from litestar import Request
+from litestar.testing import create_test_client
 from litestar.datastructures import Address
-from hyperglass.util.tests.test_client_address import ProxyRequest, TRUSTED
+
+# Project
 from hyperglass.state import use_state
 from hyperglass.models.config.params import Params
+from hyperglass.util.tests.test_client_address import TRUSTED, ProxyRequest
 
 
 @pytest.fixture
@@ -88,6 +90,7 @@ def test_myip(client, headers, family, expected):
     ],
 )
 def test_proxy_setup_and_direct_client(peer, settings, expected):
+    # Project
     from hyperglass.api.routes import myip
 
     class PeerRequest(Request):

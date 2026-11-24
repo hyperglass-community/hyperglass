@@ -8,8 +8,8 @@ from pathlib import Path
 # Third Party
 from litestar import Router, Litestar, Response
 from litestar.openapi import OpenAPIConfig
-from litestar.openapi.spec import Server
 from litestar.exceptions import HTTPException, ValidationException
+from litestar.openapi.spec import Server
 from litestar.static_files import create_static_files_router
 
 # Project

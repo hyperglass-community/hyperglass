@@ -1,8 +1,8 @@
 """Base Connection Class."""
 
 # Standard Library
-import typing as t
 import re
+import typing as t
 import asyncio
 from abc import ABC, abstractmethod
 

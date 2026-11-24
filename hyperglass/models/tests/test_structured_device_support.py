@@ -1,7 +1,9 @@
 """Require structured-output opt-in for every platform and supported alias."""
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.constants import SUPPORTED_STRUCTURED_OUTPUT
 from hyperglass.models.config.devices import Device
 

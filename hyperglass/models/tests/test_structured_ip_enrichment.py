@@ -1,7 +1,9 @@
 """Tests for structured IP enrichment configuration."""
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.models.config.structured import Structured, StructuredIpEnrichment
 
 

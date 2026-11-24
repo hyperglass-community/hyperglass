@@ -3,8 +3,8 @@
 # Standard Library
 import os
 import re
-import difflib
 import typing as t
+import difflib
 from pathlib import Path
 from ipaddress import IPv4Address, IPv6Address
 

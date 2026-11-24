@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import pytest
 
 # Project
-from hyperglass.models.directive import BuiltinDirective, RuleWithPattern
-from hyperglass.exceptions.private import InputValidationError
+from hyperglass.models.directive import RuleWithPattern, BuiltinDirective
 from hyperglass.exceptions.public import InputInvalid
+from hyperglass.exceptions.private import InputValidationError
 from hyperglass.execution.drivers._construct import Construct
 
 

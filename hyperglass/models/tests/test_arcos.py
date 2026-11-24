@@ -12,10 +12,10 @@ import pytest
 # Project
 from hyperglass.state import use_state
 from hyperglass.plugins import OutputPluginManager
+from hyperglass.exceptions.private import ParsingError
 from hyperglass.models.config.devices import Device
 from hyperglass.execution.drivers._construct import Construct
 from hyperglass.plugins._builtin.bgp_route_arcos import BGPRoutePluginArcOS, parse_arcos
-from hyperglass.exceptions.private import ParsingError
 
 FIXTURES = Path(__file__).parents[2] / "plugins/tests/fixtures/arcos-reference"
 SHOW = "echo 'show network-instance default protocol BGP BGP | display json' | confd_cli -C"
@@ -201,6 +201,7 @@ def test_dispatch_filters_both_directives(structured, target, other, instance_ou
     ],
 )
 def test_malformed_output_never_returns_device_text(structured, text):
+    # Project
     from hyperglass.api.error_handlers import app_handler
 
     router = device(structured_output=structured)

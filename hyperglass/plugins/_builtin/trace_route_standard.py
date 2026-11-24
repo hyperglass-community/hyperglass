@@ -1,14 +1,17 @@
 """Parse numbered traceroute output from Linux and network device CLIs."""
 
+# Standard Library
 import re
 import typing as t
 from ipaddress import ip_address
 
+# Third Party
 from pydantic import PrivateAttr
 
+# Project
 from hyperglass.state import use_state
-from hyperglass.models.data.traceroute import TracerouteHop, TracerouteResult
 from hyperglass.plugins._output import OutputPlugin
+from hyperglass.models.data.traceroute import TracerouteHop, TracerouteResult
 
 PLATFORMS = (
     "arista_eos",

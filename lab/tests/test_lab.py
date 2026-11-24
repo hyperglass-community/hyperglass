@@ -21,10 +21,11 @@ core, so they pass without Internet access. VRF locations target addresses
 inside their VRF.
 """
 
+# Standard Library
 import time
 
+# Third Party
 import pytest
-
 from conftest import TEXT, query
 
 V4 = "1.1.1.1"

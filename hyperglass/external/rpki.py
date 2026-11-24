@@ -14,6 +14,7 @@ from hyperglass.state import use_state
 from hyperglass.external._base import BaseExternal
 
 if t.TYPE_CHECKING:
+    # Standard Library
     from ipaddress import IPv4Address, IPv6Address
 
     Prefix = t.Union[IPv4Address, IPv6Address, str]

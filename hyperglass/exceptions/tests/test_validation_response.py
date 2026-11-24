@@ -24,7 +24,7 @@ def get_validation_exception_detail(exc):
 def client(monkeypatch):
     """Provide a test client for the API without building the UI or reading user config."""
     # Project
-    from hyperglass.state import use_state, recovery
+    from hyperglass.state import recovery, use_state
 
     monkeypatch.setattr(Settings, "disable_ui", True)
     state = use_state()

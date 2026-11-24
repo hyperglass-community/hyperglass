@@ -20,9 +20,7 @@ def _fields(text: str) -> dict[str, str]:
     """Read labelled fields, including wrapped values, without splitting IPv6 addresses."""
     matches = list(re.finditer(r"^\s*([A-Za-z][A-Za-z -]*?)\s*:\s*", text, re.MULTILINE))
     return {
-        match[1]
-        .strip()
-        .lower(): " ".join(
+        match[1].strip().lower(): " ".join(
             text[match.end() : matches[i + 1].start() if i + 1 < len(matches) else None].split()
         )
         for i, match in enumerate(matches)

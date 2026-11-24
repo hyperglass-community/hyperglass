@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Wait for appliance SSH and verify the fixture data link after deployment."""
 
-import argparse
-import base64
+# Standard Library
 import json
-from pathlib import Path
-import subprocess
 import time
+import base64
+import argparse
+import subprocess
+from pathlib import Path
 
+# Third Party
 from netmiko import ConnectHandler
 
 PLATFORMS = {

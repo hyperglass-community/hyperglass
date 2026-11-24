@@ -15,8 +15,8 @@ import pytest
 from hyperglass.plugins._builtin.bgp_route_frr import parse_frr
 from hyperglass.plugins._builtin.bgp_route_arista import parse_arista
 from hyperglass.plugins._builtin.bgp_route_juniper import parse_juniper
-from hyperglass.plugins._builtin.bgp_routestr_mikrotik import parse_mikrotik
 from hyperglass.plugins._builtin.trace_route_standard import parse_standard_traceroute
+from hyperglass.plugins._builtin.bgp_routestr_mikrotik import parse_mikrotik
 
 FIXTURES = Path(__file__).parent / "fixtures"
 PREFIXES = {4: "1.0.0.0/24", 6: "2606:4700:4700::/48"}

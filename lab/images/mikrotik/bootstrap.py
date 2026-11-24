@@ -1,11 +1,13 @@
 """RouterOS console bootstrap for both fresh and saved CHR disks."""
 
-import hashlib
+# Standard Library
 import os
-from pathlib import Path
 import re
 import time
+import hashlib
+from pathlib import Path
 
+# Third Party
 import vrnetlab
 
 

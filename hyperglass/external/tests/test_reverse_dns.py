@@ -1,30 +1,32 @@
 """PTR work is bounded and cannot delay the initial traceroute response."""
 
-import asyncio
+# Standard Library
 import socket
+import asyncio
 import threading
-from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from datetime import UTC, datetime
+from unittest.mock import Mock, AsyncMock
 from concurrent.futures import ThreadPoolExecutor
 
+# Third Party
 import pytest
 
-from hyperglass.external import reverse_dns
-from hyperglass.models.data.traceroute import TracerouteResult
-from hyperglass.models.config.params import Params
+# Project
 from hyperglass.state import use_state
+from hyperglass.external import reverse_dns
+from hyperglass.models.config.params import Params
+from hyperglass.models.data.traceroute import TracerouteResult
 
 
 def set_reverse_dns(**config):
-    use_state().cache.set(
-        "params", Params(structured={"ip_enrichment": {"reverse_dns": config}})
-    )
+    use_state().cache.set("params", Params(structured={"ip_enrichment": {"reverse_dns": config}}))
 
 
 def trace():
     return TracerouteResult(
-        target="1.1.1.1", source="test",
+        target="1.1.1.1",
+        source="test",
         hops=[
             {"hop_number": 1, "ip_address": "1.1.1.1", "hostname": "supplied.example"},
             {"hop_number": 2, "ip_address": "8.8.8.8"},
@@ -49,7 +51,10 @@ async def test_ptr_deduplicates_missing_hosts_and_preserves_router_names(monkeyp
     await reverse_dns.enrich_hostnames(output)
     assert sorted(calls) == ["8.8.8.8", "9.9.9.9"]
     assert [hop.hostname for hop in output.hops] == [
-        "supplied.example", "resolved.example", "resolved.example", None,
+        "supplied.example",
+        "resolved.example",
+        "resolved.example",
+        None,
     ]
 
 
@@ -99,6 +104,7 @@ async def test_entire_ptr_batch_has_a_deadline(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_response_precedes_ptr_and_poll_receives_enriched_cache(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     state = use_state()
@@ -168,10 +174,13 @@ async def test_nonpublic_hops_never_reach_resolver(monkeypatch, address):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("address,canonical", [
-    ("2606:4700:4700::1111", "2606:4700:4700::1111"),
-    ("::ffff:8.8.8.8", "8.8.8.8"),
-])
+@pytest.mark.parametrize(
+    "address,canonical",
+    [
+        ("2606:4700:4700::1111", "2606:4700:4700::1111"),
+        ("::ffff:8.8.8.8", "8.8.8.8"),
+    ],
+)
 async def test_public_ipv6_and_mapped_hops_resolve(monkeypatch, address, canonical):
     lookup = Mock(return_value=("public.example", [], [canonical]))
     monkeypatch.setattr(reverse_dns.socket, "gethostbyaddr", lookup)

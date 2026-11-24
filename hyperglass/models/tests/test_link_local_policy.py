@@ -5,8 +5,8 @@ import pytest
 
 # Project
 from hyperglass.models.directive import Directive, RuleWithIPv4, RuleWithIPv6
-from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.exceptions.private import InputValidationError
+from hyperglass.defaults.directives import init_builtin_directives
 
 LINK_LOCAL_HOSTS = ("fe80::1%mgmt0", "fe80::1%eth0/128", "fe80::1%3", "febf:ffff::1%br-lan")
 NEVER_ZONED = (

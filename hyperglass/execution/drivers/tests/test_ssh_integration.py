@@ -35,14 +35,14 @@ if t.TYPE_CHECKING:
 
 # Project
 from hyperglass.state import use_state
-from hyperglass.state.hooks import _use_state
 from hyperglass.models.api import Query
+from hyperglass.state.hooks import _use_state
 from hyperglass.configuration import init_ui_params
 from hyperglass.models.directive import Directives
-from hyperglass.models.config.params import Params
-from hyperglass.models.config.devices import Devices
 from hyperglass.exceptions.public import AuthError
 from hyperglass.execution.drivers import NetmikoConnection
+from hyperglass.models.config.params import Params
+from hyperglass.models.config.devices import Devices
 
 SSH_HOST = os.getenv("HYPERGLASS_TEST_SSH_HOST")
 SSH_PORT = os.getenv("HYPERGLASS_TEST_SSH_PORT")
