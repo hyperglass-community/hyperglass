@@ -223,6 +223,14 @@ const _Result: React.ForwardRefRenderFunction<HTMLDivElement, ResultProps> = (
             <ResultShareButton
               queryId={data.id}
               timestamp={data.timestamp}
+              labels={{
+                location: device.name,
+                type:
+                  device.directives.find(d => d.id === form.queryType)?.name ??
+                  getDirective()?.name ??
+                  form.queryType,
+                target: form.queryTarget.join(', '),
+              }}
               isDisabled={isQuerying}
             />
           )}

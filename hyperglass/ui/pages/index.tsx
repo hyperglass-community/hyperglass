@@ -25,6 +25,11 @@ const RecentQueries = dynamic<Dict>(
   { ssr: false },
 );
 
+// The share links created in this browser are in its storage only, like the history.
+const SavedShares = dynamic<Dict>(() => import('~/components/share').then(i => i.SavedShares), {
+  ssr: false,
+});
+
 const HistoryResults = dynamic<Dict>(
   () => import('~/components/history').then(i => i.HistoryResults),
   { ssr: false, loading: Loading },
@@ -71,6 +76,7 @@ const Index: NextPage = () => {
                   <LookingGlassForm />
                 </AnimatePresence>
                 <RecentQueries />
+                <SavedShares />
               </Else>
             </If>
           </Else>

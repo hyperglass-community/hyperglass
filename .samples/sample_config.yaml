@@ -101,6 +101,11 @@ share:
   # its link can read until it expires. Snapshots are kept in Redis outside
   # the state that a restart clears. Default: false
   enable: false
+  # Keep the links a browser creates, with their delete tokens, in its local
+  # storage, to copy or delete later under "Your shared links". Turn it off on
+  # kiosks and shared terminals: links then last until the page is closed or
+  # reloaded. Default: true
+  remember_links: true
   # Seconds a snapshot is kept when the visitor doesn't choose. Must be one of
   # timeout_choices. Reading a snapshot doesn't extend it. Default: 2592000 (30 days)
   timeout: 2592000
@@ -624,8 +629,8 @@ web:
     # ({time} in the viewer's time zone), who can delete a link, the note when it
     # was shared again elsewhere, and what is announced when a link expires.
     share_earlier_link: "Link to the result from {time}"
-    share_delete_scope: "You can delete the link from this page until you close or reload it."
-    share_delete_rotated: "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_delete_scope: "You can delete the link from this browser, here or under {shares}, until it expires."
+    share_delete_rotated: "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
     share_link_expired: "The link has expired."
     share_minute: "{count} minute"
     share_minutes: "{count} minutes"
@@ -633,6 +638,16 @@ web:
     share_hours: "{count} hours"
     share_day: "{count} day"
     share_days: "{count} days"
+    # Saved queries whose result has a share link, and "Your shared links", the
+    # links created in this browser.
+    history_shared: "Link shared"
+    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire."
+    shares_title: "Your shared links"
+    shares_forget: "Forget"
+    shares_clear_all: "Forget all"
+    shares_clear_confirm: "Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here."
+    shares_clear_cancel: "Cancel"
+    share_delete_scope_page: "You can delete the link from this page until you close or reload it."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

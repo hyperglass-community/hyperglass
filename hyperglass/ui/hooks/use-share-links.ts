@@ -1,4 +1,3 @@
-import { create } from 'zustand';
 import { fetchWithTimeout } from '~/util';
 import { SHARE_PARAM, isShareId } from './use-share';
 
@@ -292,54 +291,3 @@ export function keepForLabel(seconds: number, text: Config['web']['text']): stri
 export function isLiveLink(link: Pick<ShareLink, 'deadline'>, now: number = Date.now()): boolean {
   return link.deadline > now;
 }
-
-interface ShareLinksState {
-  /**
-   * The links created in this page, by query response `id`: one query on one device. A
-   * query run again (a forced refresh, or after its cache expired) keeps its `id` but is
-   * another result, which gets its own link; the earlier ones stay here.
-   */
-  links: Record<string, ShareLink[]>;
-  /** Keep `link` for query `queryId`, replacing one with the same id. Drops expired links. */
-  add(queryId: string, link: ShareLink): void;
-  /** Forget link `id` of query `queryId`. Drops expired links. */
-  remove(queryId: string, id: string): void;
-}
-
-/** `links` without expired links, `id`, or queries left without links. */
-function prune(
-  links: Record<string, ShareLink[]>,
-  queryId: string,
-  id: string,
-): Record<string, ShareLink[]> {
-  const now = Date.now();
-  const result: Record<string, ShareLink[]> = {};
-  for (const [query, list] of Object.entries(links)) {
-    const kept = list.filter(l => isLiveLink(l, now) && !(query === queryId && l.id === id));
-    if (kept.length > 0) {
-      result[query] = kept;
-    }
-  }
-  return result;
-}
-
-/**
- * The links created from live results, with their delete tokens, so a result's Share
- * button shows them again while the page is open, also after the query ran again. Kept in
- * memory only: not in web storage, and not in the devtools (`withDev`), so a token never
- * outlives the page and is never written anywhere. A visitor who reloads can share the
- * same cached result again to get its link back, with a new token.
- */
-export const useShareLinks = create<ShareLinksState>()(set => ({
-  links: {},
-  add(queryId: string, link: ShareLink): void {
-    set(state => {
-      const links = prune(state.links, queryId, link.id);
-      links[queryId] = [...(links[queryId] ?? []), link];
-      return { links };
-    });
-  },
-  remove(queryId: string, id: string): void {
-    set(state => ({ links: prune(state.links, queryId, id) }));
-  },
-}));

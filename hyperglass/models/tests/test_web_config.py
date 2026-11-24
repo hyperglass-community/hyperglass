@@ -188,8 +188,8 @@ def test_share_button_text_exported():
         "shareDelete": "Supprimer le lien",
         "shareDeleted": "Link deleted",
         "shareEarlierLink": "Link to the result from {time}",
-        "shareDeleteScope": "You can delete the link from this page until you close or reload it.",
-        "shareDeleteRotated": "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires.",
+        "shareDeleteScope": "You can delete the link from this browser, here or under {shares}, until it expires.",
+        "shareDeleteRotated": "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.",
         "shareLinkExpired": "The link has expired.",
         "shareMinute": "{count} minute",
         "shareMinutes": "{count} minutes",
@@ -197,4 +197,25 @@ def test_share_button_text_exported():
         "shareHours": "{count} hours",
         "shareDay": "{count} day",
         "shareDays": "{count} days",
+    }.items() <= exported.items()
+
+
+def test_shared_links_text_exported():
+    """The shared links list and the history's share mark read camelCase keys of `web.text` (#562)."""
+    exported = Text(shares_title="Mes liens").model_dump(by_alias=True)
+    assert {
+        "sharesTitle": "Mes liens",
+        "sharesForget": "Forget",
+        "sharesClearAll": "Forget all",
+        "sharesClearConfirm": (
+            "Forget every shared link in this browser? The links keep working until they "
+            "expire, and can no longer be deleted from here."
+        ),
+        "sharesClearCancel": "Cancel",
+        "shareDeleteScopePage": "You can delete the link from this page until you close or reload it.",
+        "historyShared": "Link shared",
+        "historyShareKept": (
+            "Deleting saved queries doesn't delete their share links: they stay under "
+            "{shares} and keep working until they expire."
+        ),
     }.items() <= exported.items()

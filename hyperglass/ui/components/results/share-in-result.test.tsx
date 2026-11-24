@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
 import { useFormState } from '~/hooks';
-import { useShareLinks } from '~/hooks/use-share-links';
+import { SHARES_KEY, useSavedShares } from '~/hooks/use-saved-shares';
 import { formatTimestamp } from '~/util';
 import { Result } from './individual';
 
@@ -121,7 +121,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   useFormState.setState(initialFormState, true);
-  useShareLinks.setState({ links: {} });
+  useSavedShares.getState().clear();
+  localStorage.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -280,7 +281,7 @@ describe('Result Share button', () => {
     expect(screen.getByRole('button', { name: 'Create Link' })).toBeInTheDocument();
   });
 
-  it('shares the response by its id, and keeps the link for this page', async () => {
+  it('shares the response by its id, and keeps the link in this browser', async () => {
     const fetch = stubFetch();
     await renderResult();
     await userEvent.click(shareButton() as HTMLElement);
@@ -306,5 +307,50 @@ describe('Result Share button', () => {
     expect(fetch.mock.calls.filter(([url]) => url === '/api/share')).toHaveLength(1);
     // The IPv6 target is in the shared result, never in the link.
     expect(link).not.toContain('2001');
+  });
+
+  // The links created here are kept in this browser's own store (#562), with the
+  // result's labels for "Your shared links".
+  it('saves the link with the query id, the result time and the labels', async () => {
+    stubFetch();
+    await renderResult();
+    await userEvent.click(shareButton() as HTMLElement);
+    await userEvent.click(await screen.findByRole('button', { name: 'Create Link' }));
+    await screen.findByRole('textbox', { name: 'Link to this result' });
+
+    const [saved] = useSavedShares.getState().links;
+    expect(saved).toEqual(
+      expect.objectContaining({
+        id: SHARE_ID,
+        queryId: QUERY_ID,
+        timestamp: '2026-11-23 08:00:00',
+        deleteToken: TOKEN,
+        labels: { location: 'Router One', type: 'BGP Route', target: '2001:db8::/32' },
+      }),
+    );
+    const stored = JSON.parse(localStorage.getItem(SHARES_KEY) as string);
+    expect(stored.links.map((l: { id: string }) => l.id)).toEqual([SHARE_ID]);
+  });
+
+  it('shows a link this browser saved before, as after a reload, with no request', async () => {
+    const fetch = stubFetch();
+    useSavedShares.getState().add({
+      id: SHARE_ID,
+      queryId: QUERY_ID,
+      timestamp: '2026-11-23 08:00:00',
+      expiresAt: '2099-12-23T08:00:00Z',
+      deadline: Date.now() + 86_400_000,
+      deleteToken: TOKEN,
+      savedAt: Date.now(),
+      labels: { location: 'Router One', type: 'BGP Route', target: '2001:db8::/32' },
+    });
+    await renderResult();
+
+    await userEvent.click(shareButton() as HTMLElement);
+
+    expect(await screen.findByRole('textbox', { name: 'Link to this result' })).toHaveValue(
+      `${window.location.origin}/?share=${SHARE_ID}`,
+    );
+    expect(fetch.mock.calls.filter(([url]) => String(url).startsWith('/api/share'))).toEqual([]);
   });
 });

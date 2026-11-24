@@ -5,6 +5,7 @@ import { useConfig } from '~/context';
 import { DynamicIcon } from '~/elements';
 import { useColorValue, useHistoryView, useQueryHistory, useStrf } from '~/hooks';
 import { formatTimestamp } from '~/util';
+import { HistoryShareButton, useHistoryShareable } from './history-share-button';
 
 import type { HistoryReuseMode } from '~/hooks';
 
@@ -33,6 +34,7 @@ export const HistoryResults = (): JSX.Element | null => {
   const reuse = useHistoryView(s => s.reuse);
   const entry = useQueryHistory(s => s.entries.find(e => e.id === openId));
   const backRef = useRef<HTMLButtonElement>(null);
+  const shareable = useHistoryShareable();
 
   // Move focus to the view that replaced the list.
   useEffect(() => {
@@ -140,6 +142,15 @@ export const HistoryResults = (): JSX.Element | null => {
             data={results[id].data}
             queryTarget={query.queryTarget}
             displayTarget={labels.target}
+            share={
+              shareable(entry, id) && (
+                <HistoryShareButton
+                  entry={entry}
+                  deviceId={id}
+                  onRerun={() => handleReuse('rerun')}
+                />
+              )
+            }
           />
         ))}
       </ResultsView>

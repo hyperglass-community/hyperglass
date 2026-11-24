@@ -6,7 +6,6 @@ import {
   keepForLabel,
   shareFailureMessage,
   shareLink,
-  useShareLinks,
 } from './use-share-links';
 
 import type { ShareFailure, ShareLink } from './use-share-links';
@@ -50,7 +49,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  useShareLinks.setState({ links: {} });
 });
 
 describe('createShare', () => {
@@ -319,54 +317,5 @@ describe('shareFailureMessage', () => {
   ])('%s shows its configured message', (failure, message) => {
     expect(message).toBeTruthy();
     expect(shareFailureMessage(failure, messages)).toBe(message);
-  });
-});
-
-describe('useShareLinks', () => {
-  const link = (overrides: Partial<ShareLink> = {}): ShareLink => ({
-    ...body,
-    deadline: NOW + DAY * 1000,
-    timestamp: '2026-11-23 07:59:00',
-    ...overrides,
-  });
-
-  it('keeps every link created for a query, across its results, until removed', () => {
-    const { add, remove } = useShareLinks.getState();
-    add(QUERY_ID, link());
-    // The query run again (a forced refresh): a later result, another link.
-    add(QUERY_ID, link({ id: 'f'.repeat(32), timestamp: '2026-11-23 08:05:00' }));
-    expect(useShareLinks.getState().links[QUERY_ID].map(l => l.id)).toEqual([
-      SHARE_ID,
-      'f'.repeat(32),
-    ]);
-
-    remove(QUERY_ID, SHARE_ID);
-    expect(useShareLinks.getState().links[QUERY_ID].map(l => l.id)).toEqual(['f'.repeat(32)]);
-    remove(QUERY_ID, 'f'.repeat(32));
-    expect(useShareLinks.getState().links).toEqual({});
-  });
-
-  it('replaces a link with the same id, as when its token can no longer delete it', () => {
-    const { add } = useShareLinks.getState();
-    add(QUERY_ID, link());
-    add(QUERY_ID, link({ deleteToken: null }));
-    expect(useShareLinks.getState().links[QUERY_ID]).toEqual([link({ deleteToken: null })]);
-  });
-
-  it('drops expired links, by their deadline, whenever it changes', () => {
-    useShareLinks.setState({
-      links: { [OTHER_QUERY]: [link({ deadline: NOW - 1 })] },
-    });
-    useShareLinks.getState().add(QUERY_ID, link());
-    expect(Object.keys(useShareLinks.getState().links)).toEqual([QUERY_ID]);
-  });
-
-  it('is kept in memory only, never in web storage', () => {
-    useShareLinks.getState().add(QUERY_ID, link());
-    const stored = [
-      ...Object.keys(localStorage).map(k => localStorage.getItem(k)),
-      ...Object.keys(sessionStorage).map(k => sessionStorage.getItem(k)),
-    ].join('');
-    expect(stored).not.toContain(TOKEN);
   });
 });

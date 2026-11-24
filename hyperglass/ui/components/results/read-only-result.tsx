@@ -14,6 +14,8 @@ export interface ReadOnlyResultProps {
   queryTarget: string[];
   /** The query target as shown, for the AS path's title. */
   displayTarget: string;
+  /** A Share button, after copy (a saved history entry's, #562). */
+  share?: React.ReactNode;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface ReadOnlyResultProps {
  * table or a traceroute), the AS path without lookups. It must be inside an `Accordion` (see `ResultsView`).
  */
 export const ReadOnlyResult = (props: ReadOnlyResultProps): JSX.Element => {
-  const { index, location, data, queryTarget, displayTarget } = props;
+  const { index, location, data, queryTarget, displayTarget, share } = props;
   // Not shown as a cached response: the page shows when it was produced instead.
   const query = useMemo<ResultQueryState>(
     () => ({
@@ -46,6 +48,7 @@ export const ReadOnlyResult = (props: ReadOnlyResultProps): JSX.Element => {
           {/* Without `onEnriched`, the AS path makes no request. */}
           {showPath && <Path response={data} displayTarget={displayTarget} />}
           <CopyButton copyValue={copyValue} />
+          {share}
         </>
       )}
     />
