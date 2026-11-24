@@ -9,7 +9,14 @@ from hyperglass.state import use_state
 from hyperglass.defaults.directives import init_builtin_directives
 
 # Local
-from .validate import init_files, init_params, init_devices, init_ui_params, init_directives
+from .validate import (
+    init_files,
+    init_params,
+    init_devices,
+    init_ui_params,
+    init_directives,
+    check_directive_ids,
+)
 
 if t.TYPE_CHECKING:
     # Project
@@ -33,6 +40,7 @@ def init_user_config(
     _params = params or init_params()
     builtins = init_builtin_directives()
     _custom = directives or init_directives()
+    check_directive_ids(builtins=builtins, custom=_custom)
     _directives = builtins + _custom
     with state.cache.pipeline() as pipeline:
         # Write params and directives to the cache first to avoid a race condition where ui_params
