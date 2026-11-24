@@ -1,7 +1,5 @@
 """Server-side DNS resolution endpoint (#48)."""
 
-# Standard Library
-
 # Third Party
 import pytest
 from litestar.testing import create_test_client
