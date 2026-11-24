@@ -104,7 +104,8 @@ Lets visitors copy a cached query result into a snapshot that anyone with its li
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
-| `share.enable` | Boolean | `false` | Register `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}`. |
+| `share.enable` | Boolean | `false` | Register `POST /api/share`, `GET /api/share/{id}` and `DELETE /api/share/{id}`, and show a [Share button](/configuration/config/share#the-share-button) on results. Sent to the UI. |
+| `share.remember_links` | Boolean | `true` | Keep the links a browser creates, with their delete tokens, in its local storage (`hyperglass.shares`), to copy or delete later under ["Your shared links"](/configuration/config/share#your-shared-links). With `false`, they are kept in the page's memory only, until it is closed or reloaded, and a browser deletes its stored links when it loads the page. Turn it off on kiosks and shared terminals. Sent to the UI. |
 | `share.timeout` | Integer | `2592000` | Seconds a snapshot is kept when the request doesn't choose (`expiresIn`). Must be one of `share.timeout_choices`. Reading a snapshot doesn't extend it. |
 | `share.max_timeout` | Integer | `7776000` | The longest a visitor can choose, from `60` to `31536000` (1 year). Longer `timeout_choices` are dropped. Lowering it doesn't shorten existing snapshots; delete them with `hyperglass share delete` or `hyperglass share clear`. Set below `timeout`, Hyperglass doesn't start (even with sharing off) until `timeout` is one of the remaining choices. |
 | `share.timeout_choices` | List of Integers | `[604800, 2592000, 7776000]` | Times, in seconds, a visitor can choose to keep a snapshot for (7, 30 and 90 days). Sent to the UI with `share.timeout`. |
@@ -500,6 +501,7 @@ Customize almost all text displayed in the user interface.
 | `web.text.query_location` | String | `Location` | Label for location/router selection field. |
 | `web.text.query_type` | String | `Query Type` | Label for query type selection field. |
 | `web.text.query_target` | String | `Target` | Label for target input field. |
+| `web.text.no_common_query_types` | String | `{query_location_plural} {locations} have no {query_type_plural} in common.` | Error shown on the location field when the selected locations have no query type in common. `{locations}` is their names, separated by commas. `{query_location_plural}` and `{query_type_plural}` are `web.text.query_location` and `web.text.query_type` with an English plural (`s` added, for example); a translation can write its own words instead. |
 
 #### Title Display Mode
 
@@ -547,6 +549,10 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.reload_query` | String | `Reload Query` | Tooltip and accessible name of the button that runs a query again. |
 | `web.text.refresh_cooldown` | String | `Refresh available in {seconds}s` | Shown under a result's header when its requery button is pressed before a forced refresh is allowed, counting down to zero, and announced once to screen readers. `{seconds}` is the time left. Used only with `cache.refresh.enable`. |
 | `web.text.view_as_path` | String | `View AS Path` | Tooltip and accessible name of the button that opens the AS path chart. |
+| `web.text.submit_query` | String | `Submit Query` | Tooltip and accessible name of the form's submit button. |
+| `web.text.reset_form` | String | `Reset` | Accessible name of the button that leaves the results for the form. |
+| `web.text.as_path_internal` | String | `Internal` | Tooltip and accessible name of the AS path marker of a locally originated route (an empty AS path). |
+| `web.text.as_path_asn` | String | `AS{asn}` | Tooltip of an AS in a route's AS path when its organization isn't known. `{asn}` is the AS number. |
 | `web.text.copy_link` | String | `Copy Link` | Tooltip and accessible name of the button that copies a link to the submitted query. |
 | `web.text.link_copied` | String | `Link copied` | Confirmation shown and announced after the link is copied. |
 | `web.text.query_link` | String | `Link to this query` | Label of the read-only field that shows the link when the browser can't copy it. |
@@ -558,6 +564,9 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.previous_page` | String | `Previous Page` | Accessible name of the table button that shows the previous page. |
 | `web.text.next_page` | String | `Next Page` | Accessible name of the table button that shows the next page. |
 | `web.text.last_page` | String | `Last Page` | Accessible name of the table button that shows the last page. |
+| `web.text.page_size` | String | `Rows per page` | Accessible name of the table's page size select. |
+| `web.text.page_size_option` | String | `Show {count}` | Each option of the table's page size select. `{count}` is replaced with the number of rows. |
+| `web.text.page_count` | String | `Page {page} of {pages}` | The table's page count. `{page}` is replaced with the current page and `{pages}` with the number of pages. |
 
 #### Query History Text
 
@@ -590,6 +599,45 @@ Text of the page that shows a [shared result](/configuration/config/share#the-sh
 | `web.text.share_run_query` | String | `Run this query` | Button that fills the form with the shared query, for the visitor to submit. |
 | `web.text.share_new_query` | String | `New query` | Button that leaves the shared result for an empty form. |
 
+#### Share Button Text
+
+Text of the Share button on each result and of its popover, shown when [sharing](/configuration/config/share#the-share-button) is enabled. The link is copied with `web.text.copy_link` (confirmed with `web.text.link_copied`) and its expiry shown with `web.text.share_expires`. A refused request shows the matching message: `messages.share_result_expired`, `share_pending`, `share_not_allowed`, `share_too_large`, `share_unavailable`, `share_invalid_expiry`, `share_not_found` (deleting a link the server no longer has; when the link still exists but its token was replaced, `web.text.share_delete_rotated` is shown instead) or `rate_limited`, and `messages.general` for any other failure.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.text.share_result` | String | `Share Result` | Tooltip and accessible name of a result's Share button, and heading of its popover. |
+| `web.text.share_keep_for` | String | `Keep for` | Label of the choice of how long the link is kept (`share.timeout_choices`, `share.timeout` selected). |
+| `web.text.share_create` | String | `Create Link` | Button that creates the link. |
+| `web.text.share_link` | String | `Link to this result` | Label of the read-only field that shows the link. |
+| `web.text.share_notice` | String | `Anyone with the link can see this result, including the target.` | Shown under a created link. |
+| `web.text.share_delete` | String | `Delete Link` | Button that deletes the link. |
+| `web.text.share_deleted` | String | `Link deleted` | Shown and announced once the link is deleted. |
+| `web.text.share_earlier_link` | String | `Link to the result from {time}` | Label of a link created for an earlier result of the same query, before it ran again (a forced refresh, or after its cache expired). `{time}` is when that result was produced, in the viewer's locale and time zone. |
+| `web.text.share_delete_scope` | String | `You can delete the link from this browser, here or under {shares}, until it expires.` | Shown under the links this browser can delete. `{shares}` is `web.text.shares_title`. The delete token is kept in this browser's storage (`hyperglass.shares`) until the link is deleted, forgotten or expires. |
+| `web.text.share_delete_rotated` | String | `This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.` | Shown in place of **Delete Link** when deleting got HTTP 404 but the link still exists: the same client shared the result again from another page or browser, which replaced the token. |
+| `web.text.share_link_expired` | String | `The link has expired.` | Announced when a link expires while the popover is open. |
+| `web.text.share_minute` | String | `{count} minute` | A time to keep the link of exactly one minute. |
+| `web.text.share_minutes` | String | `{count} minutes` | A time to keep the link in minutes, when it isn't a whole number of hours. `{count}` is the number of minutes, with decimals when it isn't whole. |
+| `web.text.share_hour` | String | `{count} hour` | A time to keep the link of exactly one hour. |
+| `web.text.share_hours` | String | `{count} hours` | A time to keep the link in hours, when it is a whole number of hours but not of days. |
+| `web.text.share_day` | String | `{count} day` | A time to keep the link of exactly one day. |
+| `web.text.share_days` | String | `{count} days` | A time to keep the link in days, when it is a whole number of days. |
+
+#### Shared Links Text
+
+Text of "Your shared links", the share links created in this browser, and of the share links of saved queries, shown when [sharing](/configuration/config/share#your-shared-links) is enabled. Each link is copied with `web.text.copy_link` and deleted with `web.text.share_delete`; its field is labelled `web.text.share_link`, and its times use `web.text.share_result_time` and `web.text.share_expires`.
+
+| Parameter | Type | Default | Description |
+| :-------- | :--- | :------ | :---------- |
+| `web.text.shares_title` | String | `Your shared links` | Heading of the list of share links created in this browser. |
+| `web.text.shares_forget` | String | `Forget` | Button that removes a link this browser can no longer delete (its token was replaced) from the list. |
+| `web.text.shares_clear_all` | String | `Forget all` | Button that removes every link from the list, and the button that confirms it. |
+| `web.text.shares_clear_confirm` | String | `Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here.` | Question shown before every link is removed from the list. |
+| `web.text.shares_clear_cancel` | String | `Cancel` | Button that keeps the links. |
+| `web.text.share_delete_scope_page` | String | `You can delete the link from this page until you close or reload it.` | Shown in place of `share_delete_scope` with `share.remember_links: false`, when links are kept in the page's memory only. |
+| `web.text.history_shared` | String | `Link shared` | Shown on a saved query whose result has a share link that hasn't expired. |
+| `web.text.history_share_kept` | String | `Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire.` | Shown before every saved query is deleted, when any of them has a share link. `{shares}` is `web.text.shares_title`. |
+
 #### BGP/RPKI Status Text
 
 | Parameter | Type | Default | Description |
@@ -599,6 +647,9 @@ Text of the page that shows a [shared result](/configuration/config/share#the-sh
 | `web.text.rpki_unknown` | String | `No ROAs Exist` | Text for RPKI unknown routes. |
 | `web.text.rpki_unverified` | String | `Not Verified` | Text for RPKI unverified routes. |
 | `web.text.no_communities` | String | `No Communities` | Text when route has no BGP communities. |
+| `web.text.no_value` | String | `N/A` | Text in a route table cell that has no value. |
+| `web.text.weight_low_preferred` | String | `Lower Weight is Preferred` | Tooltip of a route's weight when the device prefers the lower weight. |
+| `web.text.weight_high_preferred` | String | `Higher Weight is Preferred` | Tooltip of a route's weight when the device prefers the higher weight. |
 
 #### Example: Complete Text Customization
 ```yaml filename="config.yaml"
@@ -942,6 +993,11 @@ share:
   # its link can read until it expires. Snapshots are kept in Redis outside
   # the state that a restart clears. Default: false
   enable: false
+  # Keep the links a browser creates, with their delete tokens, in its local
+  # storage, to copy or delete later under "Your shared links". Turn it off on
+  # kiosks and shared terminals: links then last until the page is closed or
+  # reloaded. Default: true
+  remember_links: true
   # Seconds a snapshot is kept when the visitor doesn't choose. Must be one of
   # timeout_choices. Reading a snapshot doesn't extend it. Default: 2592000 (30 days)
   timeout: 2592000
@@ -1386,6 +1442,10 @@ web:
     query_location: "Location"
     query_type: "Query Type"
     query_target: "Target"
+    # Error when the selected locations share no query type. {locations} is their
+    # names; {query_location_plural} and {query_type_plural} are the labels above
+    # with an English plural.
+    no_common_query_types: "{query_location_plural} {locations} have no {query_type_plural} in common."
     # Hostname resolution prompts.
     fqdn_tooltip: "Use {protocol}"
     fqdn_message: "Your browser has resolved {fqdn} to"
@@ -1401,6 +1461,10 @@ web:
     rpki_unknown: "No ROAs Exist"
     rpki_unverified: "Not Verified"
     no_communities: "No Communities"
+    # Route table: an empty cell, and the weight column's tooltip.
+    no_value: "N/A"
+    weight_low_preferred: "Lower Weight is Preferred"
+    weight_high_preferred: "Higher Weight is Preferred"
     # My IP button.
     ip_error: "Unable to determine IP Address"
     no_ip: "No {protocol} Address"
@@ -1413,6 +1477,13 @@ web:
     reload_query: "Reload Query"
     refresh_cooldown: "Refresh available in {seconds}s"
     view_as_path: "View AS Path"
+    # Form buttons: screen reader names (the submit button's is also its tooltip).
+    submit_query: "Submit Query"
+    reset_form: "Reset"
+    # AS path of a locally originated route: tooltip and screen reader name.
+    as_path_internal: "Internal"
+    # Tooltip of an AS in an AS path whose organization isn't known.
+    as_path_asn: "AS{asn}"
     # Results view: copy a link to the query, its confirmation, and the label of the
     # field that shows the link when the clipboard isn't available.
     copy_link: "Copy Link"
@@ -1428,6 +1499,11 @@ web:
     previous_page: "Previous Page"
     next_page: "Next Page"
     last_page: "Last Page"
+    # Table pagination: the page size select's screen reader name, its options
+    # ({count} is the number of rows) and the page count.
+    page_size: "Rows per page"
+    page_size_option: "Show {count}"
+    page_count: "Page {page} of {pages}"
     # Recent queries. {time} is when the query was saved, in the viewer's time
     # zone.
     history_title: "Recent queries"
@@ -1451,6 +1527,39 @@ web:
     share_expires: "Link expires {time}"
     share_run_query: "Run this query"
     share_new_query: "New query"
+    # A result's Share button and its popover. Each time a visitor can keep the
+    # link for (share.timeout_choices) is shown in the largest unit it is a whole
+    # number of, with {count} in that unit.
+    share_result: "Share Result"
+    share_keep_for: "Keep for"
+    share_create: "Create Link"
+    share_link: "Link to this result"
+    share_notice: "Anyone with the link can see this result, including the target."
+    share_delete: "Delete Link"
+    share_deleted: "Link deleted"
+    # A link made from an earlier result of the same query, before it ran again
+    # ({time} in the viewer's time zone), who can delete a link, the note when it
+    # was shared again elsewhere, and what is announced when a link expires.
+    share_earlier_link: "Link to the result from {time}"
+    share_delete_scope: "You can delete the link from this browser, here or under {shares}, until it expires."
+    share_delete_rotated: "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: "The link has expired."
+    share_minute: "{count} minute"
+    share_minutes: "{count} minutes"
+    share_hour: "{count} hour"
+    share_hours: "{count} hours"
+    share_day: "{count} day"
+    share_days: "{count} days"
+    # Saved queries whose result has a share link, and "Your shared links", the
+    # links created in this browser.
+    history_shared: "Link shared"
+    history_share_kept: "Deleting saved queries doesn't delete their share links: they stay under {shares} and keep working until they expire."
+    shares_title: "Your shared links"
+    shares_forget: "Forget"
+    shares_clear_all: "Forget all"
+    shares_clear_confirm: "Forget every shared link in this browser? The links keep working until they expire, and can no longer be deleted from here."
+    shares_clear_cancel: "Cancel"
+    share_delete_scope_page: "You can delete the link from this page until you close or reload it."
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).

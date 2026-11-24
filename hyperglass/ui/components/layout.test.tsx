@@ -2,7 +2,7 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPORT_WAIT, makeConfig, renderWithProviders } from '~/__tests__/render';
-import { useFormState, useHistoryView, useQueryHistory } from '~/hooks';
+import { SHARES_KEY, useFormState, useHistoryView, useQueryHistory, useSavedShares } from '~/hooks';
 import { Layout } from './layout';
 
 // The page chrome has its own tests (or will); stub it so these tests cover what
@@ -80,6 +80,19 @@ describe('Layout', () => {
 
     renderLayout(true);
     expect(screen.getByTestId('debugger')).toBeInTheDocument();
+  });
+
+  it('names the reset button with web.text.reset_form (#581)', async () => {
+    useFormState.setState({ form, status: 'results' });
+    renderWithProviders(
+      <Layout>
+        <p>page content</p>
+      </Layout>,
+      { config: makeConfig({ web: { text: { resetForm: 'Nouvelle requête' } } }) },
+    );
+
+    expect(await screen.findByRole('button', { name: 'Nouvelle requête' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
   });
 
   it('hides the reset button on the form view', () => {
@@ -221,5 +234,50 @@ describe('Layout', () => {
       expect(useFormState.getState().status).toBe('form');
       expect(useFormState.getState().form).toEqual(form);
     });
+  });
+});
+
+// Every page applies `share.remember_links` (#562), also one that shows no links, such as
+// a shared result's page: with `false`, what this browser stored is deleted at once.
+describe('Layout and share.remember_links', () => {
+  const stored = JSON.stringify({
+    version: 1,
+    links: [
+      {
+        id: '00112233445566778899aabbccddeeff',
+        queryId: `hyperglass.query.${'ab'.repeat(32)}`,
+        timestamp: '2026-11-23 08:00:00',
+        expiresAt: '2099-12-23T08:00:00Z',
+        deadline: Date.now() + 86_400_000,
+        deleteToken: 'a-t0k3n',
+        savedAt: Date.now(),
+        labels: { location: 'Router One', type: 'BGP Route', target: '2001:db8::/32' },
+      },
+    ],
+  });
+
+  afterEach(() => {
+    act(() => {
+      useSavedShares.getState().configure(true);
+      useSavedShares.getState().clear();
+    });
+  });
+
+  it.each([
+    ['off: deleted', false, null],
+    ['on: kept', true, stored],
+  ])('applies it on every page, remember_links %s', async (_, rememberLinks, expected) => {
+    localStorage.setItem(SHARES_KEY, stored);
+    renderWithProviders(
+      <Layout>
+        <p>page content</p>
+      </Layout>,
+      { config: makeConfig({ share: { enable: true, rememberLinks } }) },
+    );
+
+    await waitFor(() => expect(localStorage.getItem(SHARES_KEY)).toBe(expected));
+    if (!rememberLinks) {
+      expect(useSavedShares.getState().links).toEqual([]);
+    }
   });
 });

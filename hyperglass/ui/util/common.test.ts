@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest';
 import {
   all,
-  andJoin,
   chunkArray,
   dedupObjectArray,
   entries,
   fetchWithTimeout,
+  formatText,
   isFQDN,
   randomId,
 } from './common';
@@ -56,34 +56,6 @@ describe('dedupObjectArray - deduplicate object array', () => {
   });
   test.each(result)('verify objects', obj => {
     expect(obj).toEqual(expect.not.objectContaining(objArray[3]));
-  });
-});
-
-describe('andJoin - join array of strings to sentence structure', () => {
-  test('basic sentence', () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry']);
-    expect(result).toBe('Tom, Dick, & Harry');
-  });
-  test('one item', () => {
-    const result = andJoin(['Tom']);
-    expect(result).toBe('Tom');
-  });
-  test('mixed types', () => {
-    // @ts-expect-error Test case
-    const result = andJoin(['Tom', 100, 'Harry']);
-    expect(result).toBe('Tom & Harry');
-  });
-  test('(options) wrapped', () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry'], { wrap: '*' });
-    expect(result).toBe('*Tom*, *Dick*, & *Harry*');
-  });
-  test("(options) 'and' separator", () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry'], { separator: 'and' });
-    expect(result).toBe('Tom, Dick, and Harry');
-  });
-  test('(options) no oxford comma', () => {
-    const result = andJoin(['Tom', 'Dick', 'Harry'], { oxfordComma: false });
-    expect(result).toBe('Tom, Dick & Harry');
   });
 });
 
@@ -241,5 +213,14 @@ describe('randomId', () => {
 
   it('returns a new ID each time', () => {
     expect(randomId()).not.toBe(randomId());
+  });
+});
+
+describe('formatText - fill a configured text template', () => {
+  test('fills named placeholders', () => {
+    expect(formatText('AS{asn}', { asn: 13335 })).toBe('AS13335');
+  });
+  test.each(['{} {asn}', '{asn!r}'])('returns a malformed template (%s) as written', template => {
+    expect(formatText(template, { asn: 13335 })).toBe(template);
   });
 });

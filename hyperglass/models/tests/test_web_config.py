@@ -124,6 +124,20 @@ def test_as_path_and_pagination_text_exported_camel_case():
         assert key in exported
 
 
+def test_page_size_and_page_count_text():
+    """The table's page size select and page count read `web.text`, in English by default (#548)."""
+    text = Text()
+    assert (text.page_size, text.page_size_option, text.page_count) == (
+        "Rows per page",
+        "Show {count}",
+        "Page {page} of {pages}",
+    )
+    exported = Text(page_count="Page {page} sur {pages}").model_dump(by_alias=True)
+    assert exported["pageCount"] == "Page {page} sur {pages}"
+    assert exported["pageSize"] == "Rows per page"
+    assert exported["pageSizeOption"] == "Show {count}"
+
+
 def test_cache_icon_default_has_no_time_zone():
     """The UI shows `{time}` in the viewer's time zone, so the default doesn't say UTC (#551)."""
     assert Text().cache_icon == "Cached from {time}"
@@ -174,3 +188,73 @@ def test_share_page_text_exported():
         "shareRunQuery": "Lancer cette requête",
         "shareNewQuery": "New query",
     }.items() <= exported.items()
+
+
+def test_share_button_text_exported():
+    """The Share button and its popover read their text as camelCase keys of `web.text` (#561)."""
+    exported = Text(share_delete="Supprimer le lien").model_dump(by_alias=True)
+    assert {
+        "shareResult": "Share Result",
+        "shareKeepFor": "Keep for",
+        "shareCreate": "Create Link",
+        "shareLink": "Link to this result",
+        "shareNotice": "Anyone with the link can see this result, including the target.",
+        "shareDelete": "Supprimer le lien",
+        "shareDeleted": "Link deleted",
+        "shareEarlierLink": "Link to the result from {time}",
+        "shareDeleteScope": "You can delete the link from this browser, here or under {shares}, until it expires.",
+        "shareDeleteRotated": "This link can't be deleted from this browser any more: the result was shared again elsewhere. It works until it expires.",
+        "shareLinkExpired": "The link has expired.",
+        "shareMinute": "{count} minute",
+        "shareMinutes": "{count} minutes",
+        "shareHour": "{count} hour",
+        "shareHours": "{count} hours",
+        "shareDay": "{count} day",
+        "shareDays": "{count} days",
+    }.items() <= exported.items()
+
+
+def test_shared_links_text_exported():
+    """The shared links list and the history's share mark read camelCase keys of `web.text` (#562)."""
+    exported = Text(shares_title="Mes liens").model_dump(by_alias=True)
+    assert {
+        "sharesTitle": "Mes liens",
+        "sharesForget": "Forget",
+        "sharesClearAll": "Forget all",
+        "sharesClearConfirm": (
+            "Forget every shared link in this browser? The links keep working until they "
+            "expire, and can no longer be deleted from here."
+        ),
+        "sharesClearCancel": "Cancel",
+        "shareDeleteScopePage": "You can delete the link from this page until you close or reload it.",
+        "historyShared": "Link shared",
+        "historyShareKept": (
+            "Deleting saved queries doesn't delete their share links: they stay under "
+            "{shares} and keep working until they expire."
+        ),
+    }.items() <= exported.items()
+
+
+def test_form_button_and_route_table_text():
+    """The form buttons and the route table's labels are configurable text (#581)."""
+    exported = Text(submit_query="Envoyer").model_dump(by_alias=True)
+    assert {
+        "resetForm": "Reset",
+        "submitQuery": "Envoyer",
+        "asPathInternal": "Internal",
+        "asPathAsn": "AS{asn}",
+        "noValue": "N/A",
+        "weightLowPreferred": "Lower Weight is Preferred",
+        "weightHighPreferred": "Higher Weight is Preferred",
+    }.items() <= exported.items()
+
+
+def test_no_common_query_types_text():
+    """The error for locations without a query type in common is configurable (#521)."""
+    assert Text().no_common_query_types == (
+        "{query_location_plural} {locations} have no {query_type_plural} in common."
+    )
+    exported = Text(no_common_query_types="{locations}: aucun type commun").model_dump(
+        by_alias=True
+    )
+    assert exported["noCommonQueryTypes"] == "{locations}: aucun type commun"

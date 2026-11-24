@@ -131,6 +131,13 @@ class Text(HyperglassModel):
     query_location: str = "Location"
     query_type: str = "Query Type"
     query_target: str = "Target"
+    # Shown on the location field when the selected locations share no query type.
+    # `{locations}` is their names, joined with commas; `{query_location_plural}` and
+    # `{query_type_plural}` are `query_location` and `query_type` with an English plural
+    # (formatted by Javascript).
+    no_common_query_types: str = (
+        "{query_location_plural} {locations} have no {query_type_plural} in common."
+    )
     fqdn_tooltip: str = "Use {protocol}"  # Formatted by Javascript
     fqdn_message: str = "Your browser has resolved {fqdn} to"  # Formatted by Javascript
     fqdn_error: str = "Unable to resolve {fqdn}"  # Formatted by Javascript
@@ -143,6 +150,11 @@ class Text(HyperglassModel):
     rpki_unknown: str = "No ROAs Exist"
     rpki_unverified: str = "Not Verified"
     no_communities: str = "No Communities"
+    # Route table: an empty cell, and the tooltip of the weight column, which depends on
+    # whether the platform prefers the lower or the higher weight.
+    no_value: str = "N/A"
+    weight_low_preferred: str = "Lower Weight is Preferred"
+    weight_high_preferred: str = "Higher Weight is Preferred"
     ip_error: str = "Unable to determine IP Address"
     no_ip: str = "No {protocol} Address"
     ip_select: str = "Select an IP Address"
@@ -153,10 +165,18 @@ class Text(HyperglassModel):
     # Tooltips and accessible names of the icon-only result buttons.
     copy_output: str = "Copy Output"
     reload_query: str = "Reload Query"
+    # Accessible names of the form's submit button (also its tooltip) and of the button
+    # that leaves the results for the form.
+    submit_query: str = "Submit Query"
+    reset_form: str = "Reset"
     # Shown under a result's header when its requery button is pressed during a forced
     # refresh cooldown, counting down.
     refresh_cooldown: str = "Refresh available in {seconds}s"  # Formatted by Javascript
     view_as_path: str = "View AS Path"
+    # Accessible name and tooltip of the AS path marker of a locally originated route.
+    as_path_internal: str = "Internal"
+    # Tooltip of an AS in a route's AS path when its organization isn't known.
+    as_path_asn: str = "AS{asn}"  # Formatted by Javascript
     # Results view: the button that copies a link to the query, its confirmation, and the
     # label of the field that shows the link when the clipboard isn't available.
     copy_link: str = "Copy Link"
@@ -172,6 +192,12 @@ class Text(HyperglassModel):
     previous_page: str = "Previous Page"
     next_page: str = "Next Page"
     last_page: str = "Last Page"
+    # Table pagination: the page size select's accessible name, its options (`{count}` is
+    # the number of rows) and the page count (`{page}` and `{pages}`), formatted by
+    # Javascript.
+    page_size: str = "Rows per page"
+    page_size_option: str = "Show {count}"
+    page_count: str = "Page {page} of {pages}"
     # Recent queries: the list on the landing page and an opened entry.
     history_title: str = "Recent queries"
     history_open: str = "Open"
@@ -199,6 +225,63 @@ class Text(HyperglassModel):
     share_expires: str = "Link expires {time}"
     share_run_query: str = "Run this query"
     share_new_query: str = "New query"
+    # A result's Share button (its tooltip and accessible name) and its popover: the
+    # "keep for" choice, the button that creates the link, the label of the field that
+    # shows it, the notice under it, and the button that deletes it with what it
+    # announces. Each time to keep the link is labelled with the largest unit it is a
+    # whole number of (`{count}` is formatted by Javascript). The link is copied with
+    # `copy_link` and its expiry shown with `share_expires`; errors use `messages`.
+    share_result: str = "Share Result"
+    share_keep_for: str = "Keep for"
+    share_create: str = "Create Link"
+    share_link: str = "Link to this result"
+    share_notice: str = "Anyone with the link can see this result, including the target."
+    share_delete: str = "Delete Link"
+    share_deleted: str = "Link deleted"
+    # The label of a link created for an earlier result of the same query, before it ran
+    # again (`{time}` is formatted by Javascript); the note on who can delete a link, which
+    # depends on where this browser keeps its token; the note shown when the token no
+    # longer deletes it; and what is announced when a link expires while shown.
+    share_earlier_link: str = "Link to the result from {time}"  # Formatted by Javascript
+    # `{shares}` is `shares_title`, formatted by Javascript.
+    share_delete_scope: str = (
+        "You can delete the link from this browser, here or under {shares}, until it expires."
+    )
+    share_delete_rotated: str = (
+        "This link can't be deleted from this browser any more: the result was shared again "
+        "elsewhere. It works until it expires."
+    )
+    share_link_expired: str = "The link has expired."
+    share_minute: str = "{count} minute"  # Formatted by Javascript
+    share_minutes: str = "{count} minutes"  # Formatted by Javascript
+    share_hour: str = "{count} hour"  # Formatted by Javascript
+    share_hours: str = "{count} hours"  # Formatted by Javascript
+    share_day: str = "{count} day"  # Formatted by Javascript
+    share_days: str = "{count} days"  # Formatted by Javascript
+    # The mark on a saved query whose result has a live share link, and the note in the
+    # Clear all confirmation that clearing the history doesn't delete share links
+    # (`{shares}` is `shares_title`, formatted by Javascript).
+    history_shared: str = "Link shared"
+    history_share_kept: str = (
+        "Deleting saved queries doesn't delete their share links: they stay under "
+        "{shares} and keep working until they expire."
+    )
+    # "Your shared links": the links created in this browser, each copied with `copy_link`
+    # and deleted with `share_delete`; `shares_forget` forgets one this browser can no
+    # longer delete, and the rest forget them all after a confirmation.
+    shares_title: str = "Your shared links"
+    shares_forget: str = "Forget"
+    shares_clear_all: str = "Forget all"
+    shares_clear_confirm: str = (
+        "Forget every shared link in this browser? The links keep working until they "
+        "expire, and can no longer be deleted from here."
+    )
+    shares_clear_cancel: str = "Cancel"
+    # In place of `share_delete_scope` with `share.remember_links: false`, when the links
+    # are kept in the page's memory only.
+    share_delete_scope_page: str = (
+        "You can delete the link from this page until you close or reload it."
+    )
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

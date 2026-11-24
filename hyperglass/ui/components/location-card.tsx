@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { Flex, Avatar, chakra } from '@chakra-ui/react';
 import { motionChakra } from '~/elements';
 import { useColorValue, useOpposingColor } from '~/hooks';
@@ -26,6 +26,9 @@ const LocationCardWrapper = motionChakra('div', {
     cursor: 'pointer',
     borderWidth: '1px',
     borderStyle: 'solid',
+    // A ring for keyboard focus only, as Chakra's own controls draw it. The transparent
+    // outline stays visible in forced-colors mode, which drops box shadows.
+    _focusVisible: { outline: '2px solid transparent', outlineOffset: '2px', boxShadow: 'outline' },
   },
 });
 
@@ -36,6 +39,22 @@ export const LocationCard = (props: LocationCardProps): JSX.Element => {
   function handleChange(value: LocationOption) {
     onChange(isChecked ? 'remove' : 'add', value);
   }
+
+  // Space and Enter toggle the card, as they do a checkbox. Space would otherwise scroll
+  // the page, and a held key would toggle it on every repeat.
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      if (!e.repeat) {
+        handleChange(option);
+      }
+    }
+  }
+
+  const id = useId();
+  const labelId = `${id}-label`;
+  const descriptionId = `${id}-description`;
+  const description = (option.data?.description as string | undefined) ?? null;
 
   const bg = useColorValue('white', 'blackSolid.600');
   const imageBorder = useColorValue('gray.600', 'whiteAlpha.800');
@@ -62,7 +81,12 @@ export const LocationCard = (props: LocationCardProps): JSX.Element => {
       key={label}
       whileHover={{ scale: 1.05 }}
       borderColor={borderColor}
-      data-checked={isChecked}
+      role="checkbox"
+      tabIndex={0}
+      aria-checked={isChecked}
+      aria-labelledby={labelId}
+      aria-describedby={description ? descriptionId : undefined}
+      onKeyDown={handleKeyDown}
       onClick={(e: React.MouseEvent) => {
         e.preventDefault();
         handleChange(option);
@@ -70,14 +94,16 @@ export const LocationCard = (props: LocationCardProps): JSX.Element => {
     >
       <>
         <Flex justifyContent="space-between" alignItems="center">
-          <chakra.h2
+          {/* Not a heading: a checkbox's content is presentational, so it would be lost. */}
+          <chakra.div
+            id={labelId}
             color={fg}
             fontWeight="bold"
             mt={{ base: 2, md: 0 }}
             fontSize={{ base: 'lg', md: 'xl' }}
           >
             {label}
-          </chakra.h2>
+          </chakra.div>
           <Avatar
             color={fg}
             name={label}
@@ -91,9 +117,9 @@ export const LocationCard = (props: LocationCardProps): JSX.Element => {
           />
         </Flex>
 
-        {option?.data?.description && (
-          <chakra.p mt={2} color={fg} opacity={0.6} fontSize="sm">
-            {option.data.description as string}
+        {description && (
+          <chakra.p id={descriptionId} mt={2} color={fg} opacity={0.6} fontSize="sm">
+            {description}
           </chakra.p>
         )}
       </>
