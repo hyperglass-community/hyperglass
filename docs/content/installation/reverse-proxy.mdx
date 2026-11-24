@@ -72,7 +72,15 @@ server {
 
 This allows each client address 10 requests per second on average, plus bursts of up to 50 that are served without delay. Requests over the limit get HTTP 429; without `limit_req_status`, NGINX answers 503. A 10 MB zone holds the state of about 80,000 addresses.
 
-`$binary_remote_addr` is the address that connects to NGINX. Behind a CDN, that is the CDN, so all visitors would share one limit: use the [`realip`](https://nginx.org/en/docs/http/ngx_http_realip_module.html) module (`set_real_ip_from`, `real_ip_header`) so NGINX uses the visitor's address. NGINX counts each IPv6 address separately, so a client can spread its requests over the addresses of its /64.
+`$binary_remote_addr` is the client address, which is the address that connects to NGINX. Behind a CDN, that is the CDN, so all visitors would share one limit. The [`realip`](https://nginx.org/en/docs/http/ngx_http_realip_module.html) module replaces the client address with the one in a header sent by addresses you trust. It is not built by default: `nginx -V` lists `--with-http_realip_module` when it is. For example, for a CDN that sends `CF-Connecting-IP` from `203.0.113.0/24` and `2001:db8::/32`:
+
+```nginx
+set_real_ip_from 203.0.113.0/24;
+set_real_ip_from 2001:db8::/32;
+real_ip_header CF-Connecting-IP;
+```
+
+Use your CDN's published address ranges. NGINX counts each IPv6 address separately, so a client can spread its requests over the addresses of its /64.
 
 ### Caddy
 
@@ -97,6 +105,16 @@ lg.example.com:443 {
 }
 ```
 
-This allows each client address 300 requests in any 30-second window. Requests over the limit get HTTP 429 with a `Retry-After` header. The directive is ordered before `basic_auth` by default, so it needs no `order` option. Behind a CDN, use `{client_ip}` as the key and list the CDN in Caddy's `trusted_proxies` server option.
+This allows each client address 300 requests in any 30-second window. Requests over the limit get HTTP 429 with a `Retry-After` header. The directive is ordered before `basic_auth` by default, so it needs no `order` option.
 
-Newer versions of the module, after v0.1.0, also accept `ipv6_prefix 64` in a zone, which counts each IPv6 /64 as one client, as `query_limit` does. Check that your build supports it before adding it.
+`{remote_host}` is the address that connects to Caddy. Behind a CDN, use `{client_ip}` as the key instead, and list the CDN's address ranges in the [`trusted_proxies`](https://caddyserver.com/docs/caddyfile/options#trusted-proxies) server option. Caddy then reads the visitor's address from `X-Forwarded-For` on requests from those ranges (`client_ip_headers` picks another header):
+
+```caddy filename="/etc/caddy/Caddyfile"
+{
+    servers {
+        trusted_proxies static 203.0.113.0/24 2001:db8::/32
+    }
+}
+```
+
+To count each IPv6 /64 as one client, as `query_limit` does, add `ipv6_prefix 64` to the zone. Only builds of the module newer than its v0.1.0 release support it, and `xcaddy build --with github.com/mholt/caddy-ratelimit` installs the latest tagged release, which is v0.1.0 at the time of writing. Build with `--with github.com/mholt/caddy-ratelimit@master`, or with a release later than v0.1.0. v0.1.0 ignores `ipv6_prefix` without an error, so the line has no effect there.
