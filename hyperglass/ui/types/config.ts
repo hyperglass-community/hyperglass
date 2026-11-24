@@ -84,6 +84,13 @@ interface _Text {
   history_new_target: string;
   history_location_unavailable: string;
   history_variable_unavailable: string;
+  share_title: string;
+  share_loading: string;
+  share_error: string;
+  share_result_time: string;
+  share_expires: string;
+  share_run_query: string;
+  share_new_query: string;
 }
 
 interface _History {

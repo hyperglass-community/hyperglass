@@ -1240,6 +1240,35 @@ describe('LookingGlassForm prefill', () => {
     expect(window.location.search).toBe('?q=a%20b');
   });
 
+  it.each([
+    ['a valid share id', '0123456789abcdef0123456789abcdef'],
+    ['an invalid share id', 'not-a-share'],
+    ['an empty share parameter', ''],
+  ])('ignores every prefill parameter alongside %s', async (_, share) => {
+    // A share link shows a snapshot: a form someone else filled in must not come with it
+    // (#560). The shared result page removes these parameters from the address.
+    renderPrefilled({
+      share,
+      location: ['router_one', 'router_two'],
+      type: 'BGP Route',
+      target: '2001:db8::1',
+      'var.vrf': 'default',
+    });
+
+    expect((await screen.findAllByText('Router One')).length).toBeGreaterThan(0);
+    // Long enough for the prefill effect to have run.
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+    expect(useFormState.getState().form).toEqual({
+      queryLocation: [],
+      queryType: '',
+      queryTarget: [],
+      queryVariables: {},
+    });
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it('does not apply the link again when the form returns', async () => {
     const user = userEvent.setup();
     const { unmount } = renderPrefilled({

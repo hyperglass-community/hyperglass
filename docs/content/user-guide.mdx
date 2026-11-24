@@ -76,6 +76,10 @@ The link shares the query, not its result: whoever opens it gets the form filled
 
 If the browser can't copy (for example on a page served over plain HTTP, or when clipboard access is refused), the link appears in a read-only field below the button, selected, so you can copy it yourself.
 
+## Open a shared result
+
+When the deployment has [sharing](/configuration/config/share) on, a link such as `https://lg.example.net/?share=<id>` shows a copy of a result someone shared, kept on the server: the same output whenever it is opened, until the link expires. The page shows when the result was produced and when the link expires, in your time zone. You can copy the output, but not run it again from there. **Run this query** fills in the form with the shared query, for you to submit; **New query** shows an empty form. A share link that also has form parameters (`location`, `type`, `target`, `var.*`) ignores them.
+
 ## Hostname resolution
 
 When you enter a hostname instead of an address, Hyperglass resolves it through the configured DNS provider. The resolver returns available IPv4 and IPv6 addresses, and you choose which address to query.

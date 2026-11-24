@@ -101,9 +101,10 @@ interface QueryHistoryState {
 
 /**
  * What a saved query is reused for: `rerun` fills the form and submits it, `newTarget`
- * fills everything but the target and leaves submitting to the visitor.
+ * fills everything but the target and leaves submitting to the visitor, and `fill` (a
+ * shared result's query) fills the form and leaves submitting to the visitor.
  */
-export type HistoryReuseMode = 'rerun' | 'newTarget';
+export type HistoryReuseMode = 'rerun' | 'newTarget' | 'fill';
 
 /** A saved query handed to the form, which takes it once (see `LookingGlassForm`). */
 export interface HistoryReuse {
@@ -129,6 +130,8 @@ interface HistoryViewState {
   takeReturnFocus(): string | null;
   /** Hand `entry`'s query to the form. */
   reuse(entry: HistoryEntry, mode: HistoryReuseMode): void;
+  /** Hand a query that isn't saved here (a shared one) to the form, to fill it only. */
+  prefill(query: HistoryQuery, locations: string[]): void;
   /** The query to reuse, once: it is forgotten when read. */
   takeReuse(): HistoryReuse | null;
 }
@@ -176,7 +179,7 @@ function isObjectArray(value: unknown): boolean {
  * Whether a stored response is one the result view can render: a success, with text
  * output, or structured output with the list of routes or hops its table renders.
  */
-function isRenderableResponse(data: unknown): data is QueryResponse {
+export function isRenderableResponse(data: unknown): data is QueryResponse {
   if (!isObject(data) || data.level !== 'success') {
     return false;
   }
@@ -417,6 +420,9 @@ export const useHistoryView = create<HistoryViewState>()(
       },
       reuse(entry: HistoryEntry, mode: HistoryReuseMode): void {
         set({ pending: { query: entry.query, locations: entry.labels.locations, mode } });
+      },
+      prefill(query: HistoryQuery, locations: string[]): void {
+        set({ pending: { query, locations, mode: 'fill' } });
       },
       takeReuse(): HistoryReuse | null {
         const { pending } = get();

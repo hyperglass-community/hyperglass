@@ -160,3 +160,17 @@ def test_history_exported():
         "historyBack": "Back",
         "historySavedAt": "Saved {time}",
     }.items() <= exported["text"].items()
+
+
+def test_share_page_text_exported():
+    """The shared result page reads its text as camelCase keys of `web.text` (#560)."""
+    exported = Text(share_run_query="Lancer cette requête").model_dump(by_alias=True)
+    assert {
+        "shareTitle": "Shared result",
+        "shareLoading": "Loading the shared result...",
+        "shareError": "The shared result could not be loaded. Please try again later.",
+        "shareResultTime": "Result from {time}",
+        "shareExpires": "Link expires {time}",
+        "shareRunQuery": "Lancer cette requête",
+        "shareNewQuery": "New query",
+    }.items() <= exported.items()
