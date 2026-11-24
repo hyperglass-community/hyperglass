@@ -15,6 +15,8 @@ docker compose up -d
 
 From 3.0.0 the container runs as UID `10001` instead of root. The `chown` gives it the configuration directory and the `.ui` and `static` directories that an older image left owned by root. Without it, the container stops with `Permission denied` and restarts in a loop. If `HYPERGLASS_APP_PATH` is set, change the owner of that directory instead. See [container user and file ownership](/installation/docker.mdx#container-user-and-file-ownership) for log directories and SSH keys.
 
+If the `systemd` unit or `hyperglass.env` is still in `/etc/hyperglass`, move them as described in [Move the service and environment file out of the app directory](#move-the-service-and-environment-file-out-of-the-app-directory).
+
 The Compose file pulls the published image for the checked-out release. It no longer builds the checkout. To run local source changes, add the build override:
 
 ```shell copy
@@ -34,27 +36,43 @@ python -m pip install -e '.[ui]'
 systemctl restart hyperglass
 ```
 
+If the `systemd` unit or `hyperglass.env` is still in `/etc/hyperglass`, move them as described in [Move the service and environment file out of the app directory](#move-the-service-and-environment-file-out-of-the-app-directory).
+
 ## Move the service and environment file out of the app directory
 
 Earlier installation guides put the `systemd` unit and its environment file in the app directory, as `/etc/hyperglass/hyperglass.service` and `/etc/hyperglass/hyperglass.env`, and linked the unit into `/etc/systemd/system`. `systemd` reads both files as root. With Docker, the container can write to that directory, so a compromised container could change them and have its own commands run as root on the host at the next restart. The sample units now read `/etc/default/hyperglass`, and the guides install the unit in `/etc/systemd/system`.
 
-Move both files once, after checking out a release whose `.samples` units read `/etc/default/hyperglass`. Review the old files before you copy them, since the container could have changed them. Use `hyperglass-manual.service` instead of `hyperglass-docker.service` for a manual installation.
+Move both files once, after checking out a release whose `.samples` units read `/etc/default/hyperglass`. The container could have changed the old files, so review them before you copy them. Use `hyperglass-manual.service` instead of `hyperglass-docker.service` for a manual installation. If you set `HYPERGLASS_APP_PATH`, replace `/etc/hyperglass` in the old file paths below with your app directory.
+
+First stop the service and show the old files:
 
 ```shell copy
 systemctl stop hyperglass
 systemctl disable hyperglass
 cat /etc/hyperglass/hyperglass.env
-install -o root -g root -m 600 /etc/hyperglass/hyperglass.env /etc/default/hyperglass
 diff /opt/hyperglass/.samples/hyperglass-docker.service /etc/hyperglass/hyperglass.service
-rm /etc/systemd/system/hyperglass.service
+```
+
+Check that the environment file sets only variables you put there. A `COMPOSE_FILE` you did not set, or one that names a file outside `/opt/hyperglass`, means the file was changed. The `diff` shows the new `EnvironmentFile` line and your own changes to the old unit. Any other difference, such as a changed `ExecStart`, means the unit was changed. If either file was changed, treat the host as compromised and do not continue.
+
+Then copy the files out of the app directory and remove the old ones:
+
+```shell copy
+install -o root -g root -m 600 /etc/hyperglass/hyperglass.env /etc/default/hyperglass
+rm -f /etc/systemd/system/hyperglass.service
 cp /opt/hyperglass/.samples/hyperglass-docker.service /etc/systemd/system/hyperglass.service
 rm /etc/hyperglass/hyperglass.service /etc/hyperglass/hyperglass.env
+```
+
+`install` copies the environment file with root as its owner. `mv` would keep the owner, and after `chown -R 10001:10001 /etc/hyperglass` that is the container user. `systemctl disable` may already have removed the link in `/etc/systemd/system`, so `rm -f` ignores a missing one. Apply the changes from the old unit that you want to keep to `/etc/systemd/system/hyperglass.service`, and check that `ls -l /etc/systemd/system/hyperglass.service` shows a regular file owned by root, not a link.
+
+Then start the service from the new unit:
+
+```shell copy
 systemctl daemon-reload
 systemctl enable hyperglass
 systemctl start hyperglass
 ```
-
-`install` copies the environment file with root as its owner. `mv` would keep the owner, and after `chown -R 10001:10001 /etc/hyperglass` that is the container user. The `diff` shows your changes to the old unit beside the new `EnvironmentFile` line. Apply the ones you want to `/etc/systemd/system/hyperglass.service` before `systemctl daemon-reload`.
 
 Until you move them, the old files keep working: an installed unit keeps its `EnvironmentFile` path. Only a unit copied from the new sample reads `/etc/default/hyperglass`, and `systemd` does not start it while that file is missing.
 

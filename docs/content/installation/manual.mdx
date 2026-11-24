@@ -69,7 +69,7 @@ hyperglass start
 The sample service runs the Python in the virtual environment, `/opt/hyperglass/.venv/bin/python3`. If you cloned Hyperglass to a different directory, change `ExecStart` in `/etc/systemd/system/hyperglass.service`.
 
 ```shell copy
-cp /opt/hyperglass/.samples/hyperglass-manual.service /etc/systemd/system/hyperglass.service
+cp --remove-destination /opt/hyperglass/.samples/hyperglass-manual.service /etc/systemd/system/hyperglass.service
 systemctl daemon-reload
 systemctl enable hyperglass
 systemctl start hyperglass
