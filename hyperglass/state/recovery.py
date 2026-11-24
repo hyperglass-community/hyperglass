@@ -60,7 +60,10 @@ LOCK_TIMEOUT = 60
 # served immediately, because `rebuild_state` checks for it before the cooldown.
 FAILURE_COOLDOWN = 30.0
 
-_last_failure: float = 0.0
+# Monotonic time of the last failed or contended rebuild, or `None` if there has been
+# none. Not 0.0: the monotonic clock can start near zero at boot, which would put a
+# worker started then in the cooldown without any failure.
+_last_failure: t.Optional[float] = None
 
 # How long, in seconds, state found complete is trusted without checking Redis again.
 # Not user-configurable: it trades the cost of the per-request check against how long
@@ -76,8 +79,10 @@ _ready_until: float = 0.0
 # cannot mark it ready again when it finishes.
 _ready_epoch: int = 0
 
-# The `is_populated` check in flight, shared by the requests that arrive during it.
-_ready_check: t.Optional["asyncio.Task[bool]"] = None
+# The `is_populated` check in flight, shared by the requests that arrive during it, and
+# the epoch it started in. `mark_stale` drops it, so no request joins a check that
+# started before state was found missing.
+_ready_check: t.Optional[t.Tuple["asyncio.Task[bool]", int]] = None
 
 
 def _initialize() -> None:
@@ -108,14 +113,17 @@ def is_populated(cache: "RedisManager") -> bool:
 
 def in_cooldown() -> bool:
     """Determine whether a recent failed or contended rebuild is still cooling down."""
+    if _last_failure is None:
+        return False
     return time.monotonic() - _last_failure < FAILURE_COOLDOWN
 
 
 def mark_stale() -> None:
     """Stop trusting that state is complete, so the next request checks Redis."""
-    global _ready_until, _ready_epoch  # noqa: PLW0603
+    global _ready_until, _ready_epoch, _ready_check  # noqa: PLW0603
     _ready_until = 0.0
     _ready_epoch += 1
+    _ready_check = None
 
 
 def _retrieve(task: "asyncio.Task[bool]") -> None:
@@ -124,16 +132,22 @@ def _retrieve(task: "asyncio.Task[bool]") -> None:
         task.exception()
 
 
-async def _shared_is_populated(cache: "RedisManager") -> bool:
-    """Run `is_populated` in a thread, sharing a check already in flight on this loop."""
+async def _shared_is_populated(cache: "RedisManager") -> t.Tuple[bool, int]:
+    """Run `is_populated` in a thread, sharing a check already in flight on this loop.
+
+    Returns the result and the epoch the check started in, which is what decides
+    whether the result may mark state ready.
+    """
     global _ready_check  # noqa: PLW0603
     loop = asyncio.get_running_loop()
-    task = _ready_check
-    if task is None or task.done() or task.get_loop() is not loop:
-        task = _ready_check = loop.create_task(asyncio.to_thread(is_populated, cache))
+    current = _ready_check
+    if current is None or current[0].done() or current[0].get_loop() is not loop:
+        task = loop.create_task(asyncio.to_thread(is_populated, cache))
         task.add_done_callback(_retrieve)
+        current = _ready_check = (task, _ready_epoch)
+    task, epoch = current
     # Shielded, so a request that is cancelled does not cancel the others' check.
-    return await asyncio.shield(task)
+    return await asyncio.shield(task), epoch
 
 
 async def ensure_ready(cache: "RedisManager") -> bool:
@@ -150,13 +164,14 @@ async def ensure_ready(cache: "RedisManager") -> bool:
     if time.monotonic() < _ready_until:
         return True
 
-    epoch = _ready_epoch
-    if await _shared_is_populated(cache):
+    populated, epoch = await _shared_is_populated(cache)
+    if populated:
         ready = True
     elif in_cooldown():
         # What `rebuild_state` would answer, without a thread-pool job per request.
         return False
     else:
+        epoch = _ready_epoch
         ready = await asyncio.to_thread(rebuild_state, cache)
 
     if ready and epoch == _ready_epoch:
@@ -208,6 +223,6 @@ def rebuild_state(cache: "RedisManager") -> bool:
         if cache.instance.get(lock) == token:
             cache.instance.delete(lock)
 
-    _last_failure = 0.0
+    _last_failure = None
     log.bind(generation=cache.get("generation")).warning("Rebuilt hyperglass state")
     return True

@@ -58,7 +58,8 @@ class PluginManager(t.Generic[PluginT]):
 
     def plugins(self: "PluginManager", *, builtins: bool = True) -> t.List[PluginT]:
         """Get all plugins, with built-in plugins last."""
-        plugins = self._state.plugins(self._type)
+        # Required: a lost registry must fail the request, not run it without plugins.
+        plugins = self._state.plugins(self._type, required=True)
 
         if builtins is False:
             plugins = [p for p in plugins if p._hyperglass_builtin is False]

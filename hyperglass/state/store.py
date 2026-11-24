@@ -73,6 +73,9 @@ class HyperglassState(StateManager):
                 batch = []
         if batch:
             self.redis.instance.delete(*batch)
+        # Again after the deletes: a check that ran while they were in progress could
+        # have found state complete and trusted it again.
+        mark_stale()
 
     def _required(self, key: str) -> t.Any:
         """Recover missing state for synchronous callers without blocking an event loop."""
@@ -137,6 +140,19 @@ class HyperglassState(StateManager):
         """
         return self.redis.get("generation", raise_if_none=False)
 
-    def plugins(self, _type: str) -> t.List[PluginT]:
-        """Get plugins by type."""
-        return self.redis.get(("plugins", _type), raise_if_none=False, value_if_none=[])
+    def plugins(self, _type: str, *, required: bool = False) -> t.List[PluginT]:
+        """Get plugins by type.
+
+        With `required`, a registry missing from Redis raises `StateError` rather than
+        reading as empty. Built-in plugins are always registered, so a missing registry
+        means state was lost, and a query run without its plugins would skip input
+        validation and cache unparsed output for the whole cache timeout. The request
+        gets a 503 and the next one rebuilds state.
+        """
+        if not required:
+            return self.redis.get(("plugins", _type), raise_if_none=False, value_if_none=[])
+        try:
+            return self.redis.get(("plugins", _type), raise_if_none=True)
+        except StateError:
+            mark_stale()
+            raise

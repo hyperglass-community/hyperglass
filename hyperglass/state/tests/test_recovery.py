@@ -74,9 +74,9 @@ def state_with(cache: RedisManager) -> HyperglassState:
 @pytest.fixture(autouse=True)
 def no_cooldown():
     """Ensure a failure in one test does not suppress the rebuild in the next."""
-    recovery._last_failure = 0.0
+    recovery._last_failure = None
     yield
-    recovery._last_failure = 0.0
+    recovery._last_failure = None
 
 
 def test_populated_state_is_not_rebuilt(monkeypatch):
@@ -224,7 +224,7 @@ def test_incomplete_initialization_is_retried_after_cooldown(monkeypatch):
     monkeypatch.setattr(recovery, "_initialize", lambda: cache.set("params", {}))
     assert rebuild_state(cache) is False
     assert not recovery.is_populated(cache)
-    recovery._last_failure = 0.0
+    recovery._last_failure = None
 
     def initialize():
         cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
@@ -605,7 +605,130 @@ def test_api_requests_check_state_once_per_interval(monkeypatch):
         return original(cache)
 
     monkeypatch.setattr(recovery, "is_populated", is_populated)
+    # A frozen clock, so a slow runner cannot reach the end of the interval.
+    monkeypatch.setattr(recovery.time, "monotonic", lambda: 1000.0)
     with TestClient(app=app) as client:
         statuses = [client.get("/api/info").status_code for _ in range(20)]
     assert statuses == [200] * 20
     assert len(checks) == 1
+
+
+@pytest.mark.asyncio
+async def test_request_after_mark_stale_does_not_join_the_earlier_check(monkeypatch):
+    """A request arriving after state was found missing starts its own check."""
+    state = state_with(cache_with(*STATE_KEYS))
+    started = threading.Event()
+    release = threading.Event()
+    calls = []
+    original = recovery.is_populated
+
+    def is_populated(cache):
+        calls.append(True)
+        if len(calls) == 1:
+            started.set()
+            if not release.wait(timeout=2):
+                raise RuntimeError("check was never released")
+        return original(cache)
+
+    monkeypatch.setattr(recovery, "is_populated", is_populated)
+    first = asyncio.create_task(state.ensure_ready())
+    async with asyncio.timeout(3):
+        while not started.is_set():
+            await asyncio.sleep(0)
+    recovery.mark_stale()
+    second = asyncio.create_task(state.ensure_ready())
+    await asyncio.sleep(0.05)
+    release.set()
+    async with asyncio.timeout(3):
+        await asyncio.gather(first, second)
+    assert len(calls) == 2, "joined a check that started before state was found missing"
+
+
+@pytest.mark.asyncio
+async def test_joined_check_from_an_older_epoch_does_not_mark_ready(monkeypatch):
+    """The epoch that counts is the shared check's, not the joining request's."""
+    state = state_with(cache_with(*STATE_KEYS))
+    started = threading.Event()
+    release = threading.Event()
+    original = recovery.is_populated
+
+    def is_populated(cache):
+        started.set()
+        if not release.wait(timeout=2):
+            raise RuntimeError("check was never released")
+        return original(cache)
+
+    monkeypatch.setattr(recovery, "is_populated", is_populated)
+    first = asyncio.create_task(state.ensure_ready())
+    async with asyncio.timeout(3):
+        while not started.is_set():
+            await asyncio.sleep(0)
+    # State found missing, but the in-flight check is still shared (as if a request
+    # had already picked it up before `mark_stale` dropped it).
+    monkeypatch.setattr(recovery, "_ready_epoch", recovery._ready_epoch + 1)
+    joiner = asyncio.create_task(state.ensure_ready())
+    await asyncio.sleep(0.05)
+    release.set()
+    async with asyncio.timeout(3):
+        await asyncio.gather(first, joiner)
+    assert recovery._ready_until == 0.0
+
+
+def test_clear_ends_the_interval_after_deleting(monkeypatch):
+    """A check that trusts state while `clear` is deleting it is not left standing."""
+    cache = cache_with(*STATE_KEYS)
+    state = state_with(cache)
+    original = cache.instance.delete
+
+    def delete(*names):
+        # A concurrent check finds state complete just before it is deleted.
+        monkeypatch.setattr(recovery, "_ready_until", float("inf"))
+        original(*names)
+
+    monkeypatch.setattr(cache.instance, "delete", delete)
+    state.clear()
+    assert recovery._ready_until == 0.0
+
+
+def test_no_cooldown_without_a_failure_right_after_boot(monkeypatch):
+    """A monotonic clock near zero, as right after boot, is not a recent failure."""
+    monkeypatch.setattr(recovery.time, "monotonic", lambda: 5.0)
+    cache = cache_with()
+
+    def initialize():
+        cache.instance.data.update(dict.fromkeys(STATE_KEYS, pickle.dumps(None)))
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    assert not recovery.in_cooldown()
+    assert rebuild_state(cache) is True
+
+
+def test_failure_right_after_boot_still_cools_down(monkeypatch):
+    monkeypatch.setattr(recovery.time, "monotonic", lambda: 5.0)
+
+    def initialize():
+        raise RuntimeError("bad config")
+
+    monkeypatch.setattr(recovery, "_initialize", initialize)
+    assert rebuild_state(cache_with()) is False
+    assert recovery.in_cooldown()
+
+
+def test_missing_plugin_registry_is_lost_state(monkeypatch):
+    """Plugin managers fail on a lost registry instead of running without plugins.
+
+    A query run without output plugins would cache unparsed output for the whole
+    cache timeout. Other readers, such as `hyperglass plugins`, still read it as empty.
+    """
+    from hyperglass.state import use_state
+    from hyperglass.plugins._manager import InputPluginManager, OutputPluginManager
+
+    state = use_state()
+    monkeypatch.setattr(recovery, "_ready_until", float("inf"))
+    state.cache.delete(("plugins", "output"))
+
+    with pytest.raises(StateError):
+        OutputPluginManager().plugins()
+    assert recovery._ready_until == 0.0, "a lost registry did not end the interval"
+    assert InputPluginManager().plugins() == []
+    assert state.plugins("output") == []

@@ -77,7 +77,7 @@ def query_context(monkeypatch):
         def __getitem__(self, key):
             return device if key == device.name else super().__getitem__(key)
 
-    state = SimpleNamespace(devices=Devices([device]), plugins=lambda _: [])
+    state = SimpleNamespace(devices=Devices([device]), plugins=lambda _, **__: [])
 
     def use_state(attr=None):
         return getattr(state, attr) if attr else state

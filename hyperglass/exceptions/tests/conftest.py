@@ -41,7 +41,7 @@ def state(monkeypatch):
         state.cache.set("plugins.output", [])
 
     monkeypatch.setattr(recovery, "_initialize", initialize)
-    monkeypatch.setattr(recovery, "_last_failure", 0.0)
+    monkeypatch.setattr(recovery, "_last_failure", None)
     initialize()
     return state
 
