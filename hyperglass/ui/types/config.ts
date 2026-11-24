@@ -16,6 +16,14 @@ interface _Messages {
   authentication_error: string;
   no_output: string;
   rate_limited: string;
+  share_result_expired: string;
+  share_pending: string;
+  share_not_allowed: string;
+  share_too_large: string;
+  share_unavailable: string;
+  share_not_found: string;
+  share_invalid_expiry: string;
+  share_unsupported: string;
 }
 
 interface _ThemeConfig {
@@ -200,8 +208,14 @@ interface _DeviceGroup {
   locations: _Device[];
 }
 
+interface _Share {
+  timeout: number;
+  timeout_choices: number[];
+}
+
 interface _ConfigDeep {
   cache: _Cache;
+  share: _Share;
   web: _Web;
   messages: _Messages;
   devices: _DeviceGroup[];

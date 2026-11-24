@@ -60,6 +60,7 @@ def create_cors_config(state: "HyperglassState") -> CORSConfig:
 
     return CORSConfig(
         allow_origins=origins,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        # DELETE removes a share with its delete token (#559).
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )

@@ -11,6 +11,7 @@ import typer
 
 # Local
 from .echo import echo
+from .share import share
 from .onboard import onboard
 
 
@@ -25,6 +26,7 @@ def _print_version(value: bool) -> None:
 
 cli = typer.Typer(name="Hyperglass", help="Hyperglass command line interface", no_args_is_help=True)
 cli.add_typer(onboard, name="onboard")
+cli.add_typer(share, name="share")
 
 
 def run():

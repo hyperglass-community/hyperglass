@@ -96,6 +96,46 @@ class Messages(HyperglassModel):
         title="Rate Limited",
         description="Displayed when a client, or all clients together, sent more queries than [query_limit](/configuration/config/query-limit) allows.",
     )
+    share_result_expired: str = Field(
+        "This result is no longer cached. Run the query again to share it.",
+        title="Share Result Expired",
+        description="Returned with HTTP 404 when a [share](/configuration/config/share) is requested for a query result that is no longer in the cache.",
+    )
+    share_pending: str = Field(
+        "This result is still being completed. Try again in a moment.",
+        title="Share Pending",
+        description="Returned with HTTP 409 when a [share](/configuration/config/share) is requested for a result whose enrichment is still running.",
+    )
+    share_not_allowed: str = Field(
+        "This result can't be shared.",
+        title="Share Not Allowed",
+        description="Returned with HTTP 403 when a [share](/configuration/config/share) is requested for a result of a directive with `retain: false`.",
+    )
+    share_too_large: str = Field(
+        "This result is too large to share.",
+        title="Share Too Large",
+        description="Returned with HTTP 413 when a [share](/configuration/config/share) would be larger than `share.max_size`.",
+    )
+    share_unavailable: str = Field(
+        "Sharing is unavailable right now. Please try again later.",
+        title="Share Unavailable",
+        description="Returned with HTTP 503 when `share.max_entries` [shares](/configuration/config/share) exist, or when Redis is full (`maxmemory` with `noeviction`).",
+    )
+    share_not_found: str = Field(
+        "This shared result does not exist or has expired.",
+        title="Share Not Found",
+        description="Returned with HTTP 404 when a [share](/configuration/config/share) does not exist, has expired or was deleted, or when a delete request has the wrong token.",
+    )
+    share_invalid_expiry: str = Field(
+        "Choose one of the offered times to keep the shared result.",
+        title="Share Invalid Expiry",
+        description="Returned with HTTP 400 when a [share](/configuration/config/share) request's `expiresIn` is not one of `share.timeout_choices`.",
+    )
+    share_unsupported: str = Field(
+        "This shared result was saved in a format this version can't show.",
+        title="Share Unsupported",
+        description="Returned with HTTP 422 when a [share](/configuration/config/share) was stored in a snapshot version this version of Hyperglass doesn't read.",
+    )
 
     def warn_deprecated(self) -> "Messages":
         """Warn once per deprecated message the operator sets explicitly.

@@ -252,6 +252,14 @@
     "notFound": "{type} '{name}' not found.",
     "rateLimited": "Too many requests. Please try again later.",
     "requestTimeout": "Request timed out.",
+    "shareInvalidExpiry": "Choose one of the offered times to keep the shared result.",
+    "shareNotAllowed": "This result can't be shared.",
+    "shareNotFound": "This shared result does not exist or has expired.",
+    "sharePending": "This result is still being completed. Try again in a moment.",
+    "shareResultExpired": "This result is no longer cached. Run the query again to share it.",
+    "shareTooLarge": "This result is too large to share.",
+    "shareUnavailable": "Sharing is unavailable right now. Please try again later.",
+    "shareUnsupported": "This shared result was saved in a format this version can't show.",
     "targetNotAllowed": "{target} is not allowed."
   },
   "orgName": "Example Network",
@@ -324,6 +332,14 @@
   ],
   "primaryAsn": "65000",
   "requestTimeout": 90,
+  "share": {
+    "timeout": 2592000,
+    "timeoutChoices": [
+      604800,
+      2592000,
+      7776000
+    ]
+  },
   "siteDescription": "Example Network Network Looking Glass",
   "siteTitle": "hyperglass",
   "version": "3.0.0rc2",
