@@ -34,6 +34,30 @@ python -m pip install -e '.[ui]'
 systemctl restart hyperglass
 ```
 
+## Move the service and environment file out of the app directory
+
+Earlier installation guides put the `systemd` unit and its environment file in the app directory, as `/etc/hyperglass/hyperglass.service` and `/etc/hyperglass/hyperglass.env`, and linked the unit into `/etc/systemd/system`. `systemd` reads both files as root. With Docker, the container can write to that directory, so a compromised container could change them and have its own commands run as root on the host at the next restart. The sample units now read `/etc/default/hyperglass`, and the guides install the unit in `/etc/systemd/system`.
+
+Move both files once, after checking out a release whose `.samples` units read `/etc/default/hyperglass`. Review the old files before you copy them, since the container could have changed them. Use `hyperglass-manual.service` instead of `hyperglass-docker.service` for a manual installation.
+
+```shell copy
+systemctl stop hyperglass
+systemctl disable hyperglass
+cat /etc/hyperglass/hyperglass.env
+install -o root -g root -m 600 /etc/hyperglass/hyperglass.env /etc/default/hyperglass
+diff /opt/hyperglass/.samples/hyperglass-docker.service /etc/hyperglass/hyperglass.service
+rm /etc/systemd/system/hyperglass.service
+cp /opt/hyperglass/.samples/hyperglass-docker.service /etc/systemd/system/hyperglass.service
+rm /etc/hyperglass/hyperglass.service /etc/hyperglass/hyperglass.env
+systemctl daemon-reload
+systemctl enable hyperglass
+systemctl start hyperglass
+```
+
+`install` copies the environment file with root as its owner. `mv` would keep the owner, and after `chown -R 10001:10001 /etc/hyperglass` that is the container user. The `diff` shows your changes to the old unit beside the new `EnvironmentFile` line. Apply the ones you want to `/etc/systemd/system/hyperglass.service` before `systemctl daemon-reload`.
+
+Until you move them, the old files keep working: an installed unit keeps its `EnvironmentFile` path. Only a unit copied from the new sample reads `/etc/default/hyperglass`, and `systemd` does not start it while that file is missing.
+
 ## Migrating from Hyperglass 2.0.4
 
 Back up `config.yaml`, `devices.yaml` and `directives.yaml` before upgrading. The service and configuration names remain `hyperglass`. Validate the configuration with `hyperglass onboard check` before exposing the upgraded service.
@@ -49,6 +73,7 @@ Hyperglass 3.0.0 adds these changes:
 - Valid zero-route MikroTik results complete without repeated SSH sessions.
 - Docker Compose pulls the published image and runs Valkey 8 as the `redis` service. It no longer builds the checkout; add `compose.build.yaml` for a source build. Existing `HYPERGLASS_REDIS_*` settings keep their meaning, and the bundled cache starts empty.
 - The container runs as the unprivileged user `hyperglass` (UID and GID `10001`) instead of root. The host directory mounted at `/etc/hyperglass`, any mounted log directory and SSH key files must belong to that user. See [Using Docker](#using-docker).
+- The `systemd` unit and its environment file move out of the app directory, to `/etc/systemd/system/hyperglass.service` and `/etc/default/hyperglass`. See [Move the service and environment file out of the app directory](#move-the-service-and-environment-file-out-of-the-app-directory).
 - The automatic worker count follows CPU affinity and the container CPU quota, and stops at eight. Set `HYPERGLASS_WORKERS` to keep a higher count.
 - Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`.
 - IP rules refuse link-local targets (IPv4 `169.254.0.0/16`, IPv6 `fe80::/10`) and IPv6 targets with a zone, such as `fe80::1%eth0`, including with a `0.0.0.0/0` or `::/0` rule and on built-in directives. To query link-local addresses from a custom directive, set `allow_link_local: true` on its IP rule. Zones are then accepted only on link-local host addresses. See [IP rules](/configuration/directives.mdx).

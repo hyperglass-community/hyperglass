@@ -64,13 +64,14 @@ Use the source build before RC2 is published or when testing source changes.
 
 ```shell copy
 mkdir /etc/hyperglass
-touch /etc/hyperglass/hyperglass.env
 chown -R 10001:10001 /etc/hyperglass
+touch /etc/default/hyperglass
+chmod 600 /etc/default/hyperglass
 git clone https://github.com/hyperglass-community/hyperglass.git --depth=1 /opt/hyperglass
 cd /opt/hyperglass
 ```
 
-Clone into `/opt/hyperglass`. The `chown` gives `/etc/hyperglass` to the container user, UID `10001`; see [container user and file ownership](#container-user-and-file-ownership). The sample `systemd` service runs `docker compose` from that directory. The service also reads `/etc/hyperglass/hyperglass.env`, and `systemd` does not start it if that file is missing.
+Clone into `/opt/hyperglass`. The `chown` gives `/etc/hyperglass` to the container user, UID `10001`; see [container user and file ownership](#container-user-and-file-ownership). The sample `systemd` service runs `docker compose` from `/opt/hyperglass`. The service also reads its environment file, `/etc/default/hyperglass`, and `systemd` does not start it if that file is missing. That file stays owned by root, outside `/etc/hyperglass`; see [host files](#host-files).
 
 <Callout type="info">Use `compose.build.yaml` with the main Compose file to build the `hyperglass:local` image. Pushes to `main` publish `sha-<commit>` images. A version tag publishes no new image. It verifies that the `sha-<commit>` image of the tagged commit carries this repository's `main` attestation, scans it again, and adds the version tag (and `latest` for a stable version) to it. Pull requests do not publish images.</Callout>
 
@@ -90,11 +91,12 @@ Open http://localhost:8001. The first start builds the UI, which takes a few min
 
 <Callout type="info">Before you create and start the Hyperglass service, verify whether you need to change any [environment variables](environment-variables.mdx).</Callout>
 
-The service uses the published image by default. For a source build, set `COMPOSE_FILE=/opt/hyperglass/compose.yaml:/opt/hyperglass/compose.build.yaml` in `/etc/hyperglass/hyperglass.env` and build the local image first.
+The service uses the published image by default. For a source build, set `COMPOSE_FILE=/opt/hyperglass/compose.yaml:/opt/hyperglass/compose.build.yaml` in `/etc/default/hyperglass` and build the local image first.
+
+Copy the sample service into `/etc/systemd/system`. Do not keep it in `/etc/hyperglass` or link to a copy there.
 
 ```shell copy
-cp /opt/hyperglass/.samples/hyperglass-docker.service /etc/hyperglass/hyperglass.service
-ln -s /etc/hyperglass/hyperglass.service /etc/systemd/system/hyperglass.service
+cp /opt/hyperglass/.samples/hyperglass-docker.service /etc/systemd/system/hyperglass.service
 systemctl daemon-reload
 systemctl enable hyperglass
 systemctl start hyperglass
@@ -117,6 +119,16 @@ The configuration files only need to be readable by UID `10001`.
 - **Custom application path.** Compose mounts `HYPERGLASS_APP_PATH` from the host when it is set. Change the owner of that directory, not `/etc/hyperglass`.
 - **Logs and query samples.** A host directory mounted for `logging.directory` or `logging.samples.path` must be writable by UID `10001`.
 - **SSH keys.** A key file referenced by a credential's `key` must be readable by UID `10001`. A root-owned key with mode `0600` is not. Change its owner to `10001` and keep mode `0600`.
+
+### Host files
+
+The container can change anything in the directory mounted at `/etc/hyperglass`, so keep files that root reads on the host out of it. `systemd` runs the service as root, so a container that could edit the unit's `ExecStart`, or set `COMPOSE_FILE` in its environment file to a Compose file that mounts the host's root filesystem, would run its own commands as root on the host at the next restart.
+
+- The unit is `/etc/systemd/system/hyperglass.service`, a regular file, not a link into `/etc/hyperglass`.
+- The environment file is `/etc/default/hyperglass`, owned by root with mode `0600`.
+- `/opt/hyperglass`, with `compose.yaml`, `.env` and `compose.override.yaml`, stays owned by root. Do not set `HYPERGLASS_APP_PATH` to it, to a directory that contains it, or to a directory that holds other host files.
+
+Installations that followed an earlier version of this guide keep the unit and `hyperglass.env` in `/etc/hyperglass`. Move them as described in [upgrading](/installation/upgrading.mdx#move-the-service-and-environment-file-out-of-the-app-directory).
 
 ## Health check
 

@@ -49,10 +49,11 @@ The optional `performance` extra installs `uvloop` on supported non-Windows syst
 
 ```shell copy
 mkdir /etc/hyperglass
-touch /etc/hyperglass/hyperglass.env
+touch /etc/default/hyperglass
+chmod 600 /etc/default/hyperglass
 ```
 
-The sample `systemd` service reads `/etc/hyperglass/hyperglass.env`. `systemd` does not start the service if that file is missing.
+The sample `systemd` service reads its environment from `/etc/default/hyperglass`. `systemd` does not start the service if that file is missing. Keep that file, like the service unit, outside the app directory, as the [Docker installation](docker.mdx#host-files) does.
 
 ### Optional: Quickstart
 
@@ -65,16 +66,15 @@ hyperglass start
 
 ### Create a `systemd` service
 
-The sample service runs the Python in the virtual environment, `/opt/hyperglass/.venv/bin/python3`. If you cloned Hyperglass to a different directory, change `ExecStart` in the `hyperglass.service` file.
+The sample service runs the Python in the virtual environment, `/opt/hyperglass/.venv/bin/python3`. If you cloned Hyperglass to a different directory, change `ExecStart` in `/etc/systemd/system/hyperglass.service`.
 
 ```shell copy
-cp /opt/hyperglass/.samples/hyperglass-manual.service /etc/hyperglass/hyperglass.service
-ln -s /etc/hyperglass/hyperglass.service /etc/systemd/system/hyperglass.service
+cp /opt/hyperglass/.samples/hyperglass-manual.service /etc/systemd/system/hyperglass.service
 systemctl daemon-reload
 systemctl enable hyperglass
 systemctl start hyperglass
 ```
 
-<Callout type="info">If you used a different app directory from the default `/etc/hyperglass`, change the `EnvironmentFile` value in the `hyperglass.service` file.</Callout>
+<Callout type="info">If you use a different app directory from the default `/etc/hyperglass`, set `HYPERGLASS_APP_PATH` in `/etc/default/hyperglass`.</Callout>
 
 </Steps>

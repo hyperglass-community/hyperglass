@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Security
+
+- Keep the `systemd` unit and its environment file out of the app directory. The installation guides put them in `/etc/hyperglass`, which `systemd` reads as root and the Docker container can write to, so a compromised container could edit `ExecStart`, or set `COMPOSE_FILE` to a Compose file that mounts the host's root filesystem, and run its own commands as root on the host at the next restart. The sample units in `.samples` now read `EnvironmentFile=/etc/default/hyperglass`, and the guides copy the unit to `/etc/systemd/system/hyperglass.service` instead of linking it from `/etc/hyperglass`. **Upgrading:** existing units keep working, but keep the old layout and its risk until you move the files as described in [Move the service and environment file out of the app directory](https://github.com/hyperglass-community/hyperglass/blob/main/docs/content/installation/upgrading.mdx#move-the-service-and-environment-file-out-of-the-app-directory). A unit copied from the new sample does not start until `/etc/default/hyperglass` exists ([#515](https://github.com/hyperglass-community/hyperglass/issues/515)).
+
 ### Added
 
 - Forced refresh, off by default. With `cache.refresh.enable: true`, `POST /api/query` accepts `"force": true`, which runs a cached query on the device again and replaces its cache entry. The server answers a forced query from the cache when the query ran less than `cache.refresh.min_interval` (default 30 seconds) ago, or while another forced request for the same query is in progress, so at most one forced run of each query starts per interval. Successful responses include `refresh_in`, the seconds until a forced query would run. `force` must be a boolean: a value that cannot be read as one is rejected with HTTP 400, even when forced refresh is disabled. With metrics enabled, a forced run counts as `result="bypass"` in `hyperglass_query_cache_total`, and a forced query answered from the cache counts as `hit` ([#552](https://github.com/hyperglass-community/hyperglass/issues/552)).
