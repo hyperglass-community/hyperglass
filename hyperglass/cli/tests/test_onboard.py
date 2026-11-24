@@ -16,6 +16,7 @@ from hyperglass.state import use_state
 from hyperglass.settings import Settings
 from hyperglass.cli.onboard.files import YamlFile
 from hyperglass.cli.onboard.probe import cases, probe, field_coverage
+from hyperglass.exceptions.private import ConfigError
 from hyperglass.cli.onboard.runtime import runtime
 from hyperglass.models.config.devices import Device
 from hyperglass.execution.drivers.ssh_netmiko import NetmikoConnection, collect_commands
@@ -180,6 +181,17 @@ def test_runtime_does_not_replace_server_configuration(config):
     assert use_state("params") is original
     assert server.redis.get(("plugins", "ready")) == readiness
     assert server.plugins("output") == plugins
+
+
+def test_runtime_rejects_custom_directive_with_builtin_id(config):
+    """Onboarding refuses a built-in id, as startup does (#516)."""
+    directive = {"name": "Ping", "field": None, "rules": [{"condition": None, "command": "x"}]}
+    (config / "directives.yaml").write_text(
+        yaml.safe_dump({"__hyperglass_frr_ping__": directive})
+    )
+    with pytest.raises(ConfigError) as error, runtime():
+        pass
+    assert "'__hyperglass_frr_ping__'" in error.value.message
 
 
 def test_cases_cover_offered_builtins_and_families(config):

@@ -12,7 +12,12 @@ from hyperglass.settings import Settings
 from hyperglass.state.hooks import scoped_state
 from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.models.config.devices import Devices
-from hyperglass.configuration.validate import init_params, init_devices, init_directives
+from hyperglass.configuration.validate import (
+    init_params,
+    init_devices,
+    init_directives,
+    check_directive_ids,
+)
 
 
 class OnboardState:
@@ -20,7 +25,10 @@ class OnboardState:
 
     def __init__(self) -> None:
         self.params = init_params()
-        self.directives = deepcopy(init_builtin_directives()) + init_directives()
+        builtins = deepcopy(init_builtin_directives())
+        custom = init_directives()
+        check_directive_ids(builtins=builtins, custom=custom)
+        self.directives = builtins + custom
         self.devices = Devices()
         self._plugins: dict[str, list] = {}
         # A probe must not write session transcripts, query samples or credentials.

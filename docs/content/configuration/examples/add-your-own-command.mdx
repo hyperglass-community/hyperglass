@@ -73,3 +73,7 @@ devices:
 ```
 
 In the above example, _only_ the BGP Route and Traceroute built-in directives will be enabled.
+
+## Change a Built-in Command
+
+A custom directive can't use the id of a built-in directive, such as `__hyperglass_juniper_ping__`: hyperglass refuses to start and names the directive. To run a different command for a built-in query type, add a directive with a new id that doesn't start with `__` (devices ignore ids that do), add it to the device's `directives`, and leave the built-in out with `builtins: false` or a list of the built-ins to keep.

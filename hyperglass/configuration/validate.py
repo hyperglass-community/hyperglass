@@ -17,6 +17,7 @@ from .load import load_config
 from .markdown import get_markdown
 
 __all__ = (
+    "check_directive_ids",
     "init_devices",
     "init_directives",
     "init_files",
@@ -85,6 +86,24 @@ def init_directives() -> "Directives":
         raise ConfigInvalid(errors=err.errors()) from err
 
     return Directives(*directives)
+
+
+def check_directive_ids(*, builtins: "Directives", custom: "Directives") -> None:
+    """Reject custom directives that use a built-in directive's id (#516).
+
+    Directives are merged by id, so such a directive would replace the built-in, and
+    devices that use built-ins would lose that query type without any message.
+    """
+    builtin_ids = {directive.id for directive in builtins}
+    conflicts = [directive.id for directive in custom if directive.id in builtin_ids]
+    if conflicts:
+        names = ", ".join(f"'{directive_id}'" for directive_id in conflicts)
+        raise ConfigError(
+            f"These directive ids in the directives file belong to built-in directives: {names}. "
+            "A custom directive can't replace a built-in one: give it a new id that doesn't "
+            "start with `__` (devices ignore such ids), add it to the device's `directives`, "
+            "and leave the built-in out there with `builtins: false` or a list of built-ins."
+        )
 
 
 def init_devices() -> "Devices":
