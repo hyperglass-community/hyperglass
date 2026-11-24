@@ -199,6 +199,33 @@ class Text(HyperglassModel):
     share_expires: str = "Link expires {time}"
     share_run_query: str = "Run this query"
     share_new_query: str = "New query"
+    # A result's Share button (its tooltip and accessible name) and its popover: the
+    # "keep for" choice, the button that creates the link, the label of the field that
+    # shows it, the notice under it, and the button that deletes it with what it
+    # announces. Each time to keep the link is labelled with the largest unit it is a
+    # whole number of (`{count}` is formatted by Javascript). The link is copied with
+    # `copy_link` and its expiry shown with `share_expires`; errors use `messages`.
+    share_result: str = "Share Result"
+    share_keep_for: str = "Keep for"
+    share_create: str = "Create Link"
+    share_link: str = "Link to this result"
+    share_notice: str = "Anyone with the link can see this result, including the target."
+    share_delete: str = "Delete Link"
+    share_deleted: str = "Link deleted"
+    # The label of a link created for an earlier result of the same query, before it ran
+    # again (`{time}` is formatted by Javascript); the note on who can delete a link, which
+    # depends on where this browser keeps its token; the note shown when the token no
+    # longer deletes it; and what is announced when a link expires while shown.
+    share_earlier_link: str = "Link to the result from {time}"  # Formatted by Javascript
+    share_delete_scope: str = "You can delete the link from this page until you close or reload it."
+    share_delete_rotated: str = "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: str = "The link has expired."
+    share_minute: str = "{count} minute"  # Formatted by Javascript
+    share_minutes: str = "{count} minutes"  # Formatted by Javascript
+    share_hour: str = "{count} hour"  # Formatted by Javascript
+    share_hours: str = "{count} hours"  # Formatted by Javascript
+    share_day: str = "{count} day"  # Formatted by Javascript
+    share_days: str = "{count} days"  # Formatted by Javascript
 
     @field_validator("cache_prefix")
     def validate_cache_prefix(cls: "Text", value: str) -> str:

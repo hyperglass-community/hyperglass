@@ -168,8 +168,8 @@ class Params(ParamsPublic, HyperglassModel):
         return self.export_dict(
             include={
                 "cache": {"show_text": ..., "timeout": ..., "refresh": {"enable"}},
-                # For the share form's "keep for" choice (S3).
-                "share": {"timeout", "timeout_choices"},
+                # Whether results show a Share button, and its "keep for" choices (#561).
+                "share": {"enable", "timeout", "timeout_choices"},
                 "developer_mode": ...,
                 "primary_asn": ...,
                 "request_timeout": ...,

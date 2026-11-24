@@ -610,6 +610,29 @@ web:
     share_expires: "Link expires {time}"
     share_run_query: "Run this query"
     share_new_query: "New query"
+    # A result's Share button and its popover. Each time a visitor can keep the
+    # link for (share.timeout_choices) is shown in the largest unit it is a whole
+    # number of, with {count} in that unit.
+    share_result: "Share Result"
+    share_keep_for: "Keep for"
+    share_create: "Create Link"
+    share_link: "Link to this result"
+    share_notice: "Anyone with the link can see this result, including the target."
+    share_delete: "Delete Link"
+    share_deleted: "Link deleted"
+    # A link made from an earlier result of the same query, before it ran again
+    # ({time} in the viewer's time zone), who can delete a link, the note when it
+    # was shared again elsewhere, and what is announced when a link expires.
+    share_earlier_link: "Link to the result from {time}"
+    share_delete_scope: "You can delete the link from this page until you close or reload it."
+    share_delete_rotated: "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires."
+    share_link_expired: "The link has expired."
+    share_minute: "{count} minute"
+    share_minutes: "{count} minutes"
+    share_hour: "{count} hour"
+    share_hours: "{count} hours"
+    share_day: "{count} day"
+    share_days: "{count} days"
 
   theme:
     # Force light or dark mode. Default: unset (follows the visitor's system).
