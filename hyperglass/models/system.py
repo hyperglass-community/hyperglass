@@ -7,6 +7,7 @@ from ipaddress import ip_address
 
 # Third Party
 from pydantic import (
+    Field,
     FilePath,
     RedisDsn,
     SecretStr,
@@ -28,6 +29,10 @@ ListenHost = t.Union[None, IPvAnyAddress, t.Literal["localhost"]]
 
 _default_app_path = Path("/etc/hyperglass")
 
+# Seconds. 0 would make the socket non-blocking, and an infinite or huge value
+# makes socket.settimeout raise OverflowError.
+RedisTimeout = t.Annotated[float, Field(gt=0, le=300, allow_inf_nan=False)]
+
 
 class HyperglassSettings(BaseSettings):
     """hyperglass system settings, required to start hyperglass."""
@@ -46,6 +51,10 @@ class HyperglassSettings(BaseSettings):
     redis_password: t.Optional[SecretStr] = None
     redis_db: int = 1
     redis_dsn: RedisDsn = None
+    # Seconds the shared Redis connection pool waits to open a connection, and
+    # to send or receive on one, before raising redis-py's TimeoutError (#570).
+    redis_connect_timeout: RedisTimeout = 3
+    redis_socket_timeout: RedisTimeout = 5
     host: IPvAnyAddress = None
     port: int = 8001
     ca_cert: t.Optional[FilePath] = None
@@ -77,6 +86,8 @@ class HyperglassSettings(BaseSettings):
                 "redis_host",
                 "redis_db",
                 "redis_dsn",
+                "redis_connect_timeout",
+                "redis_socket_timeout",
                 "host",
                 "port",
                 "workers",
@@ -172,7 +183,14 @@ class HyperglassSettings(BaseSettings):
         # The pool belongs to one worker process. Redis commands run in the
         # default thread pool, which holds at most 32 threads, so the pool must
         # not be smaller than that or a busy worker exhausts it.
-        return {"url": str(self.redis_dsn), "max_connections": at_least(32, self.worker_count)}
+        # The timeouts keep a command from waiting on an unreachable Redis for as
+        # long as the operating system does, while it holds one of those threads.
+        return {
+            "url": str(self.redis_dsn),
+            "max_connections": at_least(32, self.worker_count),
+            "socket_connect_timeout": self.redis_connect_timeout,
+            "socket_timeout": self.redis_socket_timeout,
+        }
 
     @property
     def dev_url(self: "HyperglassSettings") -> str:
