@@ -25,9 +25,10 @@ def isolated_redis(monkeypatch):
     state = use_state()
     state.redis.set("params", Params())
     state.redis.set("directives", init_builtin_directives())
-    # An empty plugin registry, as registered: plugin managers treat a missing one as
+    # An empty plugin registry, registered and ready: plugin managers treat a missing one as
     # lost state.
     state.redis.set(("plugins", "input"), [])
     state.redis.set(("plugins", "output"), [])
+    state.redis.set(("plugins", "ready"), True)
     yield
     _use_state.cache_clear()

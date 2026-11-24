@@ -1,6 +1,7 @@
 """Primary state container."""
 
 # Standard Library
+import pickle
 import typing as t
 import asyncio
 
@@ -143,16 +144,23 @@ class HyperglassState(StateManager):
     def plugins(self, _type: str, *, required: bool = False) -> t.List[PluginT]:
         """Get plugins by type.
 
-        With `required`, a registry missing from Redis raises `StateError` rather than
-        reading as empty. Built-in plugins are always registered, so a missing registry
-        means state was lost, and a query run without its plugins would skip input
+        With `required`, a registry missing from Redis, or not yet marked ready, raises
+        `StateError` rather than reading as empty or partial. Built-in plugins are
+        always registered, so a missing registry means state was lost or is being
+        rebuilt, and a query run without its plugins would skip input
         validation and cache unparsed output for the whole cache timeout. The request
         gets a 503 and the next one rebuilds state.
         """
         if not required:
             return self.redis.get(("plugins", _type), raise_if_none=False, value_if_none=[])
-        try:
-            return self.redis.get(("plugins", _type), raise_if_none=True)
-        except StateError:
+        # One round trip for both. `plugins.ready` is deleted when configuration or the
+        # registry starts loading and set once every plugin is registered, so a registry
+        # being rebuilt by another worker, empty or partial, is not ready either.
+        names = (self.redis.key(("plugins", _type)), self.redis.key(("plugins", "ready")))
+        registry, ready = self.redis.instance.mget(names)
+        if registry is None or ready is None:
             mark_stale()
-            raise
+            raise StateError(
+                "Plugin registry '{key}' is missing or not ready in Redis store", key=_type
+            )
+        return pickle.loads(registry)  # noqa: S301 - written by hyperglass itself

@@ -107,12 +107,13 @@ lg.example.com:443 {
 
 This allows each client address 300 requests in any 30-second window. Requests over the limit get HTTP 429 with a `Retry-After` header. The directive is ordered before `basic_auth` by default, so it needs no `order` option.
 
-`{remote_host}` is the address that connects to Caddy. Behind a CDN, use `{client_ip}` as the key instead, and list the CDN's address ranges in the [`trusted_proxies`](https://caddyserver.com/docs/caddyfile/options#trusted-proxies) server option. Caddy then reads the visitor's address from `X-Forwarded-For` on requests from those ranges (`client_ip_headers` picks another header):
+`{remote_host}` is the address that connects to Caddy. Behind a CDN, use `{client_ip}` as the key instead, and list the CDN's address ranges in the [`trusted_proxies`](https://caddyserver.com/docs/caddyfile/options#trusted-proxies) server option. Caddy then reads the visitor's address from `X-Forwarded-For` on requests from those ranges. Also set [`trusted_proxies_strict`](https://caddyserver.com/docs/caddyfile/options#trusted-proxies-strict) (Caddy 2.8 or later). Without it, Caddy reads `X-Forwarded-For` from the left and uses the first address that is not a trusted proxy. A CDN appends the visitor's address to the right of any `X-Forwarded-For` the client sent, so that first address can be one the client made up, and a client could choose its own key. With it, Caddy reads from the right, so it gets the address the CDN added:
 
 ```caddy filename="/etc/caddy/Caddyfile"
 {
     servers {
         trusted_proxies static 203.0.113.0/24 2001:db8::/32
+        trusted_proxies_strict
     }
 }
 ```

@@ -732,3 +732,16 @@ def test_missing_plugin_registry_is_lost_state(monkeypatch):
     assert recovery._ready_until == 0.0, "a lost registry did not end the interval"
     assert InputPluginManager().plugins() == []
     assert state.plugins("output") == []
+
+
+def test_cooldown_check_survives_a_concurrent_reset(monkeypatch):
+    """A rebuild finishing in another thread mid-check must not break `in_cooldown`."""
+    monkeypatch.setattr(recovery, "_last_failure", 100.0)
+
+    def monotonic():
+        # Another thread's successful rebuild resets the failure time right now.
+        recovery._last_failure = None
+        return 110.0
+
+    monkeypatch.setattr(recovery.time, "monotonic", monotonic)
+    assert recovery.in_cooldown() is True

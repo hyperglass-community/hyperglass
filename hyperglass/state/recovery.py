@@ -69,7 +69,8 @@ _last_failure: t.Optional[float] = None
 # Not user-configurable: it trades the cost of the per-request check against how long
 # a worker can take to notice that Redis was emptied behind its back. Reads of missing
 # state in the meantime fail with `StateError` (a 503) and end the interval early, via
-# `mark_stale`. It is short because plugin lists read as empty rather than failing.
+# `mark_stale`: configuration reads and the plugin managers' registry reads (which
+# also require `plugins.ready`) raise rather than read lost state as empty.
 READY_INTERVAL = 1.0
 
 # Monotonic time until which state is trusted to be complete.
@@ -113,9 +114,11 @@ def is_populated(cache: "RedisManager") -> bool:
 
 def in_cooldown() -> bool:
     """Determine whether a recent failed or contended rebuild is still cooling down."""
-    if _last_failure is None:
+    # Read once: another thread can reset it to `None` between two reads.
+    last_failure = _last_failure
+    if last_failure is None:
         return False
-    return time.monotonic() - _last_failure < FAILURE_COOLDOWN
+    return time.monotonic() - last_failure < FAILURE_COOLDOWN
 
 
 def mark_stale() -> None:
