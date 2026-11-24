@@ -1,7 +1,8 @@
-import { useDisclosure } from '@chakra-ui/react';
-import { createContext, forwardRef, useContext } from 'react';
+import { useDisclosure, useFormControlContext } from '@chakra-ui/react';
+import { forwardRef } from 'react';
 import ReactSelect from 'react-select';
 import { useColorMode } from '~/hooks';
+import { Input } from './input';
 import { Option } from './option';
 import {
   useContainerStyle,
@@ -27,10 +28,7 @@ import type {
   SelectInstance,
 } from 'react-select';
 import type { SingleOption } from '~/types';
-import type { SelectContextProps, SelectProps } from './types';
-
-const SelectContext = createContext<SelectContextProps>({} as SelectContextProps);
-export const useSelectContext = (): SelectContextProps => useContext(SelectContext);
+import type { SelectProps } from './types';
 
 export const Select = forwardRef(
   <Opt extends SingleOption = SingleOption, IsMulti extends boolean = boolean>(
@@ -43,6 +41,11 @@ export const Select = forwardRef(
 
     const { colorMode } = useColorMode();
 
+    // The field's error message, which Chakra renders (with this ID) only while the field
+    // is invalid.
+    const field = useFormControlContext();
+    const errorMessage = isError && field?.isInvalid ? field.feedbackId : undefined;
+
     const defaultOnChange: ReactSelectProps<Opt, IsMulti>['onChange'] = changed => {
       if (isSingleValue<Opt>(changed)) {
         changed = [changed] as unknown as OnChangeValue<Opt, IsMulti>;
@@ -52,11 +55,13 @@ export const Select = forwardRef(
       }
     };
 
+    // The style hooks run here, in the component that knows the state, so they take it as
+    // arguments: a context provided below would not reach them.
     const container = useContainerStyle<Opt, IsMulti>({ colorMode });
-    const menu = useMenuStyle<Opt, IsMulti>({ colorMode });
-    const menuList = useMenuListStyle<Opt, IsMulti>({ colorMode });
-    const control = useControlStyle<Opt, IsMulti>({ colorMode });
-    const option = useOptionStyle<Opt, IsMulti>({ colorMode });
+    const menu = useMenuStyle<Opt, IsMulti>({ colorMode, isOpen });
+    const menuList = useMenuListStyle<Opt, IsMulti>({ colorMode, isOpen });
+    const control = useControlStyle<Opt, IsMulti>({ colorMode, isError });
+    const option = useOptionStyle<Opt, IsMulti>({ colorMode, isOpen });
     const singleValue = useSingleValueStyle<Opt, IsMulti>({ colorMode });
     const multiValue = useMultiValueStyle<Opt, IsMulti>({ colorMode });
     const multiValueLabel = useMultiValueLabelStyle<Opt, IsMulti>({ colorMode });
@@ -67,35 +72,35 @@ export const Select = forwardRef(
     const rsTheme = useRSTheme();
 
     return (
-      <SelectContext.Provider value={{ colorMode, isOpen, isError }}>
-        <ReactSelect<Opt, IsMulti>
-          onChange={defaultOnChange}
-          onMenuClose={onClose}
-          onMenuOpen={onOpen}
-          isClearable={true}
-          options={options}
-          isMulti={isMulti}
-          theme={rsTheme}
-          components={{ Option, ...components }}
-          menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
-          ref={ref}
-          styles={{
-            container,
-            menu,
-            option,
-            control,
-            menuList,
-            menuPortal,
-            multiValue,
-            singleValue,
-            placeholder,
-            multiValueLabel,
-            multiValueRemove,
-            indicatorSeparator,
-          }}
-          {...rest}
-        />
-      </SelectContext.Provider>
+      <ReactSelect<Opt, IsMulti>
+        onChange={defaultOnChange}
+        onMenuClose={onClose}
+        onMenuOpen={onOpen}
+        isClearable={true}
+        options={options}
+        isMulti={isMulti}
+        theme={rsTheme}
+        components={{ Option, Input, ...components }}
+        menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+        ref={ref}
+        styles={{
+          container,
+          menu,
+          option,
+          control,
+          menuList,
+          menuPortal,
+          multiValue,
+          singleValue,
+          placeholder,
+          multiValueLabel,
+          multiValueRemove,
+          indicatorSeparator,
+        }}
+        aria-invalid={isError || undefined}
+        aria-errormessage={errorMessage}
+        {...rest}
+      />
     );
   },
 );

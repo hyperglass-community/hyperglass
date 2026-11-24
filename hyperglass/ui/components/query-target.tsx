@@ -7,7 +7,7 @@ import { useDirective, useFormState } from '~/hooks';
 import { isSelectDirective } from '~/types';
 import { UserIP } from './user-ip';
 
-import { type UseFormRegister, useForm } from 'react-hook-form';
+import { type UseFormRegister, useFormContext } from 'react-hook-form';
 import type { GroupBase, OptionProps } from 'react-select';
 import type { SelectOnChange } from '~/components/select';
 import type { Directive, FormData, OnChangeArgs, SingleOption } from '~/types';
@@ -52,6 +52,9 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
   const setTarget = useFormState(s => s.setTarget);
   const queryTarget = useFormState(s => s.form.queryTarget);
   const directive = useDirective();
+  const {
+    formState: { errors },
+  } = useFormContext<FormData>();
 
   const options = useMemo(() => buildOptions(directive), [directive]);
   const isSelect = useMemo(() => directive !== null && isSelectDirective(directive), [directive]);
@@ -93,6 +96,7 @@ export const QueryTarget = (props: QueryTargetProps): JSX.Element => {
           value={selected}
           components={{ Option }}
           onChange={handleSelectChange}
+          isError={'queryTarget' in errors}
         />
       ) : (
         <InputGroup size="lg">

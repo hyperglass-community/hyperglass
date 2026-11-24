@@ -221,9 +221,12 @@ describe('LookingGlassForm rendering', () => {
     expect(useFormState.getState().form.queryTarget).toEqual([]);
     expect(useFormState.getState().target.display).toBe('');
     // The target is required again.
+    expect(targetSelect).not.toHaveAttribute('aria-invalid');
     submit(container);
     expect(await screen.findByText(noInput(web.text.queryTarget))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: and the select shows it.
+    expect(screen.getAllByRole('combobox')[1]).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('chooses the query type when the selected location has only one', async () => {
@@ -332,6 +335,11 @@ describe('LookingGlassForm rendering', () => {
 
     expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: the select shows the error too.
+    expect(screen.getByRole('combobox', { name: web.text.queryType })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
   });
 
   it('keeps the query type and target when the remaining location offers it by name', async () => {
@@ -528,6 +536,12 @@ describe('LookingGlassForm validation', () => {
 
     expect(await screen.findByText(noInput(web.text.queryType))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: the select shows the error too, and is described by its message.
+    const select = screen.getByRole('combobox', { name: web.text.queryType });
+    expect(select).toHaveAttribute('aria-invalid', 'true');
+    expect(select).toHaveAccessibleDescription(
+      expect.stringContaining(noInput(web.text.queryType)),
+    );
   });
 
   it('uses the configured message text, not a built-in one', async () => {
@@ -569,13 +583,16 @@ describe('LookingGlassForm validation', () => {
 
     expect(await screen.findByText(noInput('VRF'))).toBeInTheDocument();
     expect(useFormState.getState().status).toBe('form');
+    // #513: the variable's select shows the error.
+    const variableSelect = screen.getAllByRole('combobox').at(-1) as HTMLElement;
+    expect(variableSelect).toHaveAttribute('aria-invalid', 'true');
 
     // Choosing a value clears the error and lets the query through.
-    const variableSelect = screen.getAllByRole('combobox').at(-1);
-    await userEvent.click(variableSelect as HTMLElement);
+    await userEvent.click(variableSelect);
     await userEvent.click(within(await openMenu()).getByText('Default'));
     expect(useFormState.getState().form.queryVariables).toEqual({ vrf: 'default' });
     await waitFor(() => expect(screen.queryByText(noInput('VRF'))).not.toBeInTheDocument());
+    expect(variableSelect).not.toHaveAttribute('aria-invalid');
 
     submit(container);
     await waitFor(() => expect(useFormState.getState().status).toBe('results'));

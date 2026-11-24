@@ -1,3 +1,4 @@
+import { useFormContext } from 'react-hook-form';
 import { Select } from '~/components';
 import { isSingleValue } from '~/components/select';
 import { useFormState } from '~/hooks';
@@ -12,6 +13,9 @@ interface QueryVariableProps {
 
 export const QueryVariable = (props: QueryVariableProps): JSX.Element => {
   const { variable, onChange } = props;
+  const {
+    formState: { errors },
+  } = useFormContext();
   const selected = useFormState(s => s.form.queryVariables[variable.id] ?? null);
 
   const options: SingleOption[] = variable.options.map(o => ({ value: o.value, label: o.name }));
@@ -28,6 +32,8 @@ export const QueryVariable = (props: QueryVariableProps): JSX.Element => {
       value={value}
       isClearable={!variable.required}
       onChange={handleChange}
+      // The form reports a missing required value under the variable's ID.
+      isError={variable.id in errors}
     />
   );
 };
