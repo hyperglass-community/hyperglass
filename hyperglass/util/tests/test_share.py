@@ -260,16 +260,19 @@ def test_limits_must_be_positive(key):
         Params(share=value)
 
 
-def test_only_the_timeouts_are_sent_to_the_ui():
+def test_only_enable_and_the_timeouts_are_sent_to_the_ui():
+    """The Share button (#561) needs to know whether sharing is on; nothing else is sent."""
     share = Params(share={"enable": True, "max_timeout": 30 * DAY}).frontend()["share"]
-    assert share == {"timeout": 30 * DAY, "timeout_choices": [7 * DAY, 30 * DAY]}
+    assert share == {"enable": True, "timeout": 30 * DAY, "timeout_choices": [7 * DAY, 30 * DAY]}
+    assert Params().frontend()["share"]["enable"] is False
 
 
-def test_ui_parameters_carry_the_timeouts():
+def test_ui_parameters_carry_enable_and_the_timeouts():
     # Project
     from hyperglass.models.ui import UIParameters
 
     assert UIParameters.model_fields["share"].annotation.model_fields.keys() == {
+        "enable",
         "timeout",
         "timeout_choices",
     }

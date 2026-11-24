@@ -176,6 +176,30 @@ def test_share_page_text_exported():
     }.items() <= exported.items()
 
 
+def test_share_button_text_exported():
+    """The Share button and its popover read their text as camelCase keys of `web.text` (#561)."""
+    exported = Text(share_delete="Supprimer le lien").model_dump(by_alias=True)
+    assert {
+        "shareResult": "Share Result",
+        "shareKeepFor": "Keep for",
+        "shareCreate": "Create Link",
+        "shareLink": "Link to this result",
+        "shareNotice": "Anyone with the link can see this result, including the target.",
+        "shareDelete": "Supprimer le lien",
+        "shareDeleted": "Link deleted",
+        "shareEarlierLink": "Link to the result from {time}",
+        "shareDeleteScope": "You can delete the link from this page until you close or reload it.",
+        "shareDeleteRotated": "This link can't be deleted from this page any more: the result was shared again elsewhere. It works until it expires.",
+        "shareLinkExpired": "The link has expired.",
+        "shareMinute": "{count} minute",
+        "shareMinutes": "{count} minutes",
+        "shareHour": "{count} hour",
+        "shareHours": "{count} hours",
+        "shareDay": "{count} day",
+        "shareDays": "{count} days",
+    }.items() <= exported.items()
+
+
 def test_form_button_and_route_table_text():
     """The form buttons and the route table's labels are configurable text (#581)."""
     exported = Text(submit_query="Envoyer").model_dump(by_alias=True)

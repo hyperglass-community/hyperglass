@@ -12,6 +12,7 @@ export * from './use-opposing-color';
 export * from './use-query-history';
 export * from './use-record-history';
 export * from './use-share';
+export * from './use-share-links';
 export * from './use-strf';
 export * from './use-table-to-string';
 export * from './use-wtf';
