@@ -172,6 +172,12 @@ class Text(HyperglassModel):
     previous_page: str = "Previous Page"
     next_page: str = "Next Page"
     last_page: str = "Last Page"
+    # Table pagination: the page size select's accessible name, its options (`{count}` is
+    # the number of rows) and the page count (`{page}` and `{pages}`), formatted by
+    # Javascript.
+    page_size: str = "Rows per page"
+    page_size_option: str = "Show {count}"
+    page_count: str = "Page {page} of {pages}"
     # Recent queries: the list on the landing page and an opened entry.
     history_title: str = "Recent queries"
     history_open: str = "Open"

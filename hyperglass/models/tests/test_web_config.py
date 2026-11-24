@@ -124,6 +124,20 @@ def test_as_path_and_pagination_text_exported_camel_case():
         assert key in exported
 
 
+def test_page_size_and_page_count_text():
+    """The table's page size select and page count read `web.text`, in English by default (#548)."""
+    text = Text()
+    assert (text.page_size, text.page_size_option, text.page_count) == (
+        "Rows per page",
+        "Show {count}",
+        "Page {page} of {pages}",
+    )
+    exported = Text(page_count="Page {page} sur {pages}").model_dump(by_alias=True)
+    assert exported["pageCount"] == "Page {page} sur {pages}"
+    assert exported["pageSize"] == "Rows per page"
+    assert exported["pageSizeOption"] == "Show {count}"
+
+
 def test_cache_icon_default_has_no_time_zone():
     """The UI shows `{time}` in the viewer's time zone, so the default doesn't say UTC (#551)."""
     assert Text().cache_icon == "Cached from {time}"

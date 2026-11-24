@@ -558,6 +558,9 @@ The "My IP" button automatically detects the user's public IP address and popula
 | `web.text.previous_page` | String | `Previous Page` | Accessible name of the table button that shows the previous page. |
 | `web.text.next_page` | String | `Next Page` | Accessible name of the table button that shows the next page. |
 | `web.text.last_page` | String | `Last Page` | Accessible name of the table button that shows the last page. |
+| `web.text.page_size` | String | `Rows per page` | Accessible name of the table's page size select. |
+| `web.text.page_size_option` | String | `Show {count}` | Each option of the table's page size select. `{count}` is replaced with the number of rows. |
+| `web.text.page_count` | String | `Page {page} of {pages}` | The table's page count. `{page}` is replaced with the current page and `{pages}` with the number of pages. |
 
 #### Query History Text
 
@@ -1452,6 +1455,11 @@ web:
     previous_page: "Previous Page"
     next_page: "Next Page"
     last_page: "Last Page"
+    # Table pagination: the page size select's screen reader name, its options
+    # ({count} is the number of rows) and the page count.
+    page_size: "Rows per page"
+    page_size_option: "Show {count}"
+    page_count: "Page {page} of {pages}"
     # Recent queries. {time} is when the query was saved, in the viewer's time
     # zone.
     history_title: "Recent queries"
