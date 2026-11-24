@@ -48,3 +48,55 @@ web:
     client_ip:
         trusted_proxies: ["127.0.0.1/32", "::1/128"]
 ```
+
+## Rate limiting
+
+Every Hyperglass route answers without authentication. [`query_limit`](/configuration/config/query-limit) limits `POST /api/query`, the only route that reaches devices. The other routes (`/api/info`, `/api/devices`, `/api/queries` and the UI's static files) only read configuration, so Hyperglass does not limit them, but a client that floods them still costs the server work. To limit them, use your reverse proxy.
+
+Loading the UI fetches many static files at once, and a submission sends one `POST /api/query` per selected location, so allow bursts. The numbers below are examples: size them for your own traffic.
+
+### NGINX
+
+NGINX's [`limit_req`](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html) module is built in. `limit_req_zone` must be in the `http` block. Debian and Ubuntu's `nginx.conf` includes `sites-enabled` inside the `http` block, so there it can go at the top of `/etc/nginx/sites-available/hyperglass`, outside the `server` blocks:
+
+```nginx filename="/etc/nginx/sites-available/hyperglass" copy
+limit_req_zone $binary_remote_addr zone=hyperglass:10m rate=10r/s;
+
+server {
+    # ...
+    limit_req zone=hyperglass burst=50 nodelay;
+    limit_req_status 429;
+    # ...
+}
+```
+
+This allows each client address 10 requests per second on average, plus bursts of up to 50 that are served without delay. Requests over the limit get HTTP 429; without `limit_req_status`, NGINX answers 503. A 10 MB zone holds the state of about 80,000 addresses.
+
+`$binary_remote_addr` is the address that connects to NGINX. Behind a CDN, that is the CDN, so all visitors would share one limit: use the [`realip`](https://nginx.org/en/docs/http/ngx_http_realip_module.html) module (`set_real_ip_from`, `real_ip_header`) so NGINX uses the visitor's address. NGINX counts each IPv6 address separately, so a client can spread its requests over the addresses of its /64.
+
+### Caddy
+
+Caddy has no rate limiting of its own. The [`rate_limit`](https://github.com/mholt/caddy-ratelimit) directive comes from a third-party module that is not part of the standard Caddy build: build Caddy with it using [xcaddy](https://github.com/caddyserver/xcaddy), or pick it on Caddy's [download page](https://caddyserver.com/download).
+
+```shell copy
+xcaddy build --with github.com/mholt/caddy-ratelimit
+```
+
+Then add a zone to the site block in `/etc/caddy/Caddyfile`:
+
+```caddy filename="/etc/caddy/Caddyfile" copy
+lg.example.com:443 {
+    rate_limit {
+        zone hyperglass {
+            key    {remote_host}
+            events 300
+            window 30s
+        }
+    }
+    # ...
+}
+```
+
+This allows each client address 300 requests in any 30-second window. Requests over the limit get HTTP 429 with a `Retry-After` header. The directive is ordered before `basic_auth` by default, so it needs no `order` option. Behind a CDN, use `{client_ip}` as the key and list the CDN in Caddy's `trusted_proxies` server option.
+
+Newer versions of the module, after v0.1.0, also accept `ipv6_prefix 64` in a zone, which counts each IPv6 /64 as one client, as `query_limit` does. Check that your build supports it before adding it.
