@@ -36,6 +36,11 @@ class Share(HyperglassModel):
     """Snapshots of cached query results that can be read by their id (#559)."""
 
     enable: bool = False
+    # Whether a browser keeps the links it creates, with their delete tokens, in its local
+    # storage (#562), so they can be copied or deleted later. With `False`, they are kept in
+    # the page's memory only, and a browser's stored links are deleted when it loads the
+    # page: for kiosks and shared terminals. Sent to the UI.
+    remember_links: bool = True
     # Seconds a share is kept when the request doesn't choose. One of `timeout_choices`.
     # Reading a share doesn't extend it.
     timeout: ShareTimeout = 30 * DAY

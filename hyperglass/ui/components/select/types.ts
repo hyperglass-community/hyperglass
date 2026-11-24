@@ -21,14 +21,12 @@ export interface SelectProps<Opt extends SingleOption, IsMulti extends boolean>
   colorScheme?: Theme.ColorNames;
 }
 
-export interface SelectContextProps {
-  colorMode: 'light' | 'dark';
-  isOpen: boolean;
-  isError: boolean;
-}
-
 export interface RSStyleCallbackProps {
   colorMode: 'light' | 'dark';
+  /** Whether the menu is open. */
+  isOpen?: boolean;
+  /** Whether the field has a validation error. */
+  isError?: boolean;
 }
 
 type StyleConfigKeys = keyof ReactSelect.StylesConfig<

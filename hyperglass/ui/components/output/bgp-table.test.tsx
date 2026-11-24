@@ -12,7 +12,8 @@ const config = {
     ['Prefix', 'prefix', 'left'],
     ['AS Path', 'as_path', 'left'],
   ],
-  web: { text: {} },
+  // The table formats its page count from `web.text`.
+  web: { text: { pageCount: 'Page {page} of {pages}' } },
 } as unknown as Config;
 
 const route = {

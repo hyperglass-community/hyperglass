@@ -657,6 +657,8 @@ describe('Run again', () => {
     expect(await screen.findByText('No longer available: Router Gone')).toBeInTheDocument();
     expect(useFormState.getState().form.queryLocation).toEqual([]);
     expect(queries()).toEqual([]);
+    // #573: the location cards can take focus, so the first one does.
+    await waitFor(() => expect(screen.getAllByRole('checkbox')[0]).toHaveFocus());
   });
 
   it('uses the configured message for the locations that no longer exist', async () => {

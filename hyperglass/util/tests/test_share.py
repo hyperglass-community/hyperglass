@@ -193,6 +193,7 @@ def index() -> t.List[bytes]:
 def test_defaults():
     share = Params().share
     assert share.enable is False
+    assert share.remember_links is True
     assert (share.timeout, share.max_timeout) == (2592000, 7776000)
     assert share.timeout_choices == [604800, 2592000, 7776000]
     assert (share.max_entries, share.max_size) == (1000, 262144)
@@ -260,19 +261,26 @@ def test_limits_must_be_positive(key):
         Params(share=value)
 
 
-def test_only_enable_and_the_timeouts_are_sent_to_the_ui():
-    """The Share button (#561) needs to know whether sharing is on; nothing else is sent."""
+def test_only_enable_remember_links_and_the_timeouts_are_sent_to_the_ui():
+    """Only `enable`, `remember_links` (#562) and the timeouts are sent to the UI."""
     share = Params(share={"enable": True, "max_timeout": 30 * DAY}).frontend()["share"]
-    assert share == {"enable": True, "timeout": 30 * DAY, "timeout_choices": [7 * DAY, 30 * DAY]}
+    assert share == {
+        "enable": True,
+        "remember_links": True,
+        "timeout": 30 * DAY,
+        "timeout_choices": [7 * DAY, 30 * DAY],
+    }
     assert Params().frontend()["share"]["enable"] is False
+    assert Params(share={"remember_links": False}).frontend()["share"]["remember_links"] is False
 
 
-def test_ui_parameters_carry_enable_and_the_timeouts():
+def test_ui_parameters_carry_enable_remember_links_and_the_timeouts():
     # Project
     from hyperglass.models.ui import UIParameters
 
     assert UIParameters.model_fields["share"].annotation.model_fields.keys() == {
         "enable",
+        "remember_links",
         "timeout",
         "timeout_choices",
     }

@@ -9,7 +9,6 @@ import {
   useOpposingColor,
   useOpposingColorCallback,
 } from '~/hooks';
-import { useSelectContext } from './select';
 
 import * as ReactSelect from 'react-select';
 import type { SingleOption } from '~/types';
@@ -26,9 +25,7 @@ export const useContainerStyle = <Opt extends SingleOption, IsMulti extends bool
 export const useControlStyle = <Opt extends SingleOption, IsMulti extends boolean>(
   props: RSStyleCallbackProps,
 ): RSStyleFunction<'control', Opt, IsMulti> => {
-  const { colorMode } = props;
-
-  const { isError } = useSelectContext();
+  const { colorMode, isError = false } = props;
 
   const minHeight = useToken('space', 12);
   const borderRadius = useToken('radii', 'md');
@@ -55,7 +52,9 @@ export const useControlStyle = <Opt extends SingleOption, IsMulti extends boolea
           : isFocused
             ? `0 0 0 1px ${focusBorder}`
             : undefined,
-        '&:hover': { borderColor: isFocused ? focusBorder : borderHover },
+        '&:hover': {
+          borderColor: isError ? invalidBorder : isFocused ? focusBorder : borderHover,
+        },
         '&:hover > div > span': { backgroundColor: borderHover },
         '&:focus': { borderColor: isError ? invalidBorder : focusBorder },
         '&.invalid': { borderColor: invalidBorder, boxShadow: `0 0 0 1px ${invalidBorder}` },
@@ -69,9 +68,7 @@ export const useControlStyle = <Opt extends SingleOption, IsMulti extends boolea
 export const useMenuStyle = <Opt extends SingleOption, IsMulti extends boolean>(
   props: RSStyleCallbackProps,
 ): RSStyleFunction<'menu', Opt, IsMulti> => {
-  const { colorMode } = props;
-
-  const { isOpen } = useSelectContext();
+  const { colorMode, isOpen = false } = props;
 
   const backgroundColor = useColorToken('colors', 'white', 'blackSolid.700');
   const styles = { backgroundColor, zIndex: 1500 };
@@ -82,9 +79,7 @@ export const useMenuStyle = <Opt extends SingleOption, IsMulti extends boolean>(
 export const useMenuListStyle = <Opt extends SingleOption, IsMulti extends boolean>(
   props: RSStyleCallbackProps,
 ): RSStyleFunction<'menuList', Opt, IsMulti> => {
-  const { colorMode } = props;
-
-  const { isOpen } = useSelectContext();
+  const { colorMode, isOpen = false } = props;
 
   const borderRadius = useToken('radii', 'md');
   const backgroundColor = useColorToken('colors', 'white', 'blackSolid.700');
@@ -107,9 +102,7 @@ export const useMenuListStyle = <Opt extends SingleOption, IsMulti extends boole
 export const useOptionStyle = <Opt extends SingleOption, IsMulti extends boolean>(
   props: RSStyleCallbackProps,
 ): RSStyleFunction<'option', Opt, IsMulti> => {
-  const { colorMode } = props;
-
-  const { isOpen } = useSelectContext();
+  const { colorMode, isOpen = false } = props;
 
   const fontSize = useToken('fontSizes', 'lg');
   const disabled = useToken('colors', 'whiteAlpha.400');

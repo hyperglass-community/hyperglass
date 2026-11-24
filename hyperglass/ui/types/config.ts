@@ -80,6 +80,9 @@ interface _Text {
   previous_page: string;
   next_page: string;
   last_page: string;
+  page_size: string;
+  page_size_option: string;
+  page_count: string;
   history_title: string;
   history_open: string;
   history_delete: string;
@@ -116,6 +119,14 @@ interface _Text {
   share_hours: string;
   share_day: string;
   share_days: string;
+  history_shared: string;
+  history_share_kept: string;
+  shares_title: string;
+  shares_forget: string;
+  shares_clear_all: string;
+  shares_clear_confirm: string;
+  shares_clear_cancel: string;
+  share_delete_scope_page: string;
 }
 
 interface _History {
@@ -242,6 +253,7 @@ interface _DeviceGroup {
 
 interface _Share {
   enable: boolean;
+  remember_links: boolean;
   timeout: number;
   timeout_choices: number[];
 }
