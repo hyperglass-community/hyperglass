@@ -54,8 +54,8 @@ const SUBMIT_FIELD = 'submit';
 
 /**
  * Focus the control of the first of `names` that has one: its input, else its first
- * button. A name is a form row's `data-query-field`: `queryLocation`, `queryType`,
- * `queryTarget`, `var.<variable ID>` or `submit`. Location cards have no control.
+ * location card, else its first button. A name is a form row's `data-query-field`:
+ * `queryLocation`, `queryType`, `queryTarget`, `var.<variable ID>` or `submit`.
  */
 function focusField(form: HTMLFormElement | null, names: string[]): void {
   const fields = Array.from(form?.querySelectorAll<HTMLElement>('[data-query-field]') ?? []);
@@ -63,6 +63,7 @@ function focusField(form: HTMLFormElement | null, names: string[]): void {
     const field = fields.find(f => f.dataset.queryField === name);
     const control =
       field?.querySelector<HTMLElement>('input:not([hidden]):not([type="hidden"])') ??
+      field?.querySelector<HTMLElement>('[role="checkbox"]') ??
       field?.querySelector<HTMLElement>('button');
     if (control !== null && control !== undefined) {
       control.focus();

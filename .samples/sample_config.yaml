@@ -592,6 +592,11 @@ web:
     previous_page: "Previous Page"
     next_page: "Next Page"
     last_page: "Last Page"
+    # Table pagination: the page size select's screen reader name, its options
+    # ({count} is the number of rows) and the page count.
+    page_size: "Rows per page"
+    page_size_option: "Show {count}"
+    page_count: "Page {page} of {pages}"
     # Recent queries. {time} is when the query was saved, in the viewer's time
     # zone.
     history_title: "Recent queries"

@@ -5,7 +5,7 @@ import { usePagination, useSortBy, useTable } from 'react-table';
 import { If, Then, Else } from 'react-if';
 import { useConfig } from '~/context';
 import { CardBody, CardFooter, CardHeader, DynamicIcon } from '~/elements';
-import { useMobile } from '~/hooks';
+import { useMobile, useStrf } from '~/hooks';
 import { TableMain } from './table';
 import { TableCell } from './cell';
 import { TableHead } from './head';
@@ -44,6 +44,7 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
 
   const isMobile = useMobile();
   const { web } = useConfig();
+  const strF = useStrf();
 
   const defaultColumn = {
     minWidth: 100,
@@ -179,10 +180,7 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
         </Flex>
         <Flex justifyContent="center" alignItems="center">
           <Text fontSize="sm" mr={4} whiteSpace="nowrap">
-            Page{' '}
-            <strong>
-              {pageIndex + 1} of {pageOptions.length}
-            </strong>{' '}
+            {strF(web.text.pageCount, { page: pageIndex + 1, pages: pageOptions.length })}
           </Text>
           {!isMobile && (
             <PageSelect

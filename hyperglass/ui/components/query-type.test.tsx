@@ -215,20 +215,27 @@ describe('QueryType', () => {
     expect(optionLabels(menu)).toEqual(['BGP Route']);
   });
 
-  it('does not mark the select invalid when the form has a query type error', async () => {
-    // Current behaviour, likely a bug: `QueryType` passes `isError` to `Select`, but the
-    // select's style hooks read it with `useSelectContext()` from inside the component
-    // that provides that context, so they always see the default and never draw the
-    // error border.
+  // #513: the select's style hooks read `isError` from a context the same component
+  // provided, so an invalid query type looked valid.
+  it('marks the select invalid when the form has a query type error', async () => {
     setFiltered(directives());
     const valid = renderQueryType();
     const invalid = renderQueryType(undefined, true);
 
-    const controlClass = (root: HTMLElement): string =>
-      root.querySelector('[class*="-control"]')?.className ?? '';
     expect(await within(invalid.container).findByText('has error')).toBeInTheDocument();
     expect(within(valid.container).getByText('no error')).toBeInTheDocument();
-    expect(controlClass(invalid.container)).not.toBe('');
-    expect(controlClass(invalid.container)).toBe(controlClass(valid.container));
+    const combobox = (root: HTMLElement): HTMLElement =>
+      within(root).getByRole('combobox', { name: LABEL });
+    expect(combobox(invalid.container)).toHaveAttribute('aria-invalid', 'true');
+    expect(combobox(valid.container)).not.toHaveAttribute('aria-invalid');
+
+    const border = (root: HTMLElement): string => {
+      const control = combobox(root).closest<HTMLElement>('[class*="-control"]');
+      if (control === null) {
+        throw new Error('No control');
+      }
+      return getComputedStyle(control).borderColor;
+    };
+    expect(border(invalid.container)).not.toBe(border(valid.container));
   });
 });

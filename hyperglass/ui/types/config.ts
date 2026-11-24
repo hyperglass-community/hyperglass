@@ -72,6 +72,9 @@ interface _Text {
   previous_page: string;
   next_page: string;
   last_page: string;
+  page_size: string;
+  page_size_option: string;
+  page_count: string;
   history_title: string;
   history_open: string;
   history_delete: string;
