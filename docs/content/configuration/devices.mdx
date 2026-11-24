@@ -28,7 +28,7 @@ Each configured device may have the following parameters:
 | `http`              | Mapping         |               | Mapping/dict of [HTTP client options](/configuration/devices/http-device.mdx), if this device is connected via HTTP.                       |
 | `proxy`             | Mapping         |               | Mapping/dict of [SSH proxy config](/configuration/devices/ssh-proxy.mdx) to use for this device's requests.                                |
 
-Hyperglass logs a warning at startup for each device key it does not recognise, for example `driver_args` instead of `driver_config`. The key is ignored, so check the warning for the suggested key.
+Hyperglass logs a warning at startup for each device key it does not recognise, for example `driver_args` instead of `driver_config`. The key is ignored, so check the warning for the suggested key. It does the same for keys under `credential`, and says when a key such as `port` belongs at the device level. The warning names the device and the key, never its value.
 
 <Callout type="tip">
 
