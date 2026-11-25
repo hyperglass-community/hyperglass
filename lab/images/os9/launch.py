@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Boot the OS9 emulator and configure its lab management interface."""
-import argparse
-import logging
+
+# Standard Library
 import os
-from pathlib import Path
 import re
-import signal
 import sys
 import time
+import signal
+import logging
+import argparse
+from pathlib import Path
 
+# Third Party
 import vrnetlab
 
 
@@ -19,8 +22,13 @@ class OS9VM(vrnetlab.VM):
 
     def __init__(self, args):
         super().__init__(
-            args.username, args.password, disk_image="/os9.qcow2",
-            ram=1024, cpu="qemu32", driveif="ide", min_dp_nics=5,
+            args.username,
+            args.password,
+            disk_image="/os9.qcow2",
+            ram=1024,
+            cpu="qemu32",
+            driveif="ide",
+            min_dp_nics=5,
             provision_pci_bus=False,
         )
         self.qemu_args[0] = "qemu-system-i386"
@@ -34,8 +42,9 @@ class OS9VM(vrnetlab.VM):
     def gen_dummy_nics(self):
         """Keep management first in PCI enumeration."""
         # Keep management first in the emulator's PCI interface enumeration.
-        return [re.sub(r",bus=pci\.\d+,addr=0x[0-9a-f]+", "", arg)
-                for arg in super().gen_dummy_nics()]
+        return [
+            re.sub(r",bus=pci\.\d+,addr=0x[0-9a-f]+", "", arg) for arg in super().gen_dummy_nics()
+        ]
 
     def command(self, command):
         """Send a console command and check its response."""
@@ -72,18 +81,27 @@ class OS9VM(vrnetlab.VM):
                 raise RuntimeError("OS9 console did not reach its prompt")
             return
         commands = [
-            "enable", "terminal length 0", "configure terminal", "no logging console",
+            "enable",
+            "terminal length 0",
+            "configure terminal",
+            "no logging console",
             f"hostname {self.hostname}",
             f"username {self.username} password 0 {self.password} privilege 15",
             "interface managementethernet 0/0",
-            "ip address 10.0.0.15/24", "no keepalive", "no shutdown", "exit",
+            "ip address 10.0.0.15/24",
+            "no keepalive",
+            "no shutdown",
+            "exit",
             "management route 0.0.0.0/0 10.0.0.2",
             "ip ssh server enable",
         ]
         startup = Path("/config/startup.cfg")
         if startup.exists():
-            commands.extend(line.strip() for line in startup.read_text().splitlines()
-                            if line.strip() and not line.lstrip().startswith("!"))
+            commands.extend(
+                line.strip()
+                for line in startup.read_text().splitlines()
+                if line.strip() and not line.lstrip().startswith("!")
+            )
         commands.extend(["end", "write memory"])
         try:
             for command in commands:

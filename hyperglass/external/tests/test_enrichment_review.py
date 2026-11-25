@@ -1,12 +1,15 @@
 """Regression tests for bounded lookups and optional structured enrichment."""
 
+# Standard Library
 import asyncio
 import threading
 from types import SimpleNamespace
 from unittest.mock import Mock, AsyncMock
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.state import use_state
 from hyperglass.external import ip_enrichment
 from hyperglass.models.config.params import Params
@@ -131,6 +134,7 @@ async def test_whois_responses_have_a_byte_limit(monkeypatch, bulk):
 
 
 def test_parsers_wait_for_directives_and_traceroute_ui():
+    # Project
     from hyperglass.plugins import _builtin
 
     assert hasattr(_builtin, "BGPSTRRoutePluginHuawei")

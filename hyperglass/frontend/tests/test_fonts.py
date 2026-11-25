@@ -8,8 +8,8 @@ import httpx
 import pytest
 
 # Project
-from hyperglass.models.config.web import ThemeFonts
 from hyperglass.frontend import VENDORED_FONTS, VENDORED_FONTS_DIR, google_font_url, self_host_fonts
+from hyperglass.models.config.web import ThemeFonts
 
 CSS = """@font-face {
   font-family: 'Inter';

@@ -186,9 +186,7 @@ def test_runtime_does_not_replace_server_configuration(config):
 def test_runtime_rejects_custom_directive_with_builtin_id(config):
     """Onboarding refuses a built-in id, as startup does (#516)."""
     directive = {"name": "Ping", "field": None, "rules": [{"condition": None, "command": "x"}]}
-    (config / "directives.yaml").write_text(
-        yaml.safe_dump({"__hyperglass_frr_ping__": directive})
-    )
+    (config / "directives.yaml").write_text(yaml.safe_dump({"__hyperglass_frr_ping__": directive}))
     with pytest.raises(ConfigError) as error, runtime():
         pass
     assert "'__hyperglass_frr_ping__'" in error.value.message
@@ -265,6 +263,7 @@ def test_fields_keep_zero_values_and_report_unverified():
 
 
 def test_check_does_not_request_version_for_vrf_commands(config, monkeypatch):
+    # Project
     from hyperglass.cli.onboard import check
 
     monkeypatch.setattr(check, "cache_available", lambda: True)

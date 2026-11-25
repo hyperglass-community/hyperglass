@@ -1,18 +1,26 @@
 """Release updates keep deployable image pins and package versions aligned."""
 
+# Standard Library
 import importlib.util
 from pathlib import Path
 
+# Third Party
 import pytest
 
 
-@pytest.mark.parametrize("requested,python_version,release_version", [
-    ("3.0.0rc3", "3.0.0rc3", "3.0.0-rc.3"),
-    ("3.0.0-rc.3", "3.0.0rc3", "3.0.0-rc.3"),
-    ("3.0.0", "3.0.0", "3.0.0"),
-])
+@pytest.mark.parametrize(
+    "requested,python_version,release_version",
+    [
+        ("3.0.0rc3", "3.0.0rc3", "3.0.0-rc.3"),
+        ("3.0.0-rc.3", "3.0.0rc3", "3.0.0-rc.3"),
+        ("3.0.0", "3.0.0", "3.0.0"),
+    ],
+)
 def test_version_update_includes_all_deployment_pins(
-    tmp_path, requested, python_version, release_version,
+    tmp_path,
+    requested,
+    python_version,
+    release_version,
 ):
     root = Path(__file__).resolve().parents[3]
     spec = importlib.util.spec_from_file_location("release_version", root / "version.py")

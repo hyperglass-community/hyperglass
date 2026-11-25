@@ -5,12 +5,14 @@
 Install Playwright and Chromium before running this optional lab check.
 """
 
-import argparse
+# Standard Library
 import json
 import time
+import argparse
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright, expect
+# Third Party
+from playwright.sync_api import expect, sync_playwright
 
 
 def verify_response(page, response):

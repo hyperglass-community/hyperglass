@@ -261,6 +261,5 @@ export function useTableToString(
     }
   }
   const formatCallback = useCallback(doFormat, [target, data, doFormat]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useCallback(() => formatCallback(target, data), [target, data, formatCallback, ...deps]);
 }

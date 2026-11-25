@@ -11,6 +11,7 @@ from hyperglass.plugins import _builtin
 from hyperglass.plugins._input import InputPlugin
 from hyperglass.plugins._output import OutputPlugin
 
+
 def test_every_builtin_plugin_is_exported():
     """`init_builtin_plugins` reads the classes imported into `_builtin/__init__.py`.
 

@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 # Project
 from hyperglass.cli import cli
-from hyperglass.log import log, _FMT_FILE
+from hyperglass.log import _FMT_FILE, log
 from hyperglass.util.support_bundle import build_support_bundle, write_support_bundle
 
 
@@ -110,8 +110,7 @@ def test_bundle_omits_free_form_identifiers_and_credentials(tmp_path, private_te
     }
     (tmp_path / "hyperglass.log.json").write_text(json.dumps(record) + "\n")
     (tmp_path / "hyperglass.log").write_text(
-        f"[ERROR] [20260826 10:00:00] {private_text}\n"
-        f"[20260826 10:00:01] {private_text}\n"
+        f"[ERROR] [20260826 10:00:00] {private_text}\n[20260826 10:00:01] {private_text}\n"
     )
     sample = {
         "timestamp": "2026-08-26T10:00:00+00:00",

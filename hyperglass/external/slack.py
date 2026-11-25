@@ -5,8 +5,8 @@ import typing as t
 
 # Project
 from hyperglass.log import log
-from hyperglass.models.webhook import Webhook
 from hyperglass.external._hook import WebhookBase
+from hyperglass.models.webhook import Webhook
 
 if t.TYPE_CHECKING:
     # Project

@@ -8,9 +8,10 @@ is the explicit prefixes below plus every prefix originated by an ORIGIN_AS.
     scripts/filter-mrt.py data/bview data/testset-bview
 """
 
-import ipaddress
-import struct
+# Standard Library
 import sys
+import struct
+import ipaddress
 
 PREFIXES = {ipaddress.ip_network(p) for p in ("1.1.1.0/24", "2606:4700::/44")}
 ORIGIN_AS = {13335}

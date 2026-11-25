@@ -1,12 +1,15 @@
 """Keep reviewed documentation aligned with the runtime contracts."""
 
+# Standard Library
 import re
 from pathlib import Path
 from importlib.util import module_from_spec, spec_from_file_location
 
-import pytest
+# Third Party
 import yaml
+import pytest
 
+# Project
 from hyperglass.defaults._strings import CREDIT
 from hyperglass.util.support_bundle import build_support_bundle
 
@@ -30,7 +33,7 @@ def test_my_ip_example_matches_its_description():
 def test_support_bundle_documentation_matches_format(tmp_path):
     text = (ROOT / "docs/content/configuration/config/logging.mdx").read_text()
     bundle = build_support_bundle([tmp_path])
-    assert f'format `{bundle["format"]}`' in text
+    assert f"format `{bundle['format']}`" in text
     assert bundle["redaction"] in text
     assert "unclassified_text" in text
     assert "[REDACTED]" in text

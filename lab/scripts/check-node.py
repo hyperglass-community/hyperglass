@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Verify main-lab service readiness and router management/data connectivity."""
 
-import argparse
+# Standard Library
 import json
-from pathlib import Path
-import subprocess
 import time
+import argparse
+import subprocess
+from pathlib import Path
 from urllib.request import urlopen
 
-from netmiko import ConnectHandler
+# Third Party
 import yaml
+from netmiko import ConnectHandler
 
 
 def check(node, timeout=180, management_only=False):

@@ -9,12 +9,14 @@ Tests for a device that is not running are skipped, so `./lab-up.sh frr`
 followed by `pytest tests/ -k frr` works.
 """
 
-import json
+# Standard Library
 import os
+import json
 import subprocess
 import urllib.error
 import urllib.request
 
+# Third Party
 import pytest
 
 API = os.environ.get("HYPERGLASS_LAB_API", "http://127.0.0.1:8001/api")

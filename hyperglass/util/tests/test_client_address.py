@@ -2,8 +2,8 @@
 
 # Third Party
 import pytest
-from litestar.testing import create_test_client
 from litestar import Request
+from litestar.testing import create_test_client
 from litestar.datastructures import Address
 
 # Project

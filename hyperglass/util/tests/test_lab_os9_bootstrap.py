@@ -1,11 +1,13 @@
 """OS9 must finish RSA key generation before applying the startup configuration."""
 
-import importlib.util
+# Standard Library
 import sys
-from pathlib import Path
+import importlib.util
 from types import SimpleNamespace
+from pathlib import Path
 from unittest.mock import Mock
 
+# Third Party
 import pytest
 
 
@@ -38,12 +40,14 @@ def vm(launcher):
 
 def test_startup_waits_for_actual_key_not_generation_message(launcher):
     instance = vm(launcher)
-    replies = iter([
-        RuntimeError("% Error: Host key is not generated."),
-        b"Generating 1024-bit SSHv2 RSA key.\nos9(conf)#",
-        b"No RSA key exists\nos9(conf)#",
-        b"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ==\nos9(conf)#",
-    ])
+    replies = iter(
+        [
+            RuntimeError("% Error: Host key is not generated."),
+            b"Generating 1024-bit SSHv2 RSA key.\nos9(conf)#",
+            b"No RSA key exists\nos9(conf)#",
+            b"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ==\nos9(conf)#",
+        ]
+    )
     key_ready = False
 
     def command(value):
@@ -99,6 +103,9 @@ def test_key_wait_retries_only_the_key_not_generated_error(launcher):
     instance.bootstrap_spin()
     assert instance.bootstrap_failed
     assert not instance.running
-    polls = [call for call in instance.command.call_args_list
-             if call.args == ("do show crypto key mypubkey rsa",)]
+    polls = [
+        call
+        for call in instance.command.call_args_list
+        if call.args == ("do show crypto key mypubkey rsa",)
+    ]
     assert len(polls) == 1

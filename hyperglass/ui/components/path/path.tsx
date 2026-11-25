@@ -79,7 +79,6 @@ export const Path = (props: PathProps): JSX.Element => {
             }
           } catch (e) {
             // Ignore enrichment failures
-            // eslint-disable-next-line no-console
             console.debug('AS path enrichment failed', e);
             onOpen();
           }

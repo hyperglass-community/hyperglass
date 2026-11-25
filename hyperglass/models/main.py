@@ -1,8 +1,6 @@
 """Data models used throughout hyperglass."""
 
 # Standard Library
-
-# Standard Library
 import re
 import json
 import typing as t

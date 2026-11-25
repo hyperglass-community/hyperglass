@@ -7,11 +7,13 @@ Run against an instance configured with `structured.communities.mode: name` (map
 advertise the lab test routes described in verify-policy-matrix.py.
 """
 
-import argparse
+# Standard Library
 import json
+import argparse
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright, expect
+# Third Party
+from playwright.sync_api import expect, sync_playwright
 
 PREFIX = "1.0.0.0/24"
 QUERIES = (("BGP AS Path", "_64999_"), ("BGP Community", "65000:777"))

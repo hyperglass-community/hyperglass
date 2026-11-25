@@ -11,7 +11,7 @@ from netmiko.ssh_dispatcher import CLASS_MAPPER
 
 # Project
 from hyperglass.constants import DRIVER_MAP, SHELL_PLATFORMS
-from hyperglass.models.directive import BuiltinDirective, RuleWithPattern
+from hyperglass.models.directive import RuleWithPattern, BuiltinDirective
 from hyperglass.models.config.devices import Device
 from hyperglass.defaults.directives.arcos import ARCOS_BGPRoute
 from hyperglass.execution.drivers._construct import Construct

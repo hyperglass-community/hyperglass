@@ -1,19 +1,22 @@
 """Exercise shared policies across vendor parsers without external services."""
 
-from pathlib import Path
+# Standard Library
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from pathlib import Path
+from unittest.mock import Mock, AsyncMock
 
+# Third Party
 import pytest
 
-from hyperglass.models.config.params import Params
+# Project
 from hyperglass.models.data import bgp_route
-from hyperglass.plugins._builtin.bgp_route_arista import parse_arista
+from hyperglass.models.config.params import Params
 from hyperglass.plugins._builtin.bgp_route_frr import parse_frr
+from hyperglass.plugins._builtin.bgp_route_arista import parse_arista
 from hyperglass.plugins._builtin.bgp_route_juniper import parse_juniper
+from hyperglass.plugins.tests.test_bgp_route_huawei import SAMPLE as HUAWEI_SAMPLE
 from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 from hyperglass.plugins._builtin.bgp_route_enrichment import ZBgpRouteEnrichment
-from hyperglass.plugins.tests.test_bgp_route_huawei import SAMPLE as HUAWEI_SAMPLE
 
 SAMPLES = Path(__file__).parents[3] / ".samples"
 PARSERS = [
@@ -66,6 +69,7 @@ def test_vendor_community_and_rpki_policy(monkeypatch, parser, filename, mode, b
 @pytest.mark.parametrize("parser,filename", PARSERS, ids=PARSER_IDS)
 @pytest.mark.parametrize("mode", ["inline", "async"])
 def test_vendor_enrichment_dispatch(monkeypatch, parser, filename, mode):
+    # Project
     from hyperglass.state import use_state
 
     params = use_state("params")

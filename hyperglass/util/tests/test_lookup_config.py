@@ -28,6 +28,7 @@ def configure(**params):
 
 @pytest.fixture
 def lookups(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     asns = AsyncMock(return_value={"13335": {"name": "Cloudflare", "country": "US"}})
@@ -50,6 +51,7 @@ def test_defaults_match_previous_behaviour():
 
 
 def test_server_lookups_are_not_sent_to_the_ui():
+    # Project
     from hyperglass.models.config.web import WebPublic
 
     assert "server_lookups" not in Params(web={"server_lookups": LOOKUPS}).frontend()["web"]
@@ -69,6 +71,7 @@ def test_server_lookups_are_not_sent_to_the_ui():
     ],
 )
 def test_quota_identity(address, identity):
+    # Project
     from hyperglass.api.quota import quota_identity
 
     assert quota_identity(address) == identity
@@ -83,6 +86,7 @@ def test_quota_identity(address, identity):
     ],
 )
 def test_client_quota_is_per_ipv6_64_and_per_ipv4_address(lookups, first, second, shared):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(web={"aspath_enrichment": True, "client_ip": TRUSTED, "server_lookups": LOOKUPS})
@@ -101,6 +105,7 @@ def test_client_quota_is_per_ipv6_64_and_per_ipv4_address(lookups, first, second
 
 
 def test_global_quota_is_configurable(lookups):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(web={"aspath_enrichment": True, "client_ip": TRUSTED, "server_lookups": LOOKUPS})
@@ -118,6 +123,7 @@ def test_global_quota_is_configurable(lookups):
 
 @pytest.mark.asyncio
 async def test_dns_resolver_and_timeout_are_configurable(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     configure(web={"server_lookups": LOOKUPS})
@@ -129,8 +135,10 @@ async def test_dns_resolver_and_timeout_are_configurable(monkeypatch):
         options.append(kwargs["timeout"])
         return real_client(
             transport=httpx.MockTransport(
-                lambda request: requests.append(request)
-                or httpx.Response(200, json={"Status": 0, "Answer": []})
+                lambda request: (
+                    requests.append(request)
+                    or httpx.Response(200, json={"Status": 0, "Answer": []})
+                )
             ),
             **kwargs,
         )
@@ -143,6 +151,7 @@ async def test_dns_resolver_and_timeout_are_configurable(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_concurrency_limit_is_configurable():
+    # Project
     from hyperglass.api import auxiliary
 
     configure(web={"server_lookups": LOOKUPS})
@@ -160,6 +169,7 @@ async def test_concurrency_limit_is_configurable():
 
 @pytest.mark.asyncio
 async def test_aspath_whois_server_is_configurable(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     configure(structured={"ip_enrichment": {"whois_host": "whois.example.net", "whois_port": 4343}})
@@ -174,6 +184,7 @@ async def test_aspath_whois_server_is_configurable(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("bulk", [False, True], ids=["single", "bulk"])
 async def test_enrichment_whois_server_and_timeouts_are_configurable(monkeypatch, bulk):
+    # Project
     from hyperglass.external import ip_enrichment
 
     configure(

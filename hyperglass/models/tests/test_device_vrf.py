@@ -8,8 +8,8 @@ import pytest
 from pydantic import ValidationError
 
 # Project
-from hyperglass.exceptions.private import ConfigError
 from hyperglass.models.directive import Directive
+from hyperglass.exceptions.private import ConfigError
 from hyperglass.models.config.devices import Device, directive_attr_keys
 from hyperglass.execution.drivers._construct import Construct
 

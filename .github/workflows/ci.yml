@@ -104,6 +104,9 @@ jobs:
       - name: Lint Python
         run: ruff check .
 
+      - name: Check Python formatting
+        run: ruff format --check .
+
       # The frontend tests read a configuration generated from the backend models.
       # Regenerating it must leave the committed file unchanged, or the frontend
       # tests run against UI parameters the real build no longer receives. One

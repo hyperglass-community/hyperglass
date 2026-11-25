@@ -18,16 +18,19 @@ devices file, so the instance needs no particular platform configured. Run it wi
 the repository environment, which provides `hyperglass` and `yaml`.
 """
 
+# Standard Library
+import json
+import time
+import pkgutil
 import argparse
 import importlib
-import json
-import pkgutil
-import time
 import urllib.request
 from pathlib import Path
 
+# Third Party
 import yaml
 
+# Project
 import hyperglass.defaults.directives
 from hyperglass.models.directive import BuiltinDirective
 

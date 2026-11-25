@@ -13,6 +13,7 @@ from hyperglass.plugins._output import OutputPlugin
 from hyperglass.models.data.bgp_route import BGPRouteTable
 
 if t.TYPE_CHECKING:
+    # Project
     from hyperglass.models.data import OutputDataModel
     from hyperglass.models.api.query import Query
 
@@ -41,6 +42,7 @@ class ZBgpRouteEnrichment(OutputPlugin):
 
         # Check if BGP route enrichment is enabled in config
         try:
+            # Project
             from hyperglass.state import use_state
             from hyperglass.settings import Settings
 

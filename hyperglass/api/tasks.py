@@ -74,6 +74,7 @@ async def enrich_query_output(
     output: t.Any, cache: t.Any, cache_key: str, generation: str, *, hostnames_only: bool = False
 ) -> None:
     """Enrich a structured query result and update its cached representation."""
+    # Project
     from hyperglass.models.data.bgp_route import BGPRouteTable
     from hyperglass.models.data.traceroute import TracerouteResult
 
@@ -83,11 +84,13 @@ async def enrich_query_output(
             await output.enrich_as_path_organizations()
             await output.enrich_with_ip_enrichment()
         elif isinstance(output, TracerouteResult):
+            # Project
             from hyperglass.plugins._builtin.traceroute_ip_enrichment import (
                 ZTracerouteIpEnrichment,
             )
 
             if hostnames_only:
+                # Project
                 from hyperglass.external.reverse_dns import enrich_hostnames
 
                 await enrich_hostnames(output)

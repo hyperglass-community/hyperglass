@@ -10,9 +10,9 @@ import pytest
 # Project
 from hyperglass.state import use_state
 from hyperglass.constants import SUPPORTED_STRUCTURED_OUTPUT
+from hyperglass.models.api.query import resolve_directive_by_name
 from hyperglass.models.directive import Directive, Directives
 from hyperglass.models.config.devices import Device
-from hyperglass.models.api.query import resolve_directive_by_name
 
 
 def directive(id: str, name: str, table_output: t.Optional[str] = None) -> Directive:
