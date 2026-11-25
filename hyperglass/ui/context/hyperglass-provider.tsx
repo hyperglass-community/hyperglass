@@ -16,6 +16,7 @@ export const queryClient = new QueryClient();
 
 export const HyperglassProvider = (props: HyperglassProviderProps): JSX.Element => {
   const { config, children } = props;
+  // Empty deps on purpose: the config and theme are fixed at first render.
   const value = useMemo(() => config, []);
   const theme = useMemo(() => makeTheme(value.web.theme, value.web.theme.defaultColorMode), []);
 

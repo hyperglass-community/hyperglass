@@ -91,6 +91,8 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
   return (
     <CardBody>
       {heading && <CardHeader>{heading}</CardHeader>}
+      {/* No key= on the mapped rows and cells below: react-table supplies each key through
+          the spread get*Props() result. */}
       <TableMain {...getTableProps()}>
         <TableHead>
           {headerGroups.map((headerGroup, i) => (

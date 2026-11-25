@@ -74,6 +74,7 @@ export const Results = (): JSX.Element => {
 
   const selectedDirective = useMemo(() => {
     return getDirective();
+    // form.queryType only triggers a re-run: getDirective() reads it from the store.
   }, [form.queryType, getDirective]);
 
   // A link that fills in the form with this query, on this page. Built in the browser

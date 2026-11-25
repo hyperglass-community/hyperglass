@@ -49,7 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Removed
 
-- Remove the unused ESLint and Prettier packages and their leftover configuration files from the UI. Contributors lint and format the UI with Biome (`pnpm run lint`, `pnpm run format`), as CI already does. The `pnpm-workspace.yaml` overrides for packages that only ESLint pulled in (`ajv`, `brace-expansion`, `braces`, `cross-spawn`, `js-yaml`, `micromatch`, `minimatch`) are removed with them ([#618](https://github.com/hyperglass-community/hyperglass/issues/618)).
+- Remove the unused ESLint and Prettier packages and their leftover configuration files from the UI. Contributors lint and format the UI with Biome (`pnpm run lint`, `pnpm run format`); CI already checks them with `pnpm run lint` and `pnpm run format:check`. The `pnpm-workspace.yaml` overrides for packages that only ESLint pulled in (`ajv`, `brace-expansion`, `braces`, `cross-spawn`, `js-yaml`, `micromatch`, `minimatch`, `picomatch`) are removed with them ([#618](https://github.com/hyperglass-community/hyperglass/issues/618)).
 
 ## 3.0.0-rc.2 - 2026-11-19
 

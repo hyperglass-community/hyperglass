@@ -145,7 +145,7 @@ ui-format = {cmd = "pnpm run --dir ./hyperglass/ui/ format", help = "Format the 
 ui-lint = {cmd = "pnpm run --dir ./hyperglass/ui/ lint", help = "Lint the UI with Biome"}
 ui-typecheck = {cmd = "pnpm run --dir ./hyperglass/ui/ typecheck", help = "Run TypeScript Check"}
 upgrade = {cmd = "python3 version.py", help = "Upgrade hyperglass version"}
-pnpm = {cmd = "pnpm run --dir ./hyperglass/ui/", help = "Run a yarn command from the UI directory"}
+pnpm = {cmd = "pnpm run --dir ./hyperglass/ui/", help = "Run a pnpm command from the UI directory"}
 
 [tool.ruff]
 exclude = [

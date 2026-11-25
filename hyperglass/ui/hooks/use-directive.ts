@@ -15,5 +15,6 @@ export function useDirective(): Nullable<Directive> {
     }
     const directive = getDirective();
     return directive;
+    // form.queryType also triggers a re-run: getDirective() reads it from the store.
   }, [form.queryType, getDirective]);
 }
