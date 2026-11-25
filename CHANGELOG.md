@@ -87,6 +87,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Show a location card as selected whenever its location is. The card kept its own state, so after a reset from the title it still looked selected and took two clicks to select again, and a location filled in without a click, such as from a link or a saved query, didn't look selected ([#549](https://github.com/hyperglass-community/hyperglass/issues/549)).
 - Answer HTTP 503 with a JSON body while Redis is unreachable, whether Redis fails before or during the request. Requests got Litestar's plain-text HTTP 500, because the error handler also read its message from Redis. The body is `{"output": "Hyperglass state is unavailable", "level": "danger", "keywords": []}`, the answer already given while the configuration is missing from Redis; the Redis error, which names the Redis host, is only logged. Other errors still get HTTP 500 with `messages.general`, or a fixed message when the configuration can't be read. With metrics enabled, such a failed query counts with reason `service_unavailable` ([#529](https://github.com/hyperglass-community/hyperglass/issues/529)).
 
+### Removed
+
+- Remove the unused ESLint and Prettier packages and their leftover configuration files from the UI. Contributors lint and format the UI with Biome (`pnpm run lint`, `pnpm run format`); CI already checks them with `pnpm run lint` and `pnpm run format:check`. The `pnpm-workspace.yaml` overrides for packages that only ESLint pulled in (`ajv`, `brace-expansion`, `braces`, `cross-spawn`, `js-yaml`, `micromatch`, `minimatch`, `picomatch`) are removed with them ([#618](https://github.com/hyperglass-community/hyperglass/issues/618)).
+
 ## 3.0.0-rc.2 - 2026-11-19
 
 This release candidate replaces 3.0.0-rc.1, which was not released. Lab testing of 3.0.0-rc.1 found defects that block it.

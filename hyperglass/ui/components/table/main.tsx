@@ -1,5 +1,3 @@
-// This rule isn't needed because react-table does this for us, for better or worse.
-/* eslint react/jsx-key: 0 */
 import { Flex, Text } from '@chakra-ui/react';
 import { usePagination, useSortBy, useTable } from 'react-table';
 import { If, Then, Else } from 'react-if';
@@ -93,6 +91,8 @@ export const Table = <T extends object = Route>(props: TableProps<T>): JSX.Eleme
   return (
     <CardBody>
       {heading && <CardHeader>{heading}</CardHeader>}
+      {/* No key= on the mapped rows and cells below: react-table supplies each key through
+          the spread get*Props() result. */}
       <TableMain {...getTableProps()}>
         <TableHead>
           {headerGroups.map((headerGroup, i) => (

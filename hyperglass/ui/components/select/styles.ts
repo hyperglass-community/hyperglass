@@ -1,6 +1,5 @@
 import { useToken } from '@chakra-ui/react';
 import { mergeWith } from '@chakra-ui/utils';
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useCallback } from 'react';
 import {
   useColorToken,

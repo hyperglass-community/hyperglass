@@ -130,7 +130,6 @@ declare module 'hyperglass.json' {
 
 declare module 'react' {
   // Enable generic typing with forwardRef.
-  // eslint-disable-next-line @typescript-eslint/ban-types
   function forwardRef<T, P = {}>(
     render: (props: P, ref: React.Ref<T>) => React.ReactElement | null,
   ): (props: P & React.RefAttributes<T>) => React.ReactElement | null;
