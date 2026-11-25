@@ -14,9 +14,11 @@ Safe to re-run: each part is skipped when the device already has it.
 Needs netmiko (pip install netmiko). start-node.py calls this for both nodes.
 """
 
+# Standard Library
 import sys
 
 try:
+    # Third Party
     from netmiko import ConnectHandler
 except ImportError:
     sys.exit("netmiko not installed; run: pip install netmiko")

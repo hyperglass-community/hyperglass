@@ -7,12 +7,13 @@ with v4 and v6 targets where relevant, and prints level + output shape + a short
 excerpt. Then prints any captured errors from the sample log.
 """
 
-import json
+# Standard Library
 import re
-import subprocess
 import sys
-import urllib.request
+import json
+import subprocess
 import urllib.error
+import urllib.request
 
 API = "http://127.0.0.1:8001/api"
 device, platform = sys.argv[1], sys.argv[2]

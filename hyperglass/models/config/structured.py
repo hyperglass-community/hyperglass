@@ -34,8 +34,7 @@ class StructuredCommunities(HyperglassModel):
         """Require at least one community mapping when mode is 'name'."""
         if info.data and info.data.get("mode") == "name" and not value:
             raise ValueError(
-                "When using mode 'name', at least one community mapping must be "
-                "provided in 'names'"
+                "When using mode 'name', at least one community mapping must be provided in 'names'"
             )
         return value
 
@@ -118,6 +117,7 @@ class Structured(HyperglassModel):
     def is_async_enrichment_enabled(self, output: t.Any) -> bool:
         """Return whether an output should be enriched after the initial response."""
         config = self.ip_enrichment
+        # Project
         from hyperglass.models.data.bgp_route import BGPRouteTable
         from hyperglass.models.data.traceroute import TracerouteResult
 

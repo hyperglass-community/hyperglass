@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Verify issue regressions through a running lab API and retain response evidence."""
 
-import argparse
-import concurrent.futures
+# Standard Library
 import json
 import time
+import argparse
 import urllib.error
 import urllib.parse
 import urllib.request
+import concurrent.futures
 from pathlib import Path
 
 

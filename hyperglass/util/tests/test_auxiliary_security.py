@@ -1,23 +1,23 @@
 """Exercise optional lookup boundaries through real request and Redis handling."""
 
 # Standard Library
-import asyncio
-import importlib
 import json
 import socket
-from unittest.mock import AsyncMock, Mock
+import asyncio
+import importlib
+from unittest.mock import Mock, AsyncMock
 
 # Third Party
 import httpx
 import pytest
 from litestar.testing import create_test_client
-from litestar.exceptions import HTTPException
 from redis.exceptions import ConnectionError as RedisConnectionError
+from litestar.exceptions import HTTPException
 
 # Project
 from hyperglass.state import use_state
 from hyperglass.models.config.params import Params
-from hyperglass.util.tests.test_client_address import ProxyRequest, TRUSTED
+from hyperglass.util.tests.test_client_address import TRUSTED, ProxyRequest
 
 
 def configure(**web):
@@ -26,6 +26,7 @@ def configure(**web):
 
 @pytest.fixture
 def lookups(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     dns = AsyncMock(return_value={"Status": 0, "Answer": [{"type": 1, "data": "1.1.1.1"}]})
@@ -36,6 +37,7 @@ def lookups(monkeypatch):
 
 
 def test_disabled_routes_do_no_work(lookups):
+    # Project
     from hyperglass.api.routes import dns, aspath_enrich
 
     with create_test_client([dns, aspath_enrich]) as client:
@@ -47,6 +49,7 @@ def test_disabled_routes_do_no_work(lookups):
 
 @pytest.mark.parametrize("enabled", [False, True])
 def test_route_registration_is_opt_in(monkeypatch, enabled):
+    # Project
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
@@ -62,6 +65,7 @@ def test_route_registration_is_opt_in(monkeypatch, enabled):
 
 
 def test_runtime_disable_blocks_registered_routes(lookups):
+    # Project
     from hyperglass.api.routes import dns, aspath_enrich
 
     configure(dns_provider={"name": "server"}, aspath_enrichment=True)
@@ -94,6 +98,7 @@ def test_runtime_disable_blocks_registered_routes(lookups):
     ],
 )
 def test_dns_never_returns_private_or_special_answers(lookups, address):
+    # Project
     from hyperglass.api.routes import dns
 
     code, record = (28, "AAAA") if ":" in address else (1, "A")
@@ -110,6 +115,7 @@ def test_dns_never_returns_private_or_special_answers(lookups, address):
 
 @pytest.mark.parametrize("name", ["router", "router.local", "host.internal", "host.home.arpa"])
 def test_internal_names_do_not_reach_resolver(lookups, name):
+    # Project
     from hyperglass.api.routes import dns
 
     configure(dns_provider={"name": "server"})
@@ -120,6 +126,7 @@ def test_internal_names_do_not_reach_resolver(lookups, name):
 
 @pytest.mark.asyncio
 async def test_dns_transport_is_public_and_has_no_system_resolver(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     def forbidden(*args, **kwargs):
@@ -165,6 +172,7 @@ async def test_dns_transport_is_public_and_has_no_system_resolver(monkeypatch):
     ],
 )
 def test_invalid_asns_never_start_outbound_work(lookups, as_path):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(aspath_enrichment=True)
@@ -175,6 +183,7 @@ def test_invalid_asns_never_start_outbound_work(lookups, as_path):
 
 @pytest.mark.asyncio
 async def test_dns_cache_obeys_upstream_ttl(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     lookup = AsyncMock(
@@ -192,6 +201,7 @@ async def test_dns_cache_obeys_upstream_ttl(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status,body", [(302, b""), (200, b"x" * 16385)])
 async def test_dns_transport_rejects_redirects_and_large_responses(monkeypatch, status, body):
+    # Project
     from hyperglass.api import auxiliary
 
     real_client = httpx.AsyncClient
@@ -215,6 +225,7 @@ async def test_dns_transport_rejects_redirects_and_large_responses(monkeypatch, 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("oversized", [False, True])
 async def test_asn_transport_is_bounded_and_closes_socket(monkeypatch, oversized):
+    # Project
     from hyperglass.api import auxiliary
 
     response = b"13335 | AS13335 | NA | US | ARIN | 2010-01-01 | Cloudflare\n"
@@ -236,6 +247,7 @@ async def test_asn_transport_is_bounded_and_closes_socket(monkeypatch, oversized
 
 
 def test_asn_body_limit_and_deduplication(lookups):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(aspath_enrichment=True)
@@ -253,6 +265,7 @@ def test_asn_body_limit_and_deduplication(lookups):
 
 
 def test_cache_and_quota_are_shared_between_apps(lookups):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(aspath_enrichment=True)
@@ -273,6 +286,7 @@ def test_cache_and_quota_are_shared_between_apps(lookups):
 
 
 def test_global_quota_bounds_many_trusted_clients(lookups):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(aspath_enrichment=True, client_ip=TRUSTED)
@@ -296,6 +310,7 @@ def test_global_quota_bounds_many_trusted_clients(lookups):
 
 @pytest.mark.asyncio
 async def test_concurrency_is_shared_and_released():
+    # Project
     from hyperglass.api import auxiliary
 
     slots = [auxiliary._outbound_slot() for _ in range(8)]
@@ -313,6 +328,7 @@ async def test_concurrency_is_shared_and_released():
 
 @pytest.mark.asyncio
 async def test_deadline_cancels_work_and_releases_slot(monkeypatch):
+    # Project
     from hyperglass.api import auxiliary
 
     cancelled = asyncio.Event()
@@ -338,6 +354,7 @@ async def test_deadline_cancels_work_and_releases_slot(monkeypatch):
 
 
 def test_redis_failure_denies_outbound_work(monkeypatch, lookups):
+    # Project
     from hyperglass.api.routes import aspath_enrich
 
     configure(aspath_enrichment=True)
@@ -352,10 +369,12 @@ def test_redis_failure_denies_outbound_work(monkeypatch, lookups):
 
 
 def test_launcher_preserves_peer_even_with_proxy_environment(monkeypatch):
-    from hyperglass.settings import Settings
+    # Project
     from hyperglass import plugins
+    from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
+    # Project
     from hyperglass import main
 
     run = Mock()

@@ -38,5 +38,9 @@ def test_automatic_workers_stop_at_eight(tmp_path, monkeypatch):
 
 def test_redis_pool_covers_the_default_thread_pool(tmp_path):
     # Each worker runs Redis commands from up to 32 threads.
-    assert _settings(tmp_path, debug=False, workers=1).redis_connection_pool["max_connections"] == 32
-    assert _settings(tmp_path, debug=False, workers=64).redis_connection_pool["max_connections"] == 64
+    assert (
+        _settings(tmp_path, debug=False, workers=1).redis_connection_pool["max_connections"] == 32
+    )
+    assert (
+        _settings(tmp_path, debug=False, workers=64).redis_connection_pool["max_connections"] == 64
+    )

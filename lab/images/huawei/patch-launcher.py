@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Add saved-disk startup support to the CE12800 wrapper."""
 
+# Standard Library
+import sys
 import base64
 from pathlib import Path
-import sys
 
 
 def patch(launcher):

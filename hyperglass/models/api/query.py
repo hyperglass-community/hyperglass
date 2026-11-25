@@ -8,7 +8,7 @@ import unicodedata
 from datetime import UTC, datetime
 
 # Third Party
-from pydantic import Field, BaseModel, ConfigDict, field_validator, StringConstraints
+from pydantic import Field, BaseModel, ConfigDict, StringConstraints, field_validator
 from typing_extensions import Annotated
 
 # Project

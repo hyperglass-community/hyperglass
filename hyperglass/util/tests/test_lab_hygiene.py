@@ -1,9 +1,9 @@
 """Static checks for portable lab names and anonymized traceroute fixtures."""
 
+# Standard Library
 import re
 from pathlib import Path
 from ipaddress import ip_address
-
 
 ROOT = Path(__file__).resolve().parents[3]
 

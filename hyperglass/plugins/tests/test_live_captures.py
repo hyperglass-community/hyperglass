@@ -1,14 +1,17 @@
 """Run complete FRR and RouterOS device captures through their parsers."""
 
+# Standard Library
 import json
 from pathlib import Path
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.plugins._builtin.bgp_route_frr import parse_frr
-from hyperglass.plugins._builtin.bgp_routestr_mikrotik import parse_mikrotik
-from hyperglass.plugins._builtin.trace_route_standard import parse_standard_traceroute
 from hyperglass.plugins._builtin.trace_route_mikrotik import parse_mikrotik_traceroute
+from hyperglass.plugins._builtin.trace_route_standard import parse_standard_traceroute
+from hyperglass.plugins._builtin.bgp_routestr_mikrotik import parse_mikrotik
 from hyperglass.plugins._builtin.mikrotik_garbage_output import MikrotikGarbageOutput
 
 FIXTURES = Path(__file__).parent / "fixtures"

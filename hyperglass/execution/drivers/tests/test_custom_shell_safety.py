@@ -9,13 +9,24 @@ import pytest
 
 # Project
 from hyperglass.models.directive import Directive
-from hyperglass.execution.drivers._construct import Construct
 from hyperglass.exceptions.public import InputInvalid
 from hyperglass.exceptions.private import ConfigError
+from hyperglass.execution.drivers._construct import Construct
 
 PLATFORMS = (
-    "bird", "frr", "openbgpd", "sonic", "arrcus_arcos", "cumulus_linux", "vyos", "vyos_1_3", "tnsr",
-    "linux", "linux_ssh", "cumulus_linux_ssh", "vyos_ssh",
+    "bird",
+    "frr",
+    "openbgpd",
+    "sonic",
+    "arrcus_arcos",
+    "cumulus_linux",
+    "vyos",
+    "vyos_1_3",
+    "tnsr",
+    "linux",
+    "linux_ssh",
+    "cumulus_linux_ssh",
+    "vyos_ssh",
 )
 TARGETS = (
     "192.0.2.1",
@@ -84,13 +95,16 @@ def test_variable_fragments_and_device_attributes_are_data():
     instance.query.query_variables = {"instance": value}
     instance.device.attrs = {"source": "$(printf INJECTED)"}
     assert shell_output(instance.queries()[0]) == [
-        f"show 192.0.2.1 instance {value}".encode(), b"$(printf INJECTED)"
+        f"show 192.0.2.1 instance {value}".encode(),
+        b"$(printf INJECTED)",
     ]
 
 
 def test_optional_variable_omission():
     instance = construct(
-        "frr", "192.0.2.1", "capture {target}{instance}",
+        "frr",
+        "192.0.2.1",
+        "capture {target}{instance}",
         variables={"instance": {"command": " instance ", "items": [{"value": "vpn 1"}]}},
     )
     assert shell_output(instance.queries()[0]) == [b"192.0.2.1"]

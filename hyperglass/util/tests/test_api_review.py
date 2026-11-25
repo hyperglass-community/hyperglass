@@ -1,11 +1,14 @@
 """Regression coverage for query completion and enrichment cache boundaries."""
 
-from importlib import import_module
+# Standard Library
 from types import SimpleNamespace
+from importlib import import_module
 from unittest.mock import AsyncMock
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.state import use_state
 from hyperglass.settings import Settings
 from hyperglass.models.api import Query

@@ -1,10 +1,13 @@
 """Captured EOS and synthetic CLI format coverage for #35."""
 
-from pathlib import Path
+# Standard Library
 from types import SimpleNamespace
+from pathlib import Path
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.plugins._builtin.trace_route_standard import (
     TraceroutePluginStandard,
     parse_standard_traceroute,

@@ -24,7 +24,7 @@ Small, focused pull requests are easier to review, revert and bisect.
 
 ## Development standards
 
-- Format Python with Black and keep imports ordered with isort.
+- Format Python and order its imports with Ruff. Ruff also adds the `# Standard Library`, `# Third Party`, `# Project` and `# Local` heading above each import section. CI runs `ruff format --check .` and `ruff check .`, which includes import order and headings, and fails on any difference.
 - Keep Ruff and the frontend lint, formatting, type, and test checks clean.
 - Keep text visible to administrators and users configurable unless there is a clear reason not to.
 - Keep the UI usable on desktop and mobile and preserve accessible labels and controls.
@@ -47,6 +47,17 @@ The backend tests use an isolated in-memory Redis fixture, `fakeredis[lua]`, fro
 ```shell
 uv run pytest hyperglass --ignore hyperglass/plugins/external
 ```
+
+Ruff formats the Python code and orders its imports. Fix both, then run the same checks as CI:
+
+```shell
+uv run ruff format .
+uv run ruff check --select I --fix .
+uv run ruff format --check .
+uv run ruff check .
+```
+
+`uv run task format` and `uv run task sort` run the first two over `hyperglass/` only.
 
 The UI checks run from `hyperglass/ui`:
 

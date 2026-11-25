@@ -15,13 +15,16 @@ from typing import TYPE_CHECKING, Dict, Union
 from hyperglass.log import log
 from hyperglass.state import use_state
 from hyperglass.util.typing import is_series
-from hyperglass.util.query_samples import log_query_sample
 from hyperglass.exceptions.public import DeviceTimeout, ResponseEmpty
+from hyperglass.util.query_samples import log_query_sample
 
 if TYPE_CHECKING:
+    # Project
     from hyperglass.models.api import Query
-    from .drivers import Connection
     from hyperglass.models.data import OutputDataModel
+
+    # Local
+    from .drivers import Connection
 
 # Local
 from .drivers import HttpClient, NetmikoConnection

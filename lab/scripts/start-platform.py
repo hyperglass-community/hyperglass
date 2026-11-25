@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Restart the current optional deployment without replacing its appliance disk."""
 
+# Standard Library
+import time
 import argparse
 import importlib.util
 from pathlib import Path
-import time
 
+# Third Party
 import yaml
 
 LAB = Path(__file__).resolve().parents[1]
@@ -41,7 +43,7 @@ def start(node):  # noqa: C901 - platform startup and link-repair sequence
             if "from lab_bootstrap import bootstrap_spin" not in source:
                 source = source.replace(
                     'if __name__ == "__main__":',
-                    'from lab_bootstrap import bootstrap_spin\n'
+                    "from lab_bootstrap import bootstrap_spin\n"
                     'ROS_vm.bootstrap_spin = bootstrap_spin\n\nif __name__ == "__main__":',
                 )
                 launcher.write_text(source)

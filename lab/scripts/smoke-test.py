@@ -5,11 +5,12 @@ Usage: smoke-test.py [--text] [device ...]. Reads the directive IDs from the run
 --text queries the text instance (port 8002) instead of the structured one (port 8001).
 """
 
-import json
+# Standard Library
 import re
-import subprocess
 import sys
+import json
 import time
+import subprocess
 import urllib.request
 
 INSTANCES = {

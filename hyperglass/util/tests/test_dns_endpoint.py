@@ -1,7 +1,5 @@
 """Server-side DNS resolution endpoint (#48)."""
 
-# Standard Library
-
 # Third Party
 import pytest
 from litestar.testing import create_test_client
@@ -10,9 +8,9 @@ from litestar.testing import create_test_client
 @pytest.fixture
 def client(monkeypatch):
     # Project
-    from hyperglass.api.routes import dns
     from hyperglass.api import auxiliary
     from hyperglass.state import use_state
+    from hyperglass.api.routes import dns
     from hyperglass.models.config.params import Params
 
     async def lookup(host, record_type):

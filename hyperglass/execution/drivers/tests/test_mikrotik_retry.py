@@ -1,19 +1,23 @@
 """A completed BGP query never starts another SSH session."""
 
+# Standard Library
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+# Third Party
 import pytest
+from netmiko.exceptions import ReadTimeout
 
-from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override
+# Project
 from hyperglass.exceptions.public import DeviceTimeout
 from hyperglass.models.data.bgp_route import BGPRouteTable
-from netmiko.exceptions import ReadTimeout
+from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override
 
 
 @pytest.fixture(autouse=True)
 def request_budget(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     params = SimpleNamespace(request_timeout=10)
@@ -25,6 +29,7 @@ def request_budget(monkeypatch):
 @pytest.mark.parametrize("output", ["empty", "routes"])
 @pytest.mark.asyncio
 async def test_completed_queries_run_once(monkeypatch, platform, output):
+    # Project
     from hyperglass.api import routes
 
     query = SimpleNamespace(device=SimpleNamespace(platform=platform))
@@ -37,6 +42,7 @@ async def test_completed_queries_run_once(monkeypatch, platform, output):
 
 @pytest.mark.asyncio
 async def test_failed_query_preserves_the_error(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     execute = AsyncMock(side_effect=RuntimeError("connection failed"))
@@ -50,7 +56,8 @@ def mikrotik_query(**overrides):
     return SimpleNamespace(
         device=SimpleNamespace(
             platform=overrides.get("platform", "mikrotik_routeros"),
-            name="router", proxy=None,
+            name="router",
+            proxy=None,
             driver_config={"global_delay_factor": overrides.get("factor", 1)},
         ),
         directive=SimpleNamespace(
@@ -70,6 +77,7 @@ def read_fault(query, cause=None):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("factor,expected", [(1, 3), (6, 12)])
 async def test_one_read_fault_retries_with_higher_factor(monkeypatch, factor, expected):
+    # Project
     from hyperglass.api import routes
 
     query = mikrotik_query(factor=factor)
@@ -89,6 +97,7 @@ async def test_one_read_fault_retries_with_higher_factor(monkeypatch, factor, ex
 
 @pytest.mark.asyncio
 async def test_complete_zero_route_table_does_not_retry(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     output = BGPRouteTable(routes=[], count=0, vrf="default", winning_weight="high")
@@ -100,6 +109,7 @@ async def test_complete_zero_route_table_does_not_retry(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_second_read_fault_propagates_and_resets_context(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     query = mikrotik_query()
@@ -116,6 +126,7 @@ async def test_second_read_fault_propagates_and_resets_context(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("options", [{"platform": "frr"}, {"builtin": False}, {"kind": "ping"}])
 async def test_only_builtin_mikrotik_bgp_reads_retry(monkeypatch, options):
+    # Project
     from hyperglass.api import routes
 
     query = mikrotik_query(**options)
@@ -128,6 +139,7 @@ async def test_only_builtin_mikrotik_bgp_reads_retry(monkeypatch, options):
 
 @pytest.mark.asyncio
 async def test_request_deadline_is_not_a_read_retry(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     query = mikrotik_query()
@@ -140,6 +152,7 @@ async def test_request_deadline_is_not_a_read_retry(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_late_read_fault_does_not_start_another_session(monkeypatch, request_budget):
+    # Project
     from hyperglass.api import routes
 
     request_budget.request_timeout = 2.05
@@ -161,6 +174,7 @@ async def test_late_read_fault_does_not_start_another_session(monkeypatch, reque
 
 @pytest.mark.asyncio
 async def test_retry_is_cancelled_at_shared_deadline(monkeypatch, request_budget):
+    # Project
     from hyperglass.api import routes
 
     request_budget.request_timeout = 2.1
@@ -191,6 +205,7 @@ async def test_retry_is_cancelled_at_shared_deadline(monkeypatch, request_budget
 
 @pytest.mark.asyncio
 async def test_driver_timeout_keeps_its_type(monkeypatch):
+    # Project
     from hyperglass.api import routes
 
     monkeypatch.setattr(routes, "execute", AsyncMock(side_effect=TimeoutError("driver error")))

@@ -5,11 +5,10 @@ import pytest
 import fakeredis
 
 # Project
-from hyperglass.state import manager
-from hyperglass.state import use_state
+from hyperglass.state import manager, use_state
 from hyperglass.state.hooks import _use_state
-from hyperglass.models.config.params import Params
 from hyperglass.defaults.directives import init_builtin_directives
+from hyperglass.models.config.params import Params
 
 
 @pytest.fixture(autouse=True)

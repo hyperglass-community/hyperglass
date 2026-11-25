@@ -1,8 +1,8 @@
 """hyperglass state dependencies."""
 
 # Standard Library
-import asyncio
 import typing as t
+import asyncio
 
 # Project
 from hyperglass.state import HyperglassState, use_state

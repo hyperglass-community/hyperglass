@@ -15,10 +15,11 @@ import ipaddress
 from hyperglass.log import log
 from hyperglass.util import get_fmt_keys
 from hyperglass.constants import TRANSPORT_REST, SHELL_PLATFORMS, TARGET_FORMAT_SPACE
+from hyperglass.models.directive import version_matches
 from hyperglass.exceptions.public import InputInvalid
 from hyperglass.exceptions.private import ConfigError
-from hyperglass.models.directive import version_matches
 
+# Local
 from ._shell import format_shell
 
 if t.TYPE_CHECKING:

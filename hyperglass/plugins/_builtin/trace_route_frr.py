@@ -10,16 +10,19 @@ from pydantic import PrivateAttr
 
 # Project
 from hyperglass.log import log
-from hyperglass.exceptions.private import ParsingError
-from hyperglass.models.data.traceroute import TracerouteResult, TracerouteHop
 from hyperglass.state import use_state
+from hyperglass.exceptions.private import ParsingError
+from hyperglass.models.data.traceroute import TracerouteHop, TracerouteResult
 
 # Local
 from .._output import OutputPlugin
 
 if t.TYPE_CHECKING:
+    # Project
     from hyperglass.models.data import OutputDataModel
     from hyperglass.models.api.query import Query
+
+    # Local
     from .._output import OutputType
 
 

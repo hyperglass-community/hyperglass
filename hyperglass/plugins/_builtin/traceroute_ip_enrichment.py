@@ -1,17 +1,21 @@
 """Optional IP and ASN enrichment for structured traceroute data."""
 
-import asyncio
+# Standard Library
 import typing as t
+import asyncio
 
+# Third Party
 from pydantic import PrivateAttr
 
+# Project
 from hyperglass.log import log
 from hyperglass.state import use_state
 from hyperglass.plugins._output import OutputPlugin
-from hyperglass.models.data.traceroute import TracerouteResult
 from hyperglass.external.reverse_dns import enrich_hostnames
+from hyperglass.models.data.traceroute import TracerouteResult
 
 if t.TYPE_CHECKING:
+    # Project
     from hyperglass.models.data import OutputDataModel
     from hyperglass.models.api.query import Query
 

@@ -1,12 +1,15 @@
 """Captured Huawei VRPv8 (VRP 8.180) responses."""
 
+# Standard Library
 from pathlib import Path
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.state import use_state
-from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 from hyperglass.plugins._builtin.trace_route_huawei import parse_huawei_traceroute
+from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 
 FIXTURES = Path(__file__).parent / "fixtures" / "huawei-vrpv8-live"
 

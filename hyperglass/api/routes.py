@@ -4,9 +4,9 @@
 import re
 import json
 import time
+import typing as t
 import asyncio
 import ipaddress
-import typing as t
 from uuid import uuid4
 from datetime import UTC, datetime
 
@@ -14,28 +14,27 @@ from datetime import UTC, datetime
 from redis import Redis
 from litestar import Request, Response, get, post
 from litestar.di import Provide
-from litestar.background_tasks import BackgroundTask
 from netmiko.exceptions import ReadTimeout
+from litestar.background_tasks import BackgroundTask
 
 # Project
 from hyperglass.log import log
 from hyperglass.state import HyperglassState, use_state
 from hyperglass.exceptions import HyperglassError
-from hyperglass.exceptions.public import DeviceTimeout, DeviceNotFound
-from hyperglass.execution.drivers.ssh_netmiko import delay_factor_override, device_delay_factor
 from hyperglass.models.api import Query
 from hyperglass.models.data import OutputDataModel
 from hyperglass.util.typing import is_type
 from hyperglass.execution.main import execute
+from hyperglass.exceptions.public import DeviceTimeout, DeviceNotFound
 from hyperglass.models.api.response import QueryResponse
 from hyperglass.models.config.params import Params, APIParams
 from hyperglass.models.config.devices import Devices, APIDevice
+from hyperglass.execution.drivers.ssh_netmiko import device_delay_factor, delay_factor_override
 
 # Local
 from .quota import query_limit_guard
 from .state import get_state, get_params, get_devices
-from .tasks import enrich_query_output, send_webhook
-from .client_address import client_address
+from .tasks import send_webhook, enrich_query_output
 from .metrics import (
     QUERY_METRICS_OPT,
     set_query_labels,
@@ -43,11 +42,12 @@ from .metrics import (
     record_query_success,
     record_query_duration,
 )
+from .refresh import ForcedRefresh
+from .auxiliary import ASPathRequest, lookup_guard, enrich_public_asns, resolve_public_dns
 from .middleware import skip_state_recovery
 from .fake_output import fake_output
+from .client_address import client_address
 from .error_handlers import not_found_handler
-from .refresh import ForcedRefresh
-from .auxiliary import ASPathRequest, lookup_guard, resolve_public_dns, enrich_public_asns
 
 # Not user-configurable: an internal bound so an unreachable Redis reports
 # unhealthy promptly instead of waiting on the OS TCP connect timeout. It stays
@@ -181,6 +181,7 @@ async def query_enrichment(query_id: str) -> dict:
     """Return the current output and enrichment status for a cached query."""
     if not re.fullmatch(r"hyperglass\.query\.[0-9a-f]{64}", query_id):
         return {"status": "not_found"}
+    # Project
     from hyperglass.state import use_state
 
     cache = use_state("redis")
@@ -533,7 +534,10 @@ async def _run_query_background_tasks(
     """Run optional enrichment and webhook work after sending the response."""
     if enrichment_output is not None and enrichment_generation is not None:
         await enrich_query_output(
-            enrichment_output, cache, cache_key, enrichment_generation,
+            enrichment_output,
+            cache,
+            cache_key,
+            enrichment_generation,
             hostnames_only=params.structured.ip_enrichment.mode != "async",
         )
     await send_webhook(params=params, data=data, request=request, timestamp=timestamp)

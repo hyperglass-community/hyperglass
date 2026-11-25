@@ -133,9 +133,9 @@ def init_ui_params(*, params: "Params", devices: "Devices") -> "UIParameters":
     from hyperglass.defaults import CREDIT
     from hyperglass.constants import (
         PARSED_RESPONSE_FIELDS,
+        __version__,
         __upstream_url__,
         __upstream_version__,
-        __version__,
     )
 
     content_greeting = get_markdown(

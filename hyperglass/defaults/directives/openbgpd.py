@@ -70,7 +70,7 @@ OpenBGPD_BGPASPath = BuiltinDirective(
                 "bgpctl show rib inet as {target}",
                 "bgpctl show rib inet6 as {target}",
             ],
-        )
+        ),
     ],
     field=Text(description="ASN, _ASN_, _ASN$, or ^ASN_"),
     table_output="__hyperglass_openbgpd_bgp_aspath_table__",
@@ -182,7 +182,7 @@ OpenBGPD_BGPASPathTable = BuiltinDirective(
                 "bgpctl -j show rib detail inet as {target}",
                 "bgpctl -j show rib detail inet6 as {target}",
             ],
-        )
+        ),
     ],
     field=Text(description="ASN, _ASN_, _ASN$, or ^ASN_"),
     platforms=PLATFORMS,

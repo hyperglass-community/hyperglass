@@ -4,8 +4,8 @@
 from pathlib import Path
 
 # Third Party
-import pytest
 import yaml
+import pytest
 
 LAB = Path(__file__).parents[3] / "lab"
 

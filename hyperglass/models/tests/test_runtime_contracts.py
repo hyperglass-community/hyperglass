@@ -1,21 +1,24 @@
 """Keep runtime consumers compatible with the configuration shipped beside them."""
 
+# Standard Library
 from types import SimpleNamespace
-from importlib import import_module, reload
+from importlib import reload, import_module
 
+# Third Party
 import pytest
 from pydantic import ValidationError
 
+# Project
 from hyperglass.state import use_state
 from hyperglass.constants import DNS_OVER_HTTPS, SUPPORTED_STRUCTURED_OUTPUT
-from hyperglass.defaults._strings import CREDIT, DEFAULT_HELP, DEFAULT_DETAILS
 from hyperglass.models.api import Query
-from hyperglass.exceptions.private import ConfigError
-from hyperglass.exceptions.public import DeviceCommandError
 from hyperglass.models.directive import Directive, Directives
-from hyperglass.models.data.bgp_route import BGPRoute
+from hyperglass.defaults._strings import CREDIT, DEFAULT_HELP, DEFAULT_DETAILS
+from hyperglass.exceptions.public import DeviceCommandError
+from hyperglass.exceptions.private import ConfigError
 from hyperglass.models.config.params import Params
 from hyperglass.models.config.devices import Device, Devices
+from hyperglass.models.data.bgp_route import BGPRoute
 from hyperglass.execution.drivers._construct import Construct
 
 
@@ -146,6 +149,7 @@ def test_default_credit_and_help_use_hyperglass_links():
     "base_url,expected", [(None, "/"), ("https://lg.example.org/", "https://lg.example.org")]
 )
 def test_openapi_uses_configured_server(monkeypatch, base_url, expected):
+    # Project
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
