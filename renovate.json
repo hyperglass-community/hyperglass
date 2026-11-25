@@ -91,21 +91,21 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "pnpm-workspace.yaml overrides hold a package on a line on purpose: security floors scoped to a vulnerable range, @babel/* on 7.x, ua-parser-js on 0.7.x, nanoid on 3.x. A major bump would undo the override, so offer none; non-major updates within the line still flow because they carry the fixes.",
+      "description": "Overrides in the UI and docs pnpm-workspace.yaml files hold a package on a line on purpose: security floors scoped to a vulnerable range, @babel/* on 7.x, ua-parser-js on 0.7.x, nanoid on 3.x, and the docs' mermaid 10.x and js-yaml 3.x transitives. A major bump would undo the override, so offer none; non-major updates within the line still flow because they carry the fixes.",
       "matchDepTypes": ["pnpm-workspace.overrides"],
       "matchUpdateTypes": ["major"],
       "enabled": false
     },
     {
-      "description": "paramiko 5 drops the SHA-1 key exchange and ssh-rsa host keys that IOSv and EXOS still need; stay on 4 until #418 is resolved (https://github.com/hyperglass-community/hyperglass/issues/418).",
+      "description": "paramiko 5 no longer accepts by default the SHA-1 key exchange and ssh-rsa host keys that IOSv and EXOS still need; stay on 4 until #418 is resolved (https://github.com/hyperglass-community/hyperglass/issues/418).",
       "matchDatasources": ["pypi"],
       "matchPackageNames": ["paramiko"],
       "allowedVersions": "<5"
     },
     {
-      "description": "The MikroTik lab image is built locally from a vrnetlab checkout and is in no registry, so lookups always fail.",
-      "matchFileNames": ["lab/images/mikrotik/Dockerfile"],
-      "matchDepNames": ["vrnetlab/mikrotik_routeros"],
+      "description": "Lab images (MikroTik, Huawei) are built locally from a vrnetlab checkout and are in no registry, so lookups always fail.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["vrnetlab/**"],
       "enabled": false
     }
   ]
