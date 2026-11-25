@@ -569,7 +569,9 @@ def test_index_pruning_with_mixed_expiries(device):
             member.decode(): score
             for member, score in raw().zrange("hyperglass.share:index", 0, -1, withscores=True)
         }
-        assert scores[long] - scores[short] == 83 * DAY
+        # Scores are creation time (Unix seconds) plus the lifetime, so the clock can
+        # tick over between the two requests.
+        assert 0 <= scores[long] - scores[short] - 83 * DAY <= 2
         query_id = run_query(test_client, "203.0.113.0/24")
         assert create(test_client, query_id).status_code == 503
         # Eight days later: the 7-day share expired, the 90-day one is still live.
