@@ -1,8 +1,8 @@
 """BIRD BGP route parsing tests, using text captured from the lab BIRD router."""
 
 # Standard Library
-from pathlib import Path
 from types import SimpleNamespace
+from pathlib import Path
 
 # Third Party
 import pytest
@@ -75,7 +75,10 @@ def test_bird_empty_result():
 )
 def test_bird_text_empty_reply_is_not_a_banner(kind, text):
     device = MockDevice(
-        name="bird", address="192.0.2.1", platform="bird", structured_output=False,
+        name="bird",
+        address="192.0.2.1",
+        platform="bird",
+        structured_output=False,
         credential={"username": "lg", "password": ""},
         attrs={"source4": "192.0.2.1", "source6": "2001:db8::1"},
     )
@@ -87,7 +90,9 @@ def test_bird_text_empty_reply_is_not_a_banner(kind, text):
 @pytest.mark.parametrize("name", ["route4.txt", "route6.txt", "aspath4.txt", "community4.txt"])
 def test_bird_text_routes_are_preserved(name):
     device = SimpleNamespace(
-        platform="bird", structured_output=False, has_directives=lambda *args: True,
+        platform="bird",
+        structured_output=False,
+        has_directives=lambda *args: True,
     )
     output = ((FIXTURES / name).read_text(),)
     result = BGPRoutePluginBird().process(output=output, query=SimpleNamespace(device=device))
@@ -96,7 +101,9 @@ def test_bird_text_routes_are_preserved(name):
 
 def test_bird_unrecognized_text_is_not_discarded():
     device = SimpleNamespace(
-        platform="bird", structured_output=False, has_directives=lambda *args: True,
+        platform="bird",
+        structured_output=False,
+        has_directives=lambda *args: True,
     )
     output = ("BIRD 2.0.7 ready.\nAccess denied",)
     result = BGPRoutePluginBird().process(output=output, query=SimpleNamespace(device=device))

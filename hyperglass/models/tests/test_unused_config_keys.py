@@ -11,8 +11,8 @@ from litestar.openapi import OpenAPIConfig
 # Project
 from hyperglass.models.config import messages
 from hyperglass.models.config.docs import Docs
-from hyperglass.models.config.devices import Device
 from hyperglass.models.config.params import Params
+from hyperglass.models.config.devices import Device
 from hyperglass.models.config.messages import DEPRECATED_MESSAGES, Messages
 
 

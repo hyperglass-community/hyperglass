@@ -9,13 +9,13 @@ from pydantic import ValidationError
 
 # Project
 from hyperglass.state import use_state
-from hyperglass.state.hooks import _use_state
 from hyperglass.models.api import Query
+from hyperglass.state.hooks import _use_state
 from hyperglass.configuration import init_ui_params
 from hyperglass.models.directive import RuleWithIPv6, version_matches
+from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.models.config.params import Params
 from hyperglass.models.config.devices import Devices
-from hyperglass.defaults.directives import init_builtin_directives
 
 # Local
 from .. import ssh_netmiko

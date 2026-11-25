@@ -5,7 +5,7 @@ import typing as t
 from ipaddress import ip_address
 
 # Third Party
-from pydantic import field_validator, model_validator, computed_field
+from pydantic import computed_field, field_validator, model_validator
 
 # Project
 from hyperglass.external.ip_enrichment import TargetDetail
@@ -195,6 +195,7 @@ class TracerouteResult(HyperglassModel):
 
     async def enrich_with_ip_enrichment(self):
         """Enrich traceroute hops with IP enrichment data."""
+        # Project
         from hyperglass.external.ip_enrichment import network_info
 
         # Extract all IP addresses that need enrichment
@@ -228,8 +229,9 @@ class TracerouteResult(HyperglassModel):
 
     async def enrich_asn_organizations(self):
         """Enrich ASN organization names using bulk ASN lookup."""
-        from hyperglass.external.ip_enrichment import lookup_asns_bulk
+        # Project
         from hyperglass.log import log
+        from hyperglass.external.ip_enrichment import lookup_asns_bulk
 
         _log = log.bind(source="traceroute_asn_enrichment")
 

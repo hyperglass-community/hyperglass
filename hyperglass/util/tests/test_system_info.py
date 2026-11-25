@@ -13,6 +13,7 @@ from ..system_info import cpu_count
 @pytest.fixture(autouse=True)
 def isolated_cgroup(monkeypatch, tmp_path):
     """Host cgroup quotas must not change mocked affinity or fallback assertions."""
+    # Local
     from .. import system_info
 
     monkeypatch.setattr(system_info, "_CGROUP_ROOT", tmp_path / "cgroup")
@@ -144,12 +145,16 @@ def test_cpu_count_without_cgroup_files(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("child", ["max 100000", "800000 100000", "invalid", "0 0"])
 def test_v2_limited_parent_caps_child(tmp_path, monkeypatch, child):
-    _fake_cgroup(tmp_path, monkeypatch, {
-        "__proc__": "0::/parent/child\n",
-        "cpu.max": "max 100000",
-        "parent/cpu.max": "100000 100000",
-        "parent/child/cpu.max": child,
-    })
+    _fake_cgroup(
+        tmp_path,
+        monkeypatch,
+        {
+            "__proc__": "0::/parent/child\n",
+            "cpu.max": "max 100000",
+            "parent/cpu.max": "100000 100000",
+            "parent/child/cpu.max": child,
+        },
+    )
     assert cpu_count() == 1
     assert cpu_count(2) == 2
 
@@ -157,40 +162,58 @@ def test_v2_limited_parent_caps_child(tmp_path, monkeypatch, child):
 @pytest.mark.parametrize("mount", ["cpu,cpuacct", "cpu"])
 @pytest.mark.parametrize("child_quota", ["-1", "800000", "invalid", "0"])
 def test_v1_limited_parent_caps_child(tmp_path, monkeypatch, mount, child_quota):
-    _fake_cgroup(tmp_path, monkeypatch, {
-        "__proc__": "4:cpu,cpuacct:/parent/child\n",
-        f"{mount}/cpu.cfs_quota_us": "-1",
-        f"{mount}/cpu.cfs_period_us": "100000",
-        f"{mount}/parent/cpu.cfs_quota_us": "100000",
-        f"{mount}/parent/cpu.cfs_period_us": "100000",
-        f"{mount}/parent/child/cpu.cfs_quota_us": child_quota,
-        f"{mount}/parent/child/cpu.cfs_period_us": "100000",
-    })
+    _fake_cgroup(
+        tmp_path,
+        monkeypatch,
+        {
+            "__proc__": "4:cpu,cpuacct:/parent/child\n",
+            f"{mount}/cpu.cfs_quota_us": "-1",
+            f"{mount}/cpu.cfs_period_us": "100000",
+            f"{mount}/parent/cpu.cfs_quota_us": "100000",
+            f"{mount}/parent/cpu.cfs_period_us": "100000",
+            f"{mount}/parent/child/cpu.cfs_quota_us": child_quota,
+            f"{mount}/parent/child/cpu.cfs_period_us": "100000",
+        },
+    )
     assert cpu_count() == 1
 
 
 def test_child_quota_can_be_lower_than_ancestors(tmp_path, monkeypatch):
-    _fake_cgroup(tmp_path, monkeypatch, {
-        "__proc__": "0::/parent/child\n",
-        "cpu.max": "600000 100000",
-        "parent/cpu.max": "400000 100000",
-        "parent/child/cpu.max": "150000 100000",
-    })
+    _fake_cgroup(
+        tmp_path,
+        monkeypatch,
+        {
+            "__proc__": "0::/parent/child\n",
+            "cpu.max": "600000 100000",
+            "parent/cpu.max": "400000 100000",
+            "parent/child/cpu.max": "150000 100000",
+        },
+    )
     assert cpu_count() == 2
 
 
 def test_namespace_root_quota_applies_when_membership_path_is_not_visible(tmp_path, monkeypatch):
-    _fake_cgroup(tmp_path, monkeypatch, {
-        "__proc__": "0::/unmounted/parent/child\n", "cpu.max": "100000 100000",
-    })
+    _fake_cgroup(
+        tmp_path,
+        monkeypatch,
+        {
+            "__proc__": "0::/unmounted/parent/child\n",
+            "cpu.max": "100000 100000",
+        },
+    )
     assert cpu_count() == 1
 
 
 def test_cgroup_walk_stops_at_visible_root(tmp_path, monkeypatch):
-    _fake_cgroup(tmp_path, monkeypatch, {
-        "__proc__": "0::/child\n", "cpu.max": "max 100000",
-        "child/cpu.max": "max 100000",
-    })
+    _fake_cgroup(
+        tmp_path,
+        monkeypatch,
+        {
+            "__proc__": "0::/child\n",
+            "cpu.max": "max 100000",
+            "child/cpu.max": "max 100000",
+        },
+    )
     (tmp_path / "cpu.max").write_text("100000 100000")
     assert cpu_count() == 72
 

@@ -6,17 +6,20 @@ Requires development dependencies. Redis is isolated in memory; external
 providers are real. This checks model data, not browser rendering.
 """
 
-import argparse
-import asyncio
+# Standard Library
 import json
+import asyncio
+import argparse
 from pathlib import Path
 
+# Third Party
 import fakeredis
 
+# Project
 from hyperglass.state import manager, use_state
 from hyperglass.models.config.params import Params
-from hyperglass.plugins._builtin.bgp_route_arista import parse_arista
 from hyperglass.plugins._builtin.bgp_route_frr import parse_frr
+from hyperglass.plugins._builtin.bgp_route_arista import parse_arista
 from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 from hyperglass.plugins._builtin.bgp_route_enrichment import ZBgpRouteEnrichment
 

@@ -4,21 +4,25 @@ Uses bgp.tools for both ASN and IXP lookups.
 Provides lookup_ip, lookup_asn_name and network_info compatibility APIs.
 """
 
-import asyncio
-import typing as t
-from ipaddress import ip_address
-import socket
+# Standard Library
 import re
 import time
-from collections import OrderedDict
+import socket
+import typing as t
+import asyncio
+from ipaddress import ip_address
 from threading import Lock
+from collections import OrderedDict
 
+# Project
 from hyperglass.log import log
 from hyperglass.settings import Settings
 
 if t.TYPE_CHECKING:
+    # Standard Library
     from ipaddress import IPv4Address, IPv6Address
 
+    # Project
     from hyperglass.models.config.structured import StructuredIpEnrichment
 
 IPLookup = t.Tuple[t.Optional[int], t.Optional[str], t.Optional[str]]

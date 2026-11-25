@@ -5,8 +5,8 @@ import pytest
 
 # Project
 from hyperglass.models.directive import community_error
-from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.exceptions.private import InputValidationError
+from hyperglass.defaults.directives import init_builtin_directives
 
 U16, U32 = 65535, 4294967295
 

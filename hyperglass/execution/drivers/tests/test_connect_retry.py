@@ -10,8 +10,8 @@ from netmiko import NetMikoTimeoutException, NetMikoAuthenticationException
 from paramiko.ssh_exception import SSHException
 
 # Project
-from hyperglass.execution.drivers import ssh_netmiko
 from hyperglass.exceptions.public import AuthError, DeviceTimeout
+from hyperglass.execution.drivers import ssh_netmiko
 
 PARAMS = SimpleNamespace(request_timeout=90, logging=SimpleNamespace(session_log=False))
 

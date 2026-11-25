@@ -10,14 +10,14 @@ import pytest
 # Project
 from hyperglass.frontend import (
     PACKAGE_PNPM_STORE,
+    build_ui,
+    node_initial,
+    build_frontend,
+    generate_favicons,
+    _ui_subprocess_env,
     _prepare_ui_build_dir,
     _read_ui_export_version,
     _ui_export_matches_version,
-    _ui_subprocess_env,
-    build_frontend,
-    build_ui,
-    generate_favicons,
-    node_initial,
 )
 
 

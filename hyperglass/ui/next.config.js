@@ -7,6 +7,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // The UI lints with Biome (`pnpm run lint`), and ESLint is not installed. Next looks for
+  // an ESLint config up through parent directories, so without this a stray .eslintrc*
+  // above the build workspace would fail the build with "ESLint must be installed".
   eslint: {
     ignoreDuringBuilds: true,
   },

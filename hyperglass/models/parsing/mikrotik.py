@@ -517,8 +517,9 @@ class MikrotikTracerouteTable(MikrotikBase):
 
     def traceroute_result(self):
         """Convert to TracerouteResult format."""
-        from hyperglass.models.data.traceroute import TracerouteResult, TracerouteHop
+        # Project
         from hyperglass.log import log
+        from hyperglass.models.data.traceroute import TracerouteHop, TracerouteResult
 
         _log = log.bind(parser="MikrotikTracerouteTable")
 

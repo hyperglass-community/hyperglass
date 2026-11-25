@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Start an existing main-lab container and restore its Containerlab links."""
 
-import argparse
-import json
-from pathlib import Path
-import subprocess
+# Standard Library
 import sys
+import json
 import time
+import argparse
+import subprocess
+from pathlib import Path
 
+# Third Party
 import yaml
 
 LAB = Path(__file__).resolve().parents[1]
@@ -102,7 +104,7 @@ def start(node, timeout=600, management_only=False):  # noqa: C901 - startup and
             if "from lab_bootstrap import bootstrap_spin" not in source:
                 source = source.replace(
                     'if __name__ == "__main__":',
-                    'from lab_bootstrap import bootstrap_spin\n'
+                    "from lab_bootstrap import bootstrap_spin\n"
                     'ROS_vm.bootstrap_spin = bootstrap_spin\n\nif __name__ == "__main__":',
                 )
                 launcher.write_text(source)

@@ -3,9 +3,9 @@
 # Standard Library
 import re
 import typing as t
+from ipaddress import ip_network
 from contextlib import contextmanager
 from contextvars import ContextVar
-from ipaddress import ip_network
 
 # Third Party
 from pydantic import ValidationInfo, field_validator, model_validator
@@ -217,6 +217,7 @@ class BGPRouteTable(HyperglassModel):
 
     async def enrich_with_ip_enrichment(self):
         """Enrich BGP routes with next-hop information from IP enrichment."""
+        # Project
         from hyperglass.external.ip_enrichment import network_info
 
         # Extract unique next-hop IPs that need enrichment
@@ -249,8 +250,9 @@ class BGPRouteTable(HyperglassModel):
 
     async def enrich_as_path_organizations(self):
         """Enrich AS path ASNs with organization names using bulk lookup."""
-        from hyperglass.external.ip_enrichment import lookup_asns_bulk
+        # Project
         from hyperglass.log import log
+        from hyperglass.external.ip_enrichment import lookup_asns_bulk
 
         _log = log.bind(source="bgp_asn_enrichment")
 

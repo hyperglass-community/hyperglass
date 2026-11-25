@@ -136,6 +136,7 @@ class Version:
 def update_versions(new_version: str) -> None:
     """Update hyperglass version in all package files."""
     # Python uses PEP 440; npm versions and container tags use SemVer.
+    # Third Party
     from packaging.version import Version as PackageVersion
 
     parsed = PackageVersion(new_version)

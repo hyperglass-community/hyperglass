@@ -9,9 +9,9 @@ import pytest
 
 # Project
 from hyperglass.models.api import Query
+from hyperglass.models.directive import Directive
 from hyperglass.exceptions.public import InputInvalid
 from hyperglass.exceptions.private import ConfigError, InputValidationError
-from hyperglass.models.directive import Directive
 from hyperglass.models.config.devices import Device
 
 # Local

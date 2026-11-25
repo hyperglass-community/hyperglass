@@ -1,0 +1,7 @@
+# Commits that only reformat code. Use with:
+#   git blame --ignore-revs-file .git-blame-ignore-revs
+# or once per clone:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: format with ruff and sort imports (#594)
+d651f6d9c524c4af30b8f555c2886779a21b9acf

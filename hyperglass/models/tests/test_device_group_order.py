@@ -31,8 +31,6 @@ def test_directive_names_follow_device_order():
     devices = Devices(device("one", "A", "juniper"), device("two", "B", "arista_eos"))
     names = devices.directive_names()
 
-    expected = list(
-        dict.fromkeys(directive.name for d in devices for directive in d.directives)
-    )
+    expected = list(dict.fromkeys(directive.name for d in devices for directive in d.directives))
     assert names == expected
     assert len(names) == len(set(names))

@@ -1,13 +1,16 @@
 """Captured CE12800 parsing regressions."""
 
+# Standard Library
 from pathlib import Path
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.state import use_state
 from hyperglass.exceptions.private import ParsingError
-from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 from hyperglass.plugins._builtin.trace_route_huawei import parse_huawei_traceroute
+from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 
 FIXTURES = Path(__file__).parent / "fixtures" / "huawei-vrp"
 

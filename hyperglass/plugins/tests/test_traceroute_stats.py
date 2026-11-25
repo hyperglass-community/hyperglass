@@ -1,9 +1,11 @@
 """Hop statistics on every parser, and MikroTik traceroute honouring structured_output."""
 
+# Standard Library
 import json
-from pathlib import Path
 from types import SimpleNamespace
+from pathlib import Path
 
+# Project
 from hyperglass.models.data.traceroute import TracerouteHop, TracerouteResult
 from hyperglass.plugins._builtin.trace_route_frr import parse_frr_traceroute
 from hyperglass.plugins._builtin.trace_route_mikrotik import TraceroutePluginMikrotik

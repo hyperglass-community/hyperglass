@@ -9,9 +9,9 @@ import math
 import time
 import random
 import typing as t
-from contextvars import ContextVar
-from datetime import UTC, datetime
 from typing import Iterable
+from datetime import UTC, datetime
+from contextvars import ContextVar
 
 # Third Party
 from netmiko import (  # type: ignore
@@ -31,6 +31,7 @@ from .ssh import SSHConnection
 from ._common import command_error
 
 if t.TYPE_CHECKING:
+    # Project
     from hyperglass.models.config.devices import Device
 
 DEFAULT_DELAY_FACTOR = 0.1
@@ -264,6 +265,7 @@ class NetmikoConnection(SSHConnection):
                 driver_kwargs["passphrase"] = self.device.credential.password.get_secret_value()
 
         # Run blocking netmiko operations in thread executor to prevent blocking the event loop
+        # Standard Library
         import asyncio
 
         def _netmiko_connect():

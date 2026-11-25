@@ -1,9 +1,9 @@
 """Test state recovery."""
 
 # Standard Library
+import pickle
 import typing as t
 import asyncio
-import pickle
 import threading
 from fnmatch import fnmatch
 
@@ -306,6 +306,7 @@ async def test_mid_request_state_loss_never_rebuilds_on_event_loop(monkeypatch):
 
 
 def test_generation_and_plugin_readiness_follow_complete_initialization(monkeypatch):
+    # Project
     from hyperglass import configuration
     from hyperglass.state import use_state
     from hyperglass.plugins import register_all_plugins
@@ -339,12 +340,15 @@ def test_generation_and_plugin_readiness_follow_complete_initialization(monkeypa
 
 
 def test_api_request_recovers_before_reading_state(monkeypatch):
+    # Third Party
     from litestar.testing import TestClient
 
+    # Project
     from hyperglass.state import use_state
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
+    # Project
     from hyperglass.api import app
 
     state = use_state()
@@ -371,15 +375,19 @@ def test_api_requests_get_fast_503_while_state_is_missing(monkeypatch):
     The rebuild lock is held by another process and never released, which is what a
     slow or wedged rebuild looks like from this worker.
     """
+    # Standard Library
     import time
     from concurrent.futures import ThreadPoolExecutor
 
+    # Third Party
     from litestar.testing import TestClient
 
+    # Project
     from hyperglass.state import use_state
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
+    # Project
     from hyperglass.api import app
 
     state = use_state()
@@ -401,12 +409,15 @@ def test_api_requests_get_fast_503_while_state_is_missing(monkeypatch):
 
 def test_api_requests_get_503_after_failed_rebuild(monkeypatch):
     """A failed rebuild answers 503 and is not retried for every request."""
+    # Third Party
     from litestar.testing import TestClient
 
+    # Project
     from hyperglass.state import use_state
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
+    # Project
     from hyperglass.api import app
 
     state = use_state()

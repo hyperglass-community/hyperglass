@@ -51,8 +51,6 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "bandit>=1.7.7",
-    "black>=24.2.0",
-    "isort>=5.13.2",
     "pep8-naming>=0.13.3",
     "pre-commit>=3.6.1",
     "pytest>=8.0.1",
@@ -111,41 +109,22 @@ exclude = [
     "**/*.tsbuildinfo",
 ]
 
-[tool.black]
-line-length = 100
-
-[tool.isort]
-balanced_wrapping = true
-force_single_line = false
-import_heading_firstparty = "Project"
-import_heading_localfolder = "Local"
-import_heading_stdlib = "Standard Library"
-import_heading_thirdparty = "Third Party"
-include_trailing_comma = true
-indent = '    '
-known_third_party = ["litestar", "inquirer"]
-length_sort = true
-line_length = 100
-multi_line_output = 3
-profile = "black"
-skip_glob = "hyperglass/api/examples/*.py"
-
 [tool.taskipy.tasks]
 check = {cmd = "task lint && task ui-lint", help = "Run all lint checks"}
 docs-platforms = {cmd = "python3 -c 'from hyperglass.util.docs import create_platform_list;print(create_platform_list())'"}
-format = {cmd = "black hyperglass", help = "Run Black"}
-lint = {cmd = "ruff hyperglass", help = "Run Ruff Linter"}
-sort = {cmd = "isort hyperglass", help = "Run iSort"}
+format = {cmd = "ruff format hyperglass", help = "Format Python with Ruff"}
+lint = {cmd = "ruff check hyperglass", help = "Run Ruff Linter"}
+sort = {cmd = "ruff check --select I --fix hyperglass", help = "Sort Python imports with Ruff"}
 start = {cmd = "python3 -m hyperglass.main", help = "Start hyperglass"}
 start-asgi = {cmd = "uvicorn hyperglass.api:app", help = "Start hyperglass via Uvicorn"}
 test = {cmd = "pytest hyperglass --ignore hyperglass/plugins/external", help = "Run hyperglass tests"}
 ui-build = {cmd = "python3 -m hyperglass.console build-ui", help = "Run a UI Build"}
 ui-dev = {cmd = "pnpm run --dir ./hyperglass/ui/ dev", help = "Start the Next.JS dev server"}
-ui-format = {cmd = "pnpm run --dir ./hyperglass/ui/ format", help = "Run Prettier"}
-ui-lint = {cmd = "pnpm run --dir ./hyperglass/ui/ lint", help = "Run ESLint"}
+ui-format = {cmd = "pnpm run --dir ./hyperglass/ui/ format", help = "Format the UI with Biome"}
+ui-lint = {cmd = "pnpm run --dir ./hyperglass/ui/ lint", help = "Lint the UI with Biome"}
 ui-typecheck = {cmd = "pnpm run --dir ./hyperglass/ui/ typecheck", help = "Run TypeScript Check"}
 upgrade = {cmd = "python3 version.py", help = "Upgrade hyperglass version"}
-pnpm = {cmd = "pnpm run --dir ./hyperglass/ui/", help = "Run a yarn command from the UI directory"}
+pnpm = {cmd = "pnpm run --dir ./hyperglass/ui/", help = "Run a pnpm command from the UI directory"}
 
 [tool.ruff]
 exclude = [
@@ -156,6 +135,9 @@ exclude = [
   "hyperglass/api/examples/*.py",
   "hyperglass/compat/_sshtunnel.py",
 ]
+# Apply the exclusions above to paths passed explicitly too (editors, hooks),
+# for both `ruff check` and `ruff format`.
+force-exclude = true
 line-length = 100
 
 [tool.ruff.format]
@@ -163,6 +145,16 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-third-party = ["litestar", "inquirer"]
+length-sort = true
+
+[tool.ruff.lint.isort.import-heading]
+standard-library = "Standard Library"
+third-party = "Third Party"
+first-party = "Project"
+local-folder = "Local"
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
@@ -188,7 +180,6 @@ ignore = [
   "D406",
   "D407",
   "B008",
-  "I001",
   "D418", # No docstring on overloaded functions.
   "N818", # Error suffix on custom exceptions.
   "RET501", # Explicitly return None

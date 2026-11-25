@@ -5,13 +5,13 @@ description: Hyperglass environment variables
 
 Some environment variables must be supplied before Hyperglass can start or read its configuration files. Most deployments can use the defaults.
 
-Set environment variables in the shell that starts Hyperglass, or in `/etc/hyperglass/hyperglass.env`. Hyperglass does not read that file itself. The sample `systemd` services load it with `EnvironmentFile`.
+Set environment variables in the shell that starts Hyperglass, or in `/etc/default/hyperglass`. Hyperglass does not read that file itself. The sample `systemd` services load it with `EnvironmentFile`. Keep it owned by root and outside the app directory: `systemd` reads it as root, and with Docker the container can write to the app directory. See [host files](docker.mdx#host-files).
 
 With Docker, `compose.yaml` mounts the host directory in `HYPERGLASS_APP_PATH` at `/etc/hyperglass` in the container. Inside the container, the application path is always `/etc/hyperglass`.
 
 ## Docker
 
-With Docker, `hyperglass.env` sets values for `docker compose`, not for the container. The container receives only the variables that `compose.yaml` passes: `HYPERGLASS_HOST`, `HYPERGLASS_PORT`, `HYPERGLASS_DEBUG`, `HYPERGLASS_DEV_MODE`, `HYPERGLASS_REDIS_HOST`, `HYPERGLASS_DISABLE_UI` and `HYPERGLASS_APP_PATH`. The other variables in the table have no effect when you set them in `hyperglass.env`.
+With Docker, `/etc/default/hyperglass` sets values for `docker compose`, not for the container. The container receives only the variables that `compose.yaml` passes: `HYPERGLASS_HOST`, `HYPERGLASS_PORT`, `HYPERGLASS_DEBUG`, `HYPERGLASS_DEV_MODE`, `HYPERGLASS_REDIS_HOST`, `HYPERGLASS_DISABLE_UI` and `HYPERGLASS_APP_PATH`. The other variables in the table have no effect when you set them in `/etc/default/hyperglass`.
 
 To pass another variable, create `compose.override.yaml` next to `compose.yaml` in `/opt/hyperglass`. `docker compose` merges that file automatically. A file path, such as `HYPERGLASS_CA_CERT`, must be a path inside the container, for example under `/etc/hyperglass`.
 
@@ -45,4 +45,4 @@ services:
 
 ### Docker Compose port binding
 
-`HYPERGLASS_BIND_ADDRESS` defaults to `0.0.0.0` and controls the host address for the published Docker port. Set it to `127.0.0.1` when nginx runs on the Docker host. Put this Compose-only variable in `.env` beside `compose.yaml` or export it in the shell; `hyperglass.env` does not configure Compose. Keep `HYPERGLASS_HOST=0.0.0.0` inside the container. See [Docker client-address setup](docker.mdx#client-addresses-and-host-nginx) for the required proxy trust configuration.
+`HYPERGLASS_BIND_ADDRESS` defaults to `0.0.0.0` and controls the host address for the published Docker port. Set it to `127.0.0.1` when nginx runs on the Docker host. Put this Compose-only variable in `.env` beside `compose.yaml`, which every `docker compose` command reads, or export it in the shell. `/etc/default/hyperglass` applies only when the `systemd` service runs Compose. Keep `HYPERGLASS_HOST=0.0.0.0` inside the container. See [Docker client-address setup](docker.mdx#client-addresses-and-host-nginx) for the required proxy trust configuration.

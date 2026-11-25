@@ -1,7 +1,7 @@
 """Coerce a MikroTik route table in text format to a standard BGP Table structure."""
 
 # Standard Library
-from typing import TYPE_CHECKING, Sequence, Union, List
+from typing import TYPE_CHECKING, List, Union, Sequence
 
 # Third Party
 from pydantic import PrivateAttr, ValidationError
@@ -15,8 +15,11 @@ from hyperglass.models.parsing.mikrotik import MikrotikBGPTable
 from .._output import OutputPlugin
 
 if TYPE_CHECKING:
+    # Project
     from hyperglass.models.data import OutputDataModel
     from hyperglass.models.api.query import Query
+
+    # Local
     from .._output import OutputType
 
 

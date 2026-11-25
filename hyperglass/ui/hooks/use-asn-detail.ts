@@ -23,7 +23,6 @@ interface ASNQuery {
 //     mode: 'cors',
 //     method: 'POST',
 //     headers: { 'content-type': 'application/json' },
-//     /* eslint no-useless-escape: 0 */
 //     body: JSON.stringify({ query: `{ asn(asn:\"${asn}\"){ organization { orgName } } }` }),
 //   });
 //   return await res.json();

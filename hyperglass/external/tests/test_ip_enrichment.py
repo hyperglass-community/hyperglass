@@ -1,7 +1,9 @@
 """Tests for IP enrichment caching."""
 
+# Third Party
 import pytest
 
+# Project
 from hyperglass.external.ip_enrichment import IPEnrichmentService
 
 

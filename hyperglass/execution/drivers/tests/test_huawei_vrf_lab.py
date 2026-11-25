@@ -10,8 +10,8 @@ import pytest
 # Project
 from hyperglass.state import use_state
 from hyperglass.plugins import InputPluginManager
-from hyperglass.state.hooks import _use_state
 from hyperglass.models.api import Query
+from hyperglass.state.hooks import _use_state
 from hyperglass.configuration import init_ui_params
 from hyperglass.plugins._builtin import BGPRoutePluginHuawei
 from hyperglass.defaults.directives import init_builtin_directives

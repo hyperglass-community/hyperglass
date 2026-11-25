@@ -15,7 +15,6 @@ export function useDirective(): Nullable<Directive> {
     }
     const directive = getDirective();
     return directive;
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // form.queryType also triggers a re-run: getDirective() reads it from the store.
   }, [form.queryType, getDirective]);
 }

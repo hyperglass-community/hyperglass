@@ -1,14 +1,17 @@
 """Regression coverage for prompt reads, device errors and enable mode."""
 
+# Standard Library
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+# Third Party
 import pytest
 from netmiko.exceptions import ReadTimeout
 
+# Project
+from hyperglass.exceptions.public import AuthError, DeviceTimeout, DeviceCommandError
 from hyperglass.execution.drivers import ssh_netmiko
 from hyperglass.execution.drivers._common import Connection, command_error
-from hyperglass.exceptions.public import AuthError, DeviceCommandError, DeviceTimeout
 
 PARAMS = SimpleNamespace(request_timeout=90, logging=SimpleNamespace(session_log=False))
 

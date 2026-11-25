@@ -8,11 +8,11 @@ import pytest
 from pydantic import ValidationError
 
 # Project
-from hyperglass.models.api import query as query_module
 from hyperglass.plugins import _manager as plugin_manager
+from hyperglass.models.api import query as query_module
 from hyperglass.models.directive import Directive, RuleWithIP, RuleWithIPv4, RuleWithIPv6
-from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.exceptions.private import InputValidationError
+from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.execution.drivers._construct import Construct
 
 IP_DIRECTIVES = [

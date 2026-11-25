@@ -1,15 +1,15 @@
 """Build a metadata-only support bundle without exporting free-form log text."""
 
 # Standard Library
+import re
 import json
 import math
-import platform
-import re
 import typing as t
 import builtins
-from collections import deque
-from datetime import datetime, timezone
+import platform
 from pathlib import Path
+from datetime import datetime, timezone
+from collections import deque
 
 # Project
 from hyperglass.log import JSON_LOG_FILE_NAME, TEXT_LOG_FILE_NAME

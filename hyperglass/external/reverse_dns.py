@@ -1,11 +1,13 @@
 """Bounded, best-effort PTR enrichment after a traceroute response is sent."""
 
-import asyncio
+# Standard Library
 import socket
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 from ipaddress import ip_address
 from threading import Lock, BoundedSemaphore
+from concurrent.futures import ThreadPoolExecutor
 
+# Project
 from hyperglass.state import use_state
 
 # Cancelling an await does not stop libc DNS. Retain the slot until its actual

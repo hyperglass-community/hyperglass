@@ -1,13 +1,16 @@
 """Regression coverage for #28, #31 and #34."""
 
+# Standard Library
 import shlex
 from types import SimpleNamespace
 
+# Third Party
 import pytest
 
-from hyperglass.defaults.directives import init_builtin_directives
-from hyperglass.exceptions.private import InputValidationError
+# Project
 from hyperglass.exceptions.public import InputInvalid
+from hyperglass.exceptions.private import InputValidationError
+from hyperglass.defaults.directives import init_builtin_directives
 from hyperglass.execution.drivers._construct import Construct
 
 

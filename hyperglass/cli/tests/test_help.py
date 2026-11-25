@@ -99,7 +99,7 @@ def test_no_arguments_shows_help():
     result = runner.invoke(cli, [], terminal_width=200)
 
     assert "Usage:" in result.output
-    for (command, *_) in COMMANDS:
+    for command, *_ in COMMANDS:
         assert command in result.output
 
 
