@@ -141,8 +141,8 @@ start-asgi = {cmd = "uvicorn hyperglass.api:app", help = "Start hyperglass via U
 test = {cmd = "pytest hyperglass --ignore hyperglass/plugins/external", help = "Run hyperglass tests"}
 ui-build = {cmd = "python3 -m hyperglass.console build-ui", help = "Run a UI Build"}
 ui-dev = {cmd = "pnpm run --dir ./hyperglass/ui/ dev", help = "Start the Next.JS dev server"}
-ui-format = {cmd = "pnpm run --dir ./hyperglass/ui/ format", help = "Run Prettier"}
-ui-lint = {cmd = "pnpm run --dir ./hyperglass/ui/ lint", help = "Run ESLint"}
+ui-format = {cmd = "pnpm run --dir ./hyperglass/ui/ format", help = "Format the UI with Biome"}
+ui-lint = {cmd = "pnpm run --dir ./hyperglass/ui/ lint", help = "Lint the UI with Biome"}
 ui-typecheck = {cmd = "pnpm run --dir ./hyperglass/ui/ typecheck", help = "Run TypeScript Check"}
 upgrade = {cmd = "python3 version.py", help = "Upgrade hyperglass version"}
 pnpm = {cmd = "pnpm run --dir ./hyperglass/ui/", help = "Run a yarn command from the UI directory"}

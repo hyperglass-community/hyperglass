@@ -15,7 +15,5 @@ export function useDirective(): Nullable<Directive> {
     }
     const directive = getDirective();
     return directive;
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.queryType, getDirective]);
 }

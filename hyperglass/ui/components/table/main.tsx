@@ -1,5 +1,3 @@
-// This rule isn't needed because react-table does this for us, for better or worse.
-/* eslint react/jsx-key: 0 */
 import { Flex, Text } from '@chakra-ui/react';
 import { usePagination, useSortBy, useTable } from 'react-table';
 import { If, Then, Else } from 'react-if';

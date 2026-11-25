@@ -74,7 +74,6 @@ export const Results = (): JSX.Element => {
 
   const selectedDirective = useMemo(() => {
     return getDirective();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.queryType, getDirective]);
 
   // A link that fills in the form with this query, on this page. Built in the browser

@@ -16,8 +16,8 @@ export const queryClient = new QueryClient();
 
 export const HyperglassProvider = (props: HyperglassProviderProps): JSX.Element => {
   const { config, children } = props;
-  const value = useMemo(() => config, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const theme = useMemo(() => makeTheme(value.web.theme, value.web.theme.defaultColorMode), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const value = useMemo(() => config, []);
+  const theme = useMemo(() => makeTheme(value.web.theme, value.web.theme.defaultColorMode), []);
 
   return (
     <HyperglassContext.Provider value={value}>
