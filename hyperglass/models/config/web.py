@@ -30,6 +30,10 @@ DEFAULT_IMAGES = Path(__file__).parent.parent.parent / "images"
 DOH_PROVIDERS_PATTERN = "|".join(DNS_OVER_HTTPS.keys())
 PERCENTAGE_PATTERN = r"^([1-9][0-9]?|100)\%?$"
 HEADER_NAME_PATTERN = re.compile(r"[a-z0-9!#$%&'*+.^_`|~-]+")
+# A BCP 47 language tag of a language, an optional script and an optional region, such
+# as `fr`, `pt-BR` or `zh-Hant-TW`. The browser rejects a malformed tag, which would
+# break the route table, so nothing else is accepted.
+LOCALE_PATTERN = r"^[A-Za-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$"
 
 Percentage = Field(pattern=r"^([1-9][0-9]?|100)\%$")
 TitleMode = t.Literal["logo_only", "text_only", "logo_subtitle", "all"]
@@ -495,6 +499,9 @@ class Web(HyperglassModel):
     custom_javascript: t.Optional[FilePath] = None
     custom_html: t.Optional[FilePath] = None
     highlight: t.List[HighlightPattern] = []
+    # BCP 47 language tag, such as `fr` or `pt-BR`, for the route table's age and the
+    # time in its tooltip. Without a translation for it, both are English.
+    locale: str = Field(default="en", pattern=LOCALE_PATTERN)
 
     @model_validator(mode="after")
     def validate_fqdn_message(self) -> "Web":

@@ -1,6 +1,7 @@
 export * from './theme-hooks';
 export * from './use-asn-detail';
 export * from './use-boolean-value';
+export * from './use-dayjs-locale';
 export * from './use-device';
 export * from './use-directive';
 export * from './use-dns-query';

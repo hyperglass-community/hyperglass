@@ -462,6 +462,14 @@ web:
   # Default: auto
   location_display_mode: "auto"
 
+  # Language of the route table's age column ("2 hours") and of the time in its
+  # tooltip (24-hour, in UTC), also used when the table is copied: a BCP 47 tag of a
+  # language, optional script and optional region, such as fr, pt-BR or zh-Hant-TW. A
+  # region without its own translation uses its language's (de-LU uses de); without
+  # one, the age and the tooltip are English.
+  # Default: en
+  locale: "en"
+
   # Footer links. {primary_asn} is replaced. side is left or right; order sorts
   # items on the same side; show_icon adds an external-link icon.
   # Default: a PeeringDB link for primary_asn.

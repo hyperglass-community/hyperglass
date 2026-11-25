@@ -1,12 +1,11 @@
 import { useCallback } from 'react';
-import dayjs from 'dayjs';
-import relativeTimePlugin from 'dayjs/plugin/relativeTime';
-import utcPlugin from 'dayjs/plugin/utc';
 import { useConfig } from '~/context';
+import { useDayjsLocale } from './use-dayjs-locale';
 import { isStructuredOutput, isBGPStructuredOutput, isTracerouteStructuredOutput } from '~/types';
 import {
   TRACEROUTE_BLANK,
   TRACEROUTE_NO_RTT,
+  formatAge,
   formatHopASN,
   formatHopHostname,
   formatHopIP,
@@ -27,9 +26,6 @@ interface TableToStringFormatted {
   communities: (v: string[]) => string;
   rpki_state: (v: number, n: RPKIState) => string;
 }
-
-dayjs.extend(relativeTimePlugin);
-dayjs.extend(utcPlugin);
 
 function formatAsPath(
   path: number[],
@@ -59,14 +55,6 @@ function formatBool(val: boolean): string {
   return fmt;
 }
 
-function formatTime(val: number): string {
-  const now = dayjs.utc();
-  const then = now.subtract(val, 'second');
-  const timestamp = then.toString().replace('GMT', 'UTC');
-  const relative = now.to(then, true);
-  return `${relative} (${timestamp})`;
-}
-
 /**
  * Get a function to convert table data to string, for use in the copy button component.
  */
@@ -76,6 +64,13 @@ export function useTableToString(
   ...deps: unknown[]
 ): () => string {
   const { web, parsedDataFields, messages } = useConfig();
+  const dayjsLocale = useDayjsLocale(web.locale);
+
+  /** The age as the route table shows it, followed by its tooltip's time. */
+  function formatTime(val: number): string {
+    const { relative, absolute } = formatAge(val, web.locale, dayjsLocale);
+    return `${relative} (${absolute})`;
+  }
 
   function formatRpkiState(val: number): string {
     const rpkiStates = [

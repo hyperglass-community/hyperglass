@@ -258,3 +258,22 @@ def test_no_common_query_types_text():
         by_alias=True
     )
     assert exported["noCommonQueryTypes"] == "{locations}: aucun type commun"
+
+
+def test_locale_default_is_english():
+    """The route table's age stays English unless a locale is set (#605)."""
+    assert Web().locale == "en"
+
+
+@pytest.mark.parametrize("value", ("fr", "pt-BR", "zh-Hant-TW", "de-CH", "es-419", "tlh"))
+def test_locale_accepts_language_tags(value):
+    assert Web(locale=value).locale == value
+
+
+@pytest.mark.parametrize(
+    "value", ("", "f", "french!", "fr_CA", "fr-", "../fr", "en-x", "de-1", "fr-CA-CA")
+)
+def test_locale_rejects_other_values(value):
+    """Only a language, script and region: the browser rejects a malformed tag (#605)."""
+    with pytest.raises(ValidationError):
+        Web(locale=value)

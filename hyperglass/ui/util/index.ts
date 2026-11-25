@@ -1,3 +1,4 @@
+export * from './age';
 export * from './common';
 export * from './config';
 export * from './state';
