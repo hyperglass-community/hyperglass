@@ -47,4 +47,4 @@ Behind a reverse proxy or CDN, every request comes from the proxy, so all visito
 
 ### Other routes
 
-`query_limit` covers `POST /api/query` only, because it is the only route that reaches devices. To limit the other routes (`/api/info`, `/api/devices`, `/api/queries` and the UI's static files), use the rate limiting of your [reverse proxy](/installation/reverse-proxy), such as `limit_req` in NGINX or the third-party `rate_limit` module for Caddy. The server-side lookups `/api/dns` and `/api/aspath/enrich` have their own limits, in `web.server_lookups`.
+`query_limit` covers `POST /api/query` only, because it is the only route that reaches devices. To limit the other routes (`/api/info`, `/api/devices`, `/api/queries` and the UI's static files), use the rate limiting of your [reverse proxy](/installation/reverse-proxy#rate-limiting), such as `limit_req` in NGINX or the third-party `rate_limit` module for Caddy. The server-side lookups `/api/dns` and `/api/aspath/enrich` have their own limits, in `web.server_lookups`.

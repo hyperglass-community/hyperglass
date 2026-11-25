@@ -1,5 +1,14 @@
 lg.example.com:443 {
     tls person@example.com
+    # Optional rate limit for every route. Needs Caddy built with the third-party
+    # github.com/mholt/caddy-ratelimit module; see the Reverse Proxy docs.
+    # rate_limit {
+    #     zone hyperglass {
+    #         key    {remote_host}
+    #         events 300
+    #         window 30s
+    #     }
+    # }
     file_server {
             root /etc/hyperglass/static/ui
             index /etc/hyperglass/static/ui/index.html

@@ -47,7 +47,7 @@ def populate(monkeypatch):
 
     monkeypatch.setattr(recovery, "_initialize", initialize)
     # Start each test outside any cooldown left by an earlier failed rebuild.
-    monkeypatch.setattr(recovery, "_last_failure", 0.0)
+    monkeypatch.setattr(recovery, "_last_failure", None)
     initialize()
     return state
 

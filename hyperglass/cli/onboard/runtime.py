@@ -40,8 +40,12 @@ class OnboardState:
         """Use the configured Redis only for external lookup caches."""
         return HyperglassState(settings=Settings).cache
 
-    def plugins(self, kind: str) -> list:
-        """Return the local plugin registry."""
+    def plugins(self, kind: str, *, required: bool = False) -> list:
+        """Return the local plugin registry.
+
+        `required` matches `HyperglassState.plugins`. The local registry is filled by
+        `runtime(plugins=True)` and is never lost, so it has no effect here.
+        """
         return self._plugins.get(kind, [])
 
     def add_plugin(self, kind: str, plugin: t.Any) -> None:

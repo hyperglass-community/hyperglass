@@ -13,11 +13,18 @@ Redis lock so multiple uvicorn workers do not each re-read and re-validate the
 configuration. The rest do not wait for the winner: they fail fast, and the request
 hook turns that into a 503, so a rebuild that is slow or failing never ties up the
 thread pool that also runs Redis and device calls.
+
+Every request checks state first, so the check itself must be cheap. Once state has
+been found complete, `ensure_ready` trusts that for `READY_INTERVAL` without touching
+Redis or the thread pool, and the checks that do run are shared by every request in the
+worker that arrives while one is in flight. A flood of requests therefore costs at most
+one thread-pool job per interval per worker while state is present (#532).
 """
 
 # Standard Library
 import time
 import typing as t
+import asyncio
 from uuid import uuid4
 
 # Project
@@ -27,7 +34,7 @@ if t.TYPE_CHECKING:
     # Local
     from .redis import RedisManager
 
-__all__ = ("rebuild_state",)
+__all__ = ("ensure_ready", "mark_stale", "rebuild_state")
 
 # Keys that must all be present for state to be usable.
 REQUIRED_KEYS = (
@@ -53,7 +60,30 @@ LOCK_TIMEOUT = 60
 # served immediately, because `rebuild_state` checks for it before the cooldown.
 FAILURE_COOLDOWN = 30.0
 
-_last_failure: float = 0.0
+# Monotonic time of the last failed or contended rebuild, or `None` if there has been
+# none. Not 0.0: the monotonic clock can start near zero at boot, which would put a
+# worker started then in the cooldown without any failure.
+_last_failure: t.Optional[float] = None
+
+# How long, in seconds, state found complete is trusted without checking Redis again.
+# Not user-configurable: it trades the cost of the per-request check against how long
+# a worker can take to notice that Redis was emptied behind its back. Reads of missing
+# state in the meantime fail with `StateError` (a 503) and end the interval early, via
+# `mark_stale`: configuration reads and the plugin managers' registry reads (which
+# also require `plugins.ready`) raise rather than read lost state as empty.
+READY_INTERVAL = 1.0
+
+# Monotonic time until which state is trusted to be complete.
+_ready_until: float = 0.0
+
+# Incremented by `mark_stale`, so a check that started before state was found missing
+# cannot mark it ready again when it finishes.
+_ready_epoch: int = 0
+
+# The `is_populated` check in flight, shared by the requests that arrive during it, and
+# the epoch it started in. `mark_stale` drops it, so no request joins a check that
+# started before state was found missing.
+_ready_check: t.Optional[t.Tuple["asyncio.Task[bool]", int]] = None
 
 
 def _initialize() -> None:
@@ -82,6 +112,76 @@ def is_populated(cache: "RedisManager") -> bool:
     return cache.instance.exists(*keys) == len(keys)
 
 
+def in_cooldown() -> bool:
+    """Determine whether a recent failed or contended rebuild is still cooling down."""
+    # Read once: another thread can reset it to `None` between two reads.
+    last_failure = _last_failure
+    if last_failure is None:
+        return False
+    return time.monotonic() - last_failure < FAILURE_COOLDOWN
+
+
+def mark_stale() -> None:
+    """Stop trusting that state is complete, so the next request checks Redis."""
+    global _ready_until, _ready_epoch, _ready_check  # noqa: PLW0603
+    _ready_until = 0.0
+    _ready_epoch += 1
+    _ready_check = None
+
+
+def _retrieve(task: "asyncio.Task[bool]") -> None:
+    """Retrieve a shared check's exception, in case every request awaiting it went away."""
+    if not task.cancelled():
+        task.exception()
+
+
+async def _shared_is_populated(cache: "RedisManager") -> t.Tuple[bool, int]:
+    """Run `is_populated` in a thread, sharing a check already in flight on this loop.
+
+    Returns the result and the epoch the check started in, which is what decides
+    whether the result may mark state ready.
+    """
+    global _ready_check  # noqa: PLW0603
+    loop = asyncio.get_running_loop()
+    current = _ready_check
+    if current is None or current[0].done() or current[0].get_loop() is not loop:
+        task = loop.create_task(asyncio.to_thread(is_populated, cache))
+        task.add_done_callback(_retrieve)
+        current = _ready_check = (task, _ready_epoch)
+    task, epoch = current
+    # Shielded, so a request that is cancelled does not cancel the others' check.
+    return await asyncio.shield(task), epoch
+
+
+async def ensure_ready(cache: "RedisManager") -> bool:
+    """Determine whether state is usable, recovering it if it has been lost.
+
+    State found complete within the last `READY_INTERVAL` is trusted without any I/O.
+    Otherwise one shared check per worker asks Redis whether state is complete. Only
+    when it is not does each request fall back to `rebuild_state` in a thread, as
+    before, which rebuilds or fails fast; during the failure cooldown, requests fail
+    without taking a thread at all.
+    """
+    global _ready_until  # noqa: PLW0603
+
+    if time.monotonic() < _ready_until:
+        return True
+
+    populated, epoch = await _shared_is_populated(cache)
+    if populated:
+        ready = True
+    elif in_cooldown():
+        # What `rebuild_state` would answer, without a thread-pool job per request.
+        return False
+    else:
+        epoch = _ready_epoch
+        ready = await asyncio.to_thread(rebuild_state, cache)
+
+    if ready and epoch == _ready_epoch:
+        _ready_until = time.monotonic() + READY_INTERVAL
+    return ready
+
+
 def rebuild_state(cache: "RedisManager") -> bool:
     """Repopulate configuration state in Redis after it has been lost.
 
@@ -98,7 +198,7 @@ def rebuild_state(cache: "RedisManager") -> bool:
         # something this function does not manage.
         return True
 
-    if time.monotonic() - _last_failure < FAILURE_COOLDOWN:
+    if in_cooldown():
         return False
 
     lock = cache.key(LOCK_KEY)
@@ -126,6 +226,6 @@ def rebuild_state(cache: "RedisManager") -> bool:
         if cache.instance.get(lock) == token:
             cache.instance.delete(lock)
 
-    _last_failure = 0.0
+    _last_failure = None
     log.bind(generation=cache.get("generation")).warning("Rebuilt hyperglass state")
     return True
