@@ -3,5 +3,5 @@
 # or once per clone:
 #   git config blame.ignoreRevsFile .git-blame-ignore-revs
 
-# style: format with ruff and sort imports (#594)
-d651f6d9c524c4af30b8f555c2886779a21b9acf
+# build(ruff): format and sort imports with ruff instead of Black and isort (#610)
+973ba6f71e83ef4f8250e79a8794eb46089d8a2e
