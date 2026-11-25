@@ -6,7 +6,7 @@ After=network.target redis-server.service
 [Service]
 User=root
 Group=root
-EnvironmentFile=/etc/hyperglass/hyperglass.env
+EnvironmentFile=/etc/default/hyperglass
 ExecStart=/opt/hyperglass/.venv/bin/python3 -m hyperglass.console start
 
 [Install]
