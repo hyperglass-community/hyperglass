@@ -595,13 +595,15 @@ async def test_cooldown_fails_without_a_thread_per_request(monkeypatch, to_threa
 
 def test_api_requests_check_state_once_per_interval(monkeypatch):
     """A burst of requests to any route costs one state check per worker (#532)."""
+    # Third Party
     from litestar.testing import TestClient
 
+    # Project
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
+    # Project
     from hyperglass.api import app
-
     from hyperglass.state import use_state
 
     state = use_state()
@@ -731,6 +733,7 @@ def test_missing_plugin_registry_is_lost_state(monkeypatch):
     A query run without output plugins would cache unparsed output for the whole
     cache timeout. Other readers, such as `hyperglass plugins`, still read it as empty.
     """
+    # Project
     from hyperglass.state import use_state
     from hyperglass.plugins._manager import InputPluginManager, OutputPluginManager
 
