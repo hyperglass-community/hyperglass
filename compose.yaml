@@ -15,7 +15,7 @@ services:
             - HYPERGLASS_DISABLE_UI=${HYPERGLASS_DISABLE_UI-false}
             - HYPERGLASS_CONTAINER=${HYPERGLASS_CONTAINER-true}
             - HYPERGLASS_ORIGINAL_APP_PATH=${HYPERGLASS_APP_PATH}
-        image: ${HYPERGLASS_IMAGE-ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.2}
+        image: ${HYPERGLASS_IMAGE-ghcr.io/hyperglass-community/hyperglass:3.0.0-rc.3}
         ports:
             # Set HYPERGLASS_BIND_ADDRESS=127.0.0.1 for a host reverse proxy.
             # HYPERGLASS_HOST remains 0.0.0.0 inside the container.
@@ -25,19 +25,3 @@ services:
             # directory, so that user must be able to write to it:
             #   sudo chown -R 10001:10001 /etc/hyperglass
             - ${HYPERGLASS_APP_PATH-/etc/hyperglass}:/etc/hyperglass
-        healthcheck:
-            # /api/info reads Redis-backed state. The UI root does not, so it keeps
-            # returning 200 through a total query outage.
-            # The image pinned above predates the image's own HEALTHCHECK
-            # (`hyperglass healthcheck`, GET /api/health). When this file pins an
-            # image that has it, remove this block so the image's check applies.
-            test:
-                [
-                    "CMD-SHELL",
-                    "wget -qO- http://127.0.0.1:${HYPERGLASS_PORT-8001}/api/info >/dev/null || exit 1",
-                ]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            # The UI is built on boot, which takes a couple of minutes.
-            start_period: 180s
