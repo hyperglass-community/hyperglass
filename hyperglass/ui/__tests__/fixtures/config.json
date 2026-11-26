@@ -7,7 +7,7 @@
     "timeout": 120
   },
   "content": {
-    "credit": "\nPowered by [**Hyperglass**](https://github.com/hyperglass-community/hyperglass), version 3.0.0rc2. Source code licensed [_BSD 3-Clause Clear_](https://github.com/hyperglass-community/hyperglass/blob/main/LICENSE).\n",
+    "credit": "\nPowered by [**Hyperglass**](https://github.com/hyperglass-community/hyperglass), version 3.0.0rc3. Source code licensed [_BSD 3-Clause Clear_](https://github.com/hyperglass-community/hyperglass/blob/main/LICENSE).\n",
     "greeting": ""
   },
   "developerMode": false,
@@ -344,7 +344,7 @@
   },
   "siteDescription": "Example Network Network Looking Glass",
   "siteTitle": "hyperglass",
-  "version": "3.0.0rc2",
+  "version": "3.0.0rc3",
   "web": {
     "aspathEnrichment": false,
     "credit": {
