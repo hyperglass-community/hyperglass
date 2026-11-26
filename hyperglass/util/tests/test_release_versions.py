@@ -35,7 +35,6 @@ def test_version_update_includes_all_deployment_pins(
     version.PYPROJECT_TOML = tmp_path / "pyproject.toml"
     version.CONSTANTS = tmp_path / "hyperglass/constants.py"
     version.UPGRADES = upgrades
-    previous = version.RELEASE_PIN_PATTERN.search((root / "compose.yaml").read_text()).group(1)
     version.update_versions(requested)
 
     assert f'version = "{python_version}"' in version.PYPROJECT_TOML.read_text()
@@ -50,8 +49,9 @@ def test_version_update_includes_all_deployment_pins(
     assert f"ghcr.io/hyperglass-community/hyperglass:{release_version}" in guide
     upgrade = (tmp_path / "docs/content/installation/upgrading.mdx").read_text()
     assert f"`v{release_version}`" in upgrade
-    if previous != release_version:
-        assert previous not in compose + guide + upgrade
+    # Every release pin moves, including any the previous version left behind.
+    pins = version.RELEASE_PIN_PATTERN.findall(compose + guide + upgrade)
+    assert pins and set(pins) == {release_version}
     # Reapplying the same version must leave every file unchanged.
     contents = {path: path.read_bytes() for _, path, _ in upgrades}
     version.update_versions(requested)

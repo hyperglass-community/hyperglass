@@ -132,7 +132,7 @@ Installations that followed an earlier version of this guide keep the unit and `
 
 ## Health check
 
-The image's Docker `HEALTHCHECK` runs [`hyperglass healthcheck`](/configuration/config/monitoring.mdx#hyperglass-healthcheck), which requests `/api/health` and checks Redis, the loaded configuration and the built UI. The first start builds the UI before Hyperglass listens, so failed checks do not count during a 10 minute start period. `docker compose ps` shows the container as `healthy` once the checks pass. Images published before the health check was added have no `HEALTHCHECK`.
+The image's Docker `HEALTHCHECK` runs [`hyperglass healthcheck`](/configuration/config/monitoring.mdx#hyperglass-healthcheck), which requests `/api/health` and checks Redis, the loaded configuration and the built UI. The first start builds the UI before Hyperglass listens, so failed checks do not count during a 10 minute start period. `docker compose ps` shows the container as `healthy` once the checks pass. Images published before the health check was added, `3.0.0-rc.2` and older, have no `HEALTHCHECK`, so a container that `HYPERGLASS_IMAGE` sets to one of them reports no health status. A `healthcheck` defined in `compose.yaml` replaces the image's check.
 
 ## Client addresses and host nginx
 
