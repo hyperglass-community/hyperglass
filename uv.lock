@@ -737,7 +737,7 @@ wheels = [
 
 [[package]]
 name = "hyperglass"
-version = "3.0.0rc2"
+version = "3.0.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
