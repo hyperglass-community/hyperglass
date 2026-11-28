@@ -40,3 +40,9 @@ def test_origin_is_last_asn_in_path(as_path, supplied, expected):
 def test_empty_path_without_local_asn_uses_primary_asn():
     route = BGPRoute(**ROUTE, as_path=[])
     assert route.source_as == int(use_state("params").primary_asn)
+
+
+def test_unknown_as_path_has_no_origin():
+    """`None` from the parser: the output held no AS path, so the origin is unknown."""
+    route = BGPRoute(**ROUTE, as_path=[], source_as=None)
+    assert route.source_as == 0

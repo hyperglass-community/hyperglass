@@ -12,11 +12,12 @@ from hyperglass.plugins._builtin.trace_route_huawei import parse_huawei_tracerou
 from hyperglass.plugins._builtin.bgp_routestr_huawei import parse_huawei
 
 FIXTURES = Path(__file__).parent / "fixtures" / "huawei-vrpv8-live"
+NE40E_FIXTURES = Path(__file__).parent / "fixtures" / "huawei-ne40e-live"
 
 
-def sample(name):
+def sample(name, fixtures=FIXTURES):
     """Read one complete device response."""
-    return (FIXTURES / f"{name}.txt").read_text()
+    return (fixtures / f"{name}.txt").read_text()
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +50,39 @@ def test_community_tables():
     assert parse_huawei((sample("community4"), sample("community6"))).count == 38
 
 
+@pytest.mark.parametrize(
+    "fixtures,name,prefix,local_as",
+    [
+        (FIXTURES, "route4_local", "198.51.100.0/24", 65008),
+        (FIXTURES, "route6_local", "2001:db8:100::/48", 65008),
+        (NE40E_FIXTURES, "route4_local", "198.51.100.0/24", 65011),
+        (NE40E_FIXTURES, "route6_local", "2001:db8:100::/48", 65011),
+    ],
+)
+def test_local_route_origin_is_router_local_as(fixtures, name, prefix, local_as):
+    """A route with an empty AS path originates in the AS the router reports."""
+    (route,) = parse_huawei((sample(name, fixtures),)).routes
+    assert route.prefix.lower() == prefix
+    assert route.as_path == []
+    assert route.source_as == local_as != int(use_state("params").primary_asn)
+
+
+@pytest.mark.parametrize(
+    "fixtures,name",
+    [(FIXTURES, "community4"), (NE40E_FIXTURES, "community")],
+)
+def test_community_table_origin_is_unknown(fixtures, name):
+    """The brief community table has no AS path, so the routes are not shown as local."""
+    table = parse_huawei((sample(name, fixtures),))
+    assert table.count == 38
+    assert all(route.as_path == [] and route.source_as == 0 for route in table.routes)
+
+
+def test_aspath_table_origin_is_last_asn():
+    table = parse_huawei((sample("aspath4"), sample("aspath6")))
+    assert {route.source_as for route in table.routes} == {13335}
+
+
 def test_route_detail():
     (route,) = parse_huawei((sample("route4"),)).routes
     assert route.prefix == "1.1.1.0/24"
@@ -60,6 +94,7 @@ def test_route_detail():
     assert route.source_rid == "10.250.0.1"
     assert route.weight == 0
     assert route.age == 180
+    assert route.source_as == 13335
 
 
 def test_vpn_instance_route_detail():

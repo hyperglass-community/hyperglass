@@ -67,6 +67,8 @@ class HuaweiRouteEntry(HuaweiBase):
     large_communities: t.List[str] = []
     ext_communities: t.List[str] = []
     as_path: t.List[int] = []
+    # False when the output has no AS path column, such as the brief community table.
+    as_path_known: bool = True
     origin: str = ""
     metric: int = 0  # MED
     local_preference: int = 100
@@ -326,6 +328,8 @@ def _extract_route_entries(  # noqa: C901 - vendor route-field state machine
 
 def _brief_route(prefix: str, flags: str, values: dict) -> HuaweiRouteEntry:
     """Map only attributes present in a brief VRP response."""
+    # The brief community table has a Community column instead of Path/Ogn.
+    as_path_known = "Path/Ogn" in values
     path = values.get("Path/Ogn", "").strip()
     # VRP prints 4-byte ASNs in asdot (`5.280`). AS sets cannot be represented
     # losslessly by this model.
@@ -342,6 +346,7 @@ def _brief_route(prefix: str, flags: str, values: dict) -> HuaweiRouteEntry:
         preference_value=int(values.get("PrefVal", "").strip() or 0),
         duration=-1,
         as_path=as_path,
+        as_path_known=as_path_known,
         communities=re.findall(r"\d+:\d+(?::\d+)?", values.get("Community", "")),
         is_valid="*" in flags,
         is_best=">" in flags,
@@ -428,12 +433,9 @@ class HuaweiBGPTable(HuaweiBase):
             if "BGP local router ID" in line:
                 instance.local_router_id = remove_prefix(line, "BGP local router ID : ").strip()
             elif "Local AS number" in line:
-                try:
-                    instance.local_as_number = int(
-                        remove_prefix(line, "Local AS number : ").strip()
-                    )
-                except ValueError:
-                    instance.local_as_number = 0
+                # VRP indents the line and prints a 4-byte ASN in asdot.
+                local_as = line.split(":", 1)[-1]
+                instance.local_as_number = parse_asn(local_as) or 0
             elif line.strip().startswith("Paths:"):
                 instance.paths = _extract_paths(line)
 
@@ -458,6 +460,9 @@ class HuaweiBGPTable(HuaweiBase):
                 "med": route.med,
                 "local_preference": route.local_preference,
                 "as_path": route.as_path,
+                # An empty AS path is local to the router's own AS. Without an
+                # AS path in the output, the origin is unknown.
+                "source_as": self.local_as_number if route.as_path_known else None,
                 "communities": route.all_communities,
                 "next_hop": route.next_hop,
                 "source_rid": route.source_rid,
