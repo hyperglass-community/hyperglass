@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Wait for appliance SSH and verify the fixture data link after deployment."""
+"""Wait for appliance SSH and verify the fixture data link after deployment.
+
+SSH runs inside the Hyperglass lab container, so the probe uses the paramiko and
+Netmiko versions that Hyperglass pins instead of the host Python's.
+"""
 
 # Standard Library
 import os
@@ -10,20 +14,37 @@ import argparse
 import subprocess
 from pathlib import Path
 
-# Third Party
-from netmiko import ConnectHandler
-
 PLATFORMS = {
     "sonic": (1, "linux", "admin", "admin", "hostname"),
     "exos": (2, "extreme_exos", "admin", "admin", "show switch"),
     "voss": (3, "extreme_vsp", "admin", "Lab-Router9", "show sys-info"),
     "xrd": (4, "cisco_xr", "clab", "clab@123", "show version"),
-    "iosv": (5, "cisco_ios", "admin", "Lab-Router9", "show version"),
     "nexus": (6, "cisco_nxos", "admin", "Lab-Router9", "show version"),
     "timos": (7, "nokia_sros", "admin", "Lab-Router9", "show version"),
     "routeros6": (8, "mikrotik_routeros", "admin", "Lab-Router9", "/system resource print"),
     "os9": (9, "dell_force10", "admin", "Lab-Router9", "show version"),
 }
+# Container that runs the SSH probe. It shares the management network with the appliances.
+PROBE_CONTAINER = os.environ.get("HYPERGLASS_PROBE_CONTAINER", "clab-hyperglass-hyperglass")
+# Runs in the container. Reads the job as JSON on stdin; a non-zero exit is a failed probe.
+SSH_PROBE = """
+import json, sys
+from netmiko import ConnectHandler
+job = json.load(sys.stdin)
+with ConnectHandler(**job["connect"]) as conn:
+    output = conn.send_command(job["command"], read_timeout=30)
+    if not output.strip():
+        sys.exit("Empty SSH command result")
+    if job["fixture"]:
+        # Execute the fixture in one shell, preserving its error handling.
+        output = conn.send_command(
+            "echo " + job["fixture"] + " | base64 -d | sh; echo LAB_STATUS:$?",
+            read_timeout=90,
+            cmd_verify=False,
+        )
+        if "LAB_STATUS:0" not in output:
+            sys.exit(output)
+"""
 # Seconds to wait for SSH and the data links. OS9 boots slower than the others.
 DEFAULT_TIMEOUT = 600
 TIMEOUTS = {"os9": 1500}
@@ -37,6 +58,34 @@ def ready_timeout(node, requested=None):
     if configured:
         return int(configured)
     return TIMEOUTS.get(node, DEFAULT_TIMEOUT)
+
+
+def require_probe_container():
+    """Stop with a clear message when the Hyperglass container is not running."""
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", PROBE_CONTAINER],
+        text=True,
+        capture_output=True,
+    )
+    if result.stdout.strip() != "true":
+        raise SystemExit(
+            f"The readiness probe runs in the Hyperglass container {PROBE_CONTAINER}, "
+            "which is not running. Start the main lab first (for example ./lab-up.sh frr), "
+            "or set HYPERGLASS_PROBE_CONTAINER."
+        )
+
+
+def ssh_probe(connect, command, fixture=""):
+    """Run one SSH check from the Hyperglass container."""
+    result = subprocess.run(
+        ["docker", "exec", "-i", PROBE_CONTAINER, "python3", "-c", SSH_PROBE],
+        input=json.dumps({"connect": connect, "command": command, "fixture": fixture}),
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode:
+        lines = (result.stderr or result.stdout).strip().splitlines()
+        raise RuntimeError(lines[-1] if lines else f"SSH probe exited {result.returncode}")
 
 
 def check(node, timeout):
@@ -54,30 +103,24 @@ def check(node, timeout):
             time.sleep(5)
             continue
         try:
-            with ConnectHandler(
-                device_type=driver,
-                host=f"192.168.250.{20 + number}",
-                username=username,
-                password=password,
-                conn_timeout=5,
-                banner_timeout=10,
-                auth_timeout=10,
-            ) as conn:
-                output = conn.send_command(command, read_timeout=30)
-                if not output.strip():
-                    raise RuntimeError("Empty SSH command result")
-                if node == "sonic" and not configured:
-                    fixture = Path(__file__).resolve().parents[1] / "configs/sonic/fixture.sh"
-                    # Execute the fixture in one shell, preserving its error handling.
-                    payload = base64.b64encode(fixture.read_bytes()).decode()
-                    output = conn.send_command(
-                        f"echo {payload} | base64 -d | sh; echo LAB_STATUS:$?",
-                        read_timeout=90,
-                        cmd_verify=False,
-                    )
-                    if "LAB_STATUS:0" not in output:
-                        raise RuntimeError(output)
-                    configured = True
+            payload = ""
+            if node == "sonic" and not configured:
+                fixture = Path(__file__).resolve().parents[1] / "configs/sonic/fixture.sh"
+                payload = base64.b64encode(fixture.read_bytes()).decode()
+            ssh_probe(
+                {
+                    "device_type": driver,
+                    "host": f"192.168.250.{20 + number}",
+                    "username": username,
+                    "password": password,
+                    "conn_timeout": 5,
+                    "banner_timeout": 10,
+                    "auth_timeout": 10,
+                },
+                command,
+                payload,
+            )
+            configured = configured or bool(payload)
             for family, target in (
                 ("IPv4", f"10.251.{number}.1"),
                 ("IPv6", f"fd00:251:{number}::1"),
@@ -116,4 +159,5 @@ if __name__ == "__main__":
         help="seconds to wait (default: PLATFORM_READY_TIMEOUT, else os9 1500, others 600)",
     )
     args = parser.parse_args()
+    require_probe_container()
     check(args.node, ready_timeout(args.node, args.timeout))

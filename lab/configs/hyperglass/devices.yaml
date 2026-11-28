@@ -146,21 +146,6 @@ devices:
       source4: 10.251.4.1
       source6: fd00:251:4::1
 
-  - name: lab-iosv
-    address: 192.168.250.25
-    group: Cisco
-    credential:
-      username: admin
-      password: Lab-Router9
-    platform: cisco_ios
-    structured_output: true
-    directives:
-      - builtins: [bgp, ping]
-      - lab-iosv-traceroute
-    attrs:
-      source4: 10.251.5.1
-      source6: fd00:251:5::1
-
   - name: lab-nexus
     address: 192.168.250.26
     group: Cisco

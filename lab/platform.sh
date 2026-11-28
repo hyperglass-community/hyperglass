@@ -13,46 +13,41 @@ case "$ACTION" in
             --format 'table {{.Names}}\t{{.Status}}'
         exit 0 ;;
     stop)
-        for N in sonic exos voss xrd iosv nexus timos routeros6 os9 probe; do
+        for N in sonic exos voss xrd nexus timos routeros6 os9 probe; do
             if [ "$(docker inspect -f '{{.State.Running}}' "$PREFIX-$N" 2>/dev/null || true)" = true ]; then
                 docker stop "$PREFIX-$N"
             fi
         done
         exit 0 ;;
     start) ;;
-    *) echo "Usage: sh platform.sh start sonic|exos|voss|xrd|iosv|nexus|timos|routeros6|os9 | stop | status" >&2; exit 1 ;;
+    *) echo "Usage: sh platform.sh start sonic|exos|voss|xrd|nexus|timos|routeros6|os9 | stop | status" >&2; exit 1 ;;
 esac
 PYTHON=${LAB_PYTHON:-../.venv/bin/python3}
 [ -x "$PYTHON" ] || PYTHON=python3
-"$PYTHON" -c 'import yaml, netmiko'
+"$PYTHON" -c 'import yaml'
 
 case "$NODE" in
     sonic) IMAGE=hyperglass-lab/sonic_sonic-vs:202505.1238524; LIMIT_MB=5120 ;;
     exos) IMAGE=hyperglass-lab/extreme_exos:32.7.2.19; LIMIT_MB=2048 ;;
     voss) IMAGE=hyperglass-lab/extreme_voss:9.4.0.0; LIMIT_MB=3072 ;;
     xrd) IMAGE=hyperglass-lab/cisco_xrd:24.2.11; LIMIT_MB=4096 ;;
-    iosv) IMAGE=hyperglass-lab/cisco_vios:15.9.3M6; LIMIT_MB=2048 ;;
     nexus) IMAGE=hyperglass-lab/cisco_n9kv:9300-lite-10.4.8.M; LIMIT_MB=10240 ;;
     timos) IMAGE=hyperglass-lab/nokia_sros:15.0.R3; LIMIT_MB=10240 ;;
     routeros6) IMAGE=hyperglass-lab/mikrotik_routeros:6.49.19; LIMIT_MB=2048 ;;
     os9) IMAGE=hyperglass-lab/dell_os9:9.13.0.0; LIMIT_MB=2048 ;;
-    *) echo "Pick sonic, exos, voss, xrd, iosv, nexus, timos, routeros6 or os9" >&2; exit 1 ;;
+    *) echo "Pick sonic, exos, voss, xrd, nexus, timos, routeros6 or os9" >&2; exit 1 ;;
 esac
-# IOSv and EXOS offer only SHA-1 key exchange and ssh-rsa host keys. Paramiko 5
-# refuses both, so the readiness probe would fail after the router is up.
-case "$NODE" in
-    iosv|exos)
-        if ! "$PYTHON" -c 'import sys, paramiko; sys.exit(int(paramiko.__version__.split(".")[0]) >= 5)'; then
-            echo "$PYTHON has paramiko 5, which cannot connect to $NODE. Use the project environment, which pins paramiko 4:" >&2
-            echo "  LAB_PYTHON=../.venv/bin/python3 sh platform.sh start $NODE" >&2
-            exit 1
-        fi ;;
-esac
+# The readiness probe opens SSH from the Hyperglass lab container, so it uses the
+# paramiko and Netmiko versions that Hyperglass pins, not the host Python's.
+HG_PROBE=${HYPERGLASS_PROBE_CONTAINER:-clab-hyperglass-hyperglass}
+if [ "$(docker inspect -f '{{.State.Running}}' "$HG_PROBE" 2>/dev/null || true)" != true ]; then
+    echo "The readiness probe runs in the Hyperglass container $HG_PROBE, which is not running." >&2
+    echo "Start the main lab first (for example ./lab-up.sh frr), or set HYPERGLASS_PROBE_CONTAINER." >&2
+    exit 1
+fi
 docker image inspect "$IMAGE" >/dev/null 2>&1 || {
     if [ "$NODE" = xrd ]; then
         echo "Import the image first: sh scripts/import-xrd.sh /path/to/image.tgz" >&2
-    elif [ "$NODE" = iosv ]; then
-        echo "Build the image first: sh scripts/build-iosv.sh /path/to/iosv.qcow2" >&2
     elif [ "$NODE" = nexus ]; then
         echo "Build the image first: sh scripts/build-nexus.sh /path/to/nexus.qcow2" >&2
     elif [ "$NODE" = os9 ]; then
@@ -74,7 +69,7 @@ if [ "$NODE" = xrd ]; then
     }
 fi
 case "$NODE" in
-    sonic|exos|voss|xrd|iosv|nexus|timos|routeros6|os9) docker image inspect hyperglass-lab/core:latest >/dev/null ;;
+    sonic|exos|voss|xrd|nexus|timos|routeros6|os9) docker image inspect hyperglass-lab/core:latest >/dev/null ;;
 esac
 if [ "$NODE" = timos ] && [ ! -s data/platforms/timos.license ]; then
     echo "Place the TiMOS license at lab/data/platforms/timos.license first." >&2
@@ -82,7 +77,7 @@ if [ "$NODE" = timos ] && [ ! -s data/platforms/timos.license ]; then
 fi
 
 # Stop only the optional platforms. Keep the existing full-table lab untouched.
-for N in sonic exos voss xrd iosv nexus timos routeros6 os9; do
+for N in sonic exos voss xrd nexus timos routeros6 os9; do
     if [ "$N" != "$NODE" ] && [ "$(docker inspect -f '{{.State.Running}}' "$PREFIX-$N" 2>/dev/null || true)" = true ]; then
         docker stop "$PREFIX-$N"
     fi
@@ -131,7 +126,7 @@ node = sys.argv[1]
 topology = yaml.safe_load(Path('hyperglass-platforms.clab.yml').read_text())
 nodes = topology['topology']['nodes']
 topology['topology']['nodes'] = {name: nodes[name] for name in ('probe', node)}
-if node in ('sonic', 'exos', 'voss', 'xrd', 'iosv', 'nexus', 'timos', 'routeros6', 'os9'):
+if node in ('sonic', 'exos', 'voss', 'xrd', 'nexus', 'timos', 'routeros6', 'os9'):
     nodes['probe'].update(
         image='hyperglass-lab/core:latest', memory='256MiB',
         entrypoint='gobgpd', cmd='-f /etc/gobgp/gobgpd.toml -t toml',
@@ -151,13 +146,13 @@ topology['topology']['links'] = [
     link for link in topology['topology']['links']
     if any(endpoint.startswith(node + ':') for endpoint in link['endpoints'])
 ]
-number = {'sonic': 1, 'exos': 2, 'voss': 3, 'xrd': 4, 'iosv': 5, 'nexus': 6, 'timos': 7, 'routeros6': 8, 'os9': 9}[node]
+number = {'sonic': 1, 'exos': 2, 'voss': 3, 'xrd': 4, 'nexus': 6, 'timos': 7, 'routeros6': 8, 'os9': 9}[node]
 address = f'10.251.{number}.2/30' if node in ('voss', 'routeros6', 'os9') else f'10.251.{number}.0/31'
 # VOSS takes no IPv6 prefix longer than /64 without a boot flag, and ::0 of a /64 is
 # the subnet-router anycast address.
 address6 = f'fd00:251:{number}::2/64' if node in ('voss', 'routeros6', 'os9') else f'fd00:251:{number}::/127'
 nodes['probe']['exec'] = [f'ip address replace {address} dev eth{number}']
-if node in ('sonic', 'exos', 'voss', 'xrd', 'iosv', 'nexus', 'timos', 'routeros6', 'os9'):
+if node in ('sonic', 'exos', 'voss', 'xrd', 'nexus', 'timos', 'routeros6', 'os9'):
     nodes['probe']['exec'] += [
         f'ip address replace {address6} dev eth{number}',
         'ip address replace 1.1.1.1/32 dev lo',
