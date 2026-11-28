@@ -59,18 +59,6 @@ devices:
       source4: 10.250.5.1
       source6: fd00:250:5::1
 
-  - name: lab-junos
-    address: 192.168.250.16
-    group: Juniper
-    credential:
-      username: admin
-      password: admin@123
-    platform: juniper
-    structured_output: false
-    attrs:
-      source4: 10.250.6.1
-      source6: fd00:250:6::1
-
   - name: lab-crpd
     address: 192.168.250.33
     group: Juniper
@@ -157,21 +145,6 @@ devices:
     attrs:
       source4: 10.251.4.1
       source6: fd00:251:4::1
-
-  - name: lab-iosv
-    address: 192.168.250.25
-    group: Cisco
-    credential:
-      username: admin
-      password: Lab-Router9
-    platform: cisco_ios
-    structured_output: false
-    directives:
-      - builtins: [bgp, ping]
-      - lab-iosv-traceroute
-    attrs:
-      source4: 10.251.5.1
-      source6: fd00:251:5::1
 
   - name: lab-nexus
     address: 192.168.250.26

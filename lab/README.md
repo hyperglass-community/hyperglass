@@ -8,6 +8,7 @@ Run commands from `lab/` unless a command gives another directory.
 
 - Docker and Containerlab.
 - Python with PyYAML and Netmiko.
+- The Linux `vrf` kernel module on the lab host for the VRF `LAB` locations. `sh scripts/check-vrf-module.sh` reports a missing module; it does not load or install anything. `lab-up.sh` runs it and warns.
 - KVM for VM-based appliances.
 - Vendor images and licences obtained separately. The repository contains no vendor binaries.
 
@@ -38,6 +39,8 @@ sh scripts/build-images.sh
 ./lab-status.sh
 ```
 
+The Hyperglass image runs as UID/GID 10001. `lab-up.sh` changes the owner of `configs/hyperglass/`, `configs/hyperglass-text/` and their generated `logs/`, `plugins/`, `static/` and `.ui/` subdirectories to 10001 with `sudo` when needed. The tracked YAML files keep their owner. Without this step a fresh deploy fails with `Permission denied: '/etc/hyperglass/plugins'`.
+
 The structured instance listens on `http://127.0.0.1:8001`. The text instance listens on `http://127.0.0.1:8002`. A published image can be selected with `lab-up.sh --image <image>`.
 
 The core starts without a full table. The default fixture advertises `1.0.0.0/24` and `2606:4700:4700::/48`, with AS path `64999 13335`, community `65000:777` and large community `65000:777:1`.
@@ -53,12 +56,12 @@ The full-table helper reads local MRT files from `data/`.
 
 ```sh
 sh platform.sh list
-sh platform.sh start iosv
+sh platform.sh start exos
 sh platform.sh status
 sh platform.sh stop
 ```
 
-The helper runs one optional appliance and its GoBGP probe. Restarting the same appliance preserves its disk. Selecting another appliance discards the previous appliance-local changes. Store repeatable configuration in startup files.
+The helper runs one optional appliance and its GoBGP probe. The main lab's Hyperglass container must be running: the readiness check opens SSH from that container, so it uses the paramiko and Netmiko versions that Hyperglass pins. Set `HYPERGLASS_PROBE_CONTAINER` to use another container. The helper waits 600 seconds for SSH and the data links, or 1500 seconds for `os9`. Set `PLATFORM_READY_TIMEOUT=<seconds>` to change the wait. Restarting the same appliance preserves its disk. Selecting another appliance discards the previous appliance-local changes. Store repeatable configuration in startup files.
 
 ## Queries
 
@@ -76,8 +79,6 @@ Run `scripts/verify-policy-matrix.py --help` for structured-policy and RPKI chec
 ## Platform notes
 
 - Cisco IOS and NX-OS IPv6 BGP Route queries require a prefix no longer than `/127`. A bare IPv6 host becomes `/128` and is rejected.
-- IOSv IPv6 traceroute accepts only its destination. Its custom lab directive omits the source address.
-- Junos forwarding requires an online FPC.
 - Juniper cRPD runs as a native container without KVM. Load the vendor archive with `docker load -i junos-routing-crpd-amd64-26.2R1.7.tgz` to get `crpd:26.2R1.7`, then run `./lab-up.sh crpd`. Hyperglass logs in as `root`, because the setuid Junos CLI does not run for other users under `no-new-privileges`. The topology writes the root password with `chpasswd`. Without a licence, rpd logs `RPD_CONTAINER_LICENSE_ERROR` and BGP still establishes. cRPD keeps BGP routes out of the kernel, and its ping and traceroute print Linux tool output.
 - Huawei VRPv8 uses `huawei_vrpv8`. Configure its routed data port with `scripts/configure-huawei.py`.
 - Start one Huawei VM at a time.

@@ -3,7 +3,7 @@
 #
 #   ./lab-up.sh                 whole lab (all vendors, needs the most RAM)
 #   ./lab-up.sh frr             just one device: core + redis + both hyperglass + frr
-#   ./lab-up.sh mikrotik        devices: frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 junos crpd iol ioll2
+#   ./lab-up.sh mikrotik        devices: frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 crpd iol ioll2
 #   PREFIXES=50000 ./lab-up.sh frr   cap the table for low-RAM machines
 #   ./lab-up.sh --image <image-reference> [device]
 #                               run a published Hyperglass image instead of the
@@ -21,7 +21,7 @@ if [ "${1:-}" = "--image" ]; then
     shift 2
 fi
 DEV="${1:-}"
-case " frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 junos crpd iol ioll2 " in
+case " frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 crpd iol ioll2 " in
     *" $DEV "*) : ;;
     *) [ -z "$DEV" ] || { echo "Unknown device '$DEV'" >&2; exit 1; } ;;
 esac
@@ -31,6 +31,29 @@ PYTHON=${LAB_PYTHON:-../.venv/bin/python3}
 
 # Hyperglass refuses to start without its (git-ignored) log directory.
 mkdir -p configs/hyperglass/logs configs/hyperglass-text/logs
+
+# The image runs as UID/GID 10001. It creates plugins/, static/ and .ui/ in the
+# bind-mounted configuration directory and writes logs/. Give the directory and
+# those generated subdirectories to 10001. The tracked YAML files keep their owner.
+HG_ID=10001
+for D in configs/hyperglass configs/hyperglass-text; do
+    FIX=""
+    for P in "$D" "$D/logs" "$D/plugins" "$D/static" "$D/.ui"; do
+        [ -e "$P" ] || continue
+        [ "$(stat -c %u "$P")" = "$HG_ID" ] || FIX="$FIX $P"
+    done
+    if [ -n "$FIX" ]; then
+        echo "Hyperglass runs as UID $HG_ID and must write to$FIX. Changing their owner to $HG_ID:$HG_ID (sudo)."
+        # shellcheck disable=SC2086
+        sudo chown "$HG_ID:$HG_ID" $FIX
+        for P in $FIX; do
+            [ "$P" = "$D" ] || sudo chown -R "$HG_ID:$HG_ID" "$P"
+        done
+    fi
+done
+
+# The VRF LAB locations need the vrf kernel module. Warn only: the default VRF works without it.
+sh scripts/check-vrf-module.sh --warn
 
 if [ ! -e data/bview ]; then
     echo "No table dump at data/bview. Run scripts/fetch-table.sh first." >&2
@@ -53,7 +76,7 @@ for C in clab-hyperglass-hyperglass clab-hyperglass-hyperglass-text; do
     fi
 done
 
-NODES="core redis hyperglass hyperglass-text ${DEV:-frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 junos crpd iol ioll2}"
+NODES="core redis hyperglass hyperglass-text ${DEV:-frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 crpd iol ioll2}"
 EXISTING=true
 for N in $NODES; do
     docker inspect "clab-hyperglass-$N" >/dev/null 2>&1 || EXISTING=false
@@ -63,9 +86,9 @@ if [ "$EXISTING" = true ]; then
         "$PYTHON" scripts/start-node.py "$N" --management-only
     done
 elif [ -n "$DEV" ]; then
-    case " frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 junos crpd iol ioll2 " in
+    case " frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 crpd iol ioll2 " in
         *" $DEV "*) : ;;
-        *) echo "Unknown device '$DEV'. Pick one of: frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 junos crpd iol ioll2" >&2; exit 1 ;;
+        *) echo "Unknown device '$DEV'. Pick one of: frr bird openbgpd mikrotik arista vyos huawei huawei-ne40 crpd iol ioll2" >&2; exit 1 ;;
     esac
     echo "Starting single device: $DEV (plus core, redis, hyperglass)"
     sudo env HYPERGLASS_IMAGE="$IMAGE" containerlab deploy -t hyperglass-lab.clab.yml --node-filter "core,redis,hyperglass,hyperglass-text,$DEV"
@@ -83,7 +106,7 @@ done
 # Core link addressing. ethN carries 10.250.N.0/31 + fd00:250:N::/127 (N matches the
 # device subnet). Applied idempotently here so it is correct no matter how the core
 # was created (a prior single-device deploy can leave it with only some interfaces).
-for N in 1 2 3 4 5 6 7 8 9 10 11 12; do
+for N in 1 2 3 4 5 7 8 9 10 11 12; do
     docker exec clab-hyperglass-core sh -c "ip addr add 10.250.$N.0/31 dev eth$N 2>/dev/null; ip addr add fd00:250:$N::/127 dev eth$N 2>/dev/null; true"
 done
 
@@ -109,4 +132,4 @@ fi
 
 echo
 echo "Lab up on $IMAGE. Hyperglass structured: http://127.0.0.1:8001  text: http://127.0.0.1:8002"
-echo "Query a device by its name: lab-frr, lab-bird, lab-openbgpd, lab-mikrotik, lab-arista, lab-vyos, lab-huawei-vrpv8, lab-huawei-ne40, lab-junos, lab-crpd, lab-iol, lab-ioll2"
+echo "Query a device by its name: lab-frr, lab-bird, lab-openbgpd, lab-mikrotik, lab-arista, lab-vyos, lab-huawei-vrpv8, lab-huawei-ne40, lab-crpd, lab-iol, lab-ioll2"

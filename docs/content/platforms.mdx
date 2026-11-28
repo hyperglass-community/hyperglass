@@ -74,7 +74,7 @@ The built-in Cisco IOS community query filters with the colon form, for example 
 ip bgp-community new-format
 ```
 
-Without it, colon-form community queries fail on the router, and route results show each community as one decimal number (`2437611822` instead of `37195:302`). Hyperglass does not change router configuration, so the router operator must apply the command. The lab's IOSv 15.9 and IOS XE 17.18 routers both set it.
+Without it, colon-form community queries fail on the router, and route results show each community as one decimal number (`2437611822` instead of `37195:302`). Hyperglass does not change router configuration, so the router operator must apply the command. The lab's IOS XE 17.18 router sets it.
 
 ### Cisco IOS IPv6 traceroute
 

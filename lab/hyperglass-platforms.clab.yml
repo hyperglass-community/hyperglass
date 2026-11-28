@@ -70,20 +70,6 @@ topology:
       cpu: 2
       startup-config: configs/xrd/startup.cfg
 
-    iosv:
-      kind: cisco_vios
-      image: hyperglass-lab/cisco_vios:15.9.3M6
-      mgmt-ipv4: 192.168.250.25
-      memory: 2GiB
-      cpu: 2
-      startup-config: configs/iosv/startup.cfg
-      credentials:
-        username: admin
-        password: Lab-Router9
-      env:
-        QEMU_CPU: core2duo
-        QEMU_MEMORY: "1024"
-
     nexus:
       kind: cisco_n9kv
       image: hyperglass-lab/cisco_n9kv:9300-lite-10.4.8.M
@@ -148,7 +134,6 @@ topology:
     - endpoints: ["probe:eth2", "exos:eth1"]
     - endpoints: ["probe:eth3", "voss:eth1"]
     - endpoints: ["probe:eth4", "xrd:Gi0-0-0-0"]
-    - endpoints: ["probe:eth5", "iosv:eth1"]
     - endpoints: ["probe:eth6", "nexus:eth1"]
     - endpoints: ["probe:eth7", "timos:eth1"]
     - endpoints: ["probe:eth8", "routeros6:eth1"]
