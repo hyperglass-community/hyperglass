@@ -32,8 +32,6 @@ topology:
         - ip addr add fd00:250:4::/127 dev eth4
         - ip addr add 10.250.5.0/31 dev eth5
         - ip addr add fd00:250:5::/127 dev eth5
-        - ip addr add 10.250.6.0/31 dev eth6
-        - ip addr add fd00:250:6::/127 dev eth6
         - ip addr add 10.250.7.0/31 dev eth7
         - ip addr add fd00:250:7::/127 dev eth7
         - ip addr add 10.250.8.0/31 dev eth8
@@ -98,13 +96,6 @@ topology:
       mgmt-ipv4: 192.168.250.31
       mgmt-ipv6: fd00:250:ffff::31
       startup-config: configs/vyos/config.boot
-
-    junos:
-      kind: juniper_vjunosrouter
-      image: hyperglass-lab/juniper_vjunos-router:26.2R1.7
-      mgmt-ipv4: 192.168.250.16
-      mgmt-ipv6: fd00:250:ffff::16
-      startup-config: configs/vjunos/config.conf
 
     # Juniper cRPD: Junos routing stack as a native container, no KVM. Load the
     # vendor archive with `docker load`. The CLI binary is setuid, which
@@ -222,7 +213,6 @@ topology:
     - endpoints: ["core:eth3", "openbgpd:eth1"]
     - endpoints: ["core:eth4", "mikrotik:eth1"]
     - endpoints: ["core:eth5", "vyos:eth1"]
-    - endpoints: ["core:eth6", "junos:eth1"]
     - endpoints: ["core:eth7", "arista:eth1"]
     - endpoints: ["core:eth8", "huawei:eth1"]
     - endpoints: ["core:eth9", "iol:eth1"]

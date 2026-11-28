@@ -105,25 +105,6 @@
 
 [[neighbors]]
   [neighbors.config]
-    neighbor-address = "10.250.6.1"
-    peer-as = 65006
-  [[neighbors.afi-safis]]
-    [neighbors.afi-safis.config]
-      afi-safi-name = "ipv4-unicast"
-    [neighbors.afi-safis.add-paths.config]
-      send-max = 255
-[[neighbors]]
-  [neighbors.config]
-    neighbor-address = "fd00:250:6::1"
-    peer-as = 65006
-  [[neighbors.afi-safis]]
-    [neighbors.afi-safis.config]
-      afi-safi-name = "ipv6-unicast"
-    [neighbors.afi-safis.add-paths.config]
-      send-max = 255
-
-[[neighbors]]
-  [neighbors.config]
     neighbor-address = "10.250.7.1"
     peer-as = 65007
   [[neighbors.afi-safis]]

@@ -1,5 +1,6 @@
 #!/bin/sh
 # Run one additional platform at a time without loading the core's full table.
+# PLATFORM_READY_TIMEOUT=<seconds> overrides the readiness wait (default 600, os9 1500).
 set -eu
 cd "$(dirname "$0")"
 ACTION=${1:-status}
@@ -36,6 +37,16 @@ case "$NODE" in
     routeros6) IMAGE=hyperglass-lab/mikrotik_routeros:6.49.19; LIMIT_MB=2048 ;;
     os9) IMAGE=hyperglass-lab/dell_os9:9.13.0.0; LIMIT_MB=2048 ;;
     *) echo "Pick sonic, exos, voss, xrd, iosv, nexus, timos, routeros6 or os9" >&2; exit 1 ;;
+esac
+# IOSv and EXOS offer only SHA-1 key exchange and ssh-rsa host keys. Paramiko 5
+# refuses both, so the readiness probe would fail after the router is up.
+case "$NODE" in
+    iosv|exos)
+        if ! "$PYTHON" -c 'import sys, paramiko; sys.exit(int(paramiko.__version__.split(".")[0]) >= 5)'; then
+            echo "$PYTHON has paramiko 5, which cannot connect to $NODE. Use the project environment, which pins paramiko 4:" >&2
+            echo "  LAB_PYTHON=../.venv/bin/python3 sh platform.sh start $NODE" >&2
+            exit 1
+        fi ;;
 esac
 docker image inspect "$IMAGE" >/dev/null 2>&1 || {
     if [ "$NODE" = xrd ]; then

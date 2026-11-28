@@ -19,7 +19,7 @@ PREFIX = "1.0.0.0/24"
 QUERIES = (("BGP AS Path", "_64999_"), ("BGP Community", "65000:777"))
 # Device output that carries communities for each query; see verify-policy-matrix.py.
 NAMED = {
-    "BGP AS Path": {"lab-bird", "lab-openbgpd", "lab-mikrotik", "lab-junos"},
+    "BGP AS Path": {"lab-bird", "lab-openbgpd", "lab-mikrotik", "lab-crpd"},
     "BGP Community": {
         "lab-arista",
         "lab-frr",
@@ -29,7 +29,7 @@ NAMED = {
         "lab-openbgpd",
         "lab-vyos",
         "lab-mikrotik",
-        "lab-junos",
+        "lab-crpd",
     },
 }
 NO_PATH = {"BGP Community": {"lab-huawei-vrpv8", "lab-huawei-ne40"}}

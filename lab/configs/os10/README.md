@@ -2,6 +2,8 @@
 
 Fixture version: SmartFabric OS10 10.6.1.3P1, build 10.6.1.3P1.6, S5224F-VM. The query matrix below covers default and LAB VRFs with text and structured output.
 
+The LAB VRF tests need the Linux `vrf` kernel module on the lab host. Run `sh lab/scripts/check-vrf-module.sh` from the repository root before deploying; it reports a missing module and does not load or install anything.
+
 Apply `startup.cfg` from configuration mode. Connect separate BGP peers to `ethernet1/1/1` and `ethernet1/1/2`. Management SSH uses `mgmt1/1/1`; retain its configured address and credentials.
 
 | Context | Interface | Device addresses | Peer addresses | Advertised prefixes | Origin AS |

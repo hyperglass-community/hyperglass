@@ -58,7 +58,6 @@ def start(node, timeout=600, management_only=False):  # noqa: C901 - startup and
             // 1024
         )
         reserve = {
-            "junos": 6144,
             "huawei": 4096,
             "huawei-ne40": 4096,
             "mikrotik": 2048,

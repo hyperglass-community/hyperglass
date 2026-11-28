@@ -2,6 +2,7 @@
 """Wait for appliance SSH and verify the fixture data link after deployment."""
 
 # Standard Library
+import os
 import json
 import time
 import base64
@@ -23,6 +24,19 @@ PLATFORMS = {
     "routeros6": (8, "mikrotik_routeros", "admin", "Lab-Router9", "/system resource print"),
     "os9": (9, "dell_force10", "admin", "Lab-Router9", "show version"),
 }
+# Seconds to wait for SSH and the data links. OS9 boots slower than the others.
+DEFAULT_TIMEOUT = 600
+TIMEOUTS = {"os9": 1500}
+
+
+def ready_timeout(node, requested=None):
+    """Return the wait for a platform: --timeout, then PLATFORM_READY_TIMEOUT, then the default."""
+    if requested is not None:
+        return requested
+    configured = os.environ.get("PLATFORM_READY_TIMEOUT")
+    if configured:
+        return int(configured)
+    return TIMEOUTS.get(node, DEFAULT_TIMEOUT)
 
 
 def check(node, timeout):
@@ -96,6 +110,10 @@ def check(node, timeout):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("node", choices=PLATFORMS)
-    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        help="seconds to wait (default: PLATFORM_READY_TIMEOUT, else os9 1500, others 600)",
+    )
     args = parser.parse_args()
-    check(args.node, args.timeout)
+    check(args.node, ready_timeout(args.node, args.timeout))

@@ -23,15 +23,18 @@ Supply a compatible Cumulus VX container image through `CUMULUS_IMAGE`. The topo
 From the repository root:
 
 ```sh
+sh lab/scripts/check-vrf-module.sh
 sudo containerlab deploy -t lab/hyperglass-cumulus.clab.yml
 scp lab/configs/cumulus/configure.sh cumulus@192.168.251.12:/tmp/configure-hyperglass.sh
-ssh cumulus@192.168.251.12 'sh /tmp/configure-hyperglass.sh'
+ssh -t cumulus@192.168.251.12 'sh /tmp/configure-hyperglass.sh'
 docker exec clab-hyperglass-cumulus-core gobgp neighbor
 docker exec clab-hyperglass-cumulus-core gobgp global rib add -a ipv4 198.51.100.1/32 nexthop 0.0.0.0 aspath "64999 13335" community 65000:777
 docker exec clab-hyperglass-cumulus-core gobgp global rib add -a ipv6 2001:db8:100::1/128 nexthop :: aspath "64999 13335" community 65000:777
 ```
 
-The wrapper's documented lab credential is `cumulus` / `Clab123!`. Confirm all four BGP sessions reach `Establ` before testing. Copy the entries in `devices.yaml` into the test installation's devices file. Its network must reach `192.168.251.12`. Repeat with `structured_output: false` to compare text output.
+`check-vrf-module.sh` stops when the lab host lacks the Linux `vrf` kernel module, which the `LAB` VRF tests need. It does not load or install anything.
+
+`configure.sh` also installs `/etc/sudoers.d/hyperglass`, which lets `cumulus` run `vtysh` and `ip` through `sudo -n`. The built-in Cumulus commands need it; without it Hyperglass reports that the device rejected the query command. `ssh -t` lets `sudo` ask for the password once. The wrapper's documented lab credential is `cumulus` / `Clab123!`. Confirm all four BGP sessions reach `Establ` before testing. Copy the entries in `devices.yaml` into the test installation's devices file. Its network must reach `192.168.251.12`. Repeat with `structured_output: false` to compare text output.
 
 ## Capture acceptance evidence
 

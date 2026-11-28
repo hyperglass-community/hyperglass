@@ -20,7 +20,6 @@ INSTANCES = {
 API, REDIS_DB = INSTANCES["structured"]
 # Device name without "lab-" -> platform, where they differ.
 PLATFORMS = {
-    "junos": "juniper",
     "crpd": "juniper",
     "iol": "cisco_ios",
     "ioll2": "cisco_ios",
