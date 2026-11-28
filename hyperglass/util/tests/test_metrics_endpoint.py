@@ -48,6 +48,7 @@ def build_client(
             "name": DEVICE,
             "address": "192.0.2.1",
             "platform": "juniper",
+            "structured_output": False,
             "credential": {"username": "test", "password": "test"},
             "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
         }
@@ -104,8 +105,10 @@ def test_metrics_endpoint_skips_state_recovery(metrics_client, monkeypatch):
     assert metrics_client.get("/metrics").status_code == 200
 
 
-def test_metrics_not_in_openapi_schema(metrics_client):
-    assert "/metrics" not in metrics_client.app.openapi_schema.paths
+def test_metrics_not_in_openapi_schema(monkeypatch):
+    params = {"fake_output": True, "metrics": {"enable": True}, "docs": {"enable": True}}
+    with build_client(monkeypatch, **params) as client:
+        assert "/metrics" not in client.app.openapi_schema.paths
 
 
 def test_successful_query_counted(metrics_client):

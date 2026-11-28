@@ -157,11 +157,14 @@ def test_health_ignores_ui_when_disabled(client, ui_built, monkeypatch):
     assert response.json()["checks"]["ui"] == "disabled"
 
 
-def test_health_not_in_openapi_schema(client):
+def test_health_not_in_openapi_schema(populate, monkeypatch):
     # Project
-    from hyperglass.api import app
+    from hyperglass.api import create_app
+    from hyperglass.models.config.params import Params
 
-    assert "/api/health" not in app.openapi_schema.paths
+    monkeypatch.setattr(Settings, "disable_ui", True)
+    populate.cache.set("params", Params(docs={"enable": True}))
+    assert "/api/health" not in create_app().openapi_schema.paths
 
 
 class FakeRedis:

@@ -48,7 +48,7 @@ def config(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.mark.parametrize("structured_answer, structured", [("", False), ("y", True)])
+@pytest.mark.parametrize("structured_answer, structured", [("", True), ("n", False)])
 def test_device_prompts_validate_and_do_not_publish_credentials(
     config, structured_answer, structured
 ):

@@ -77,6 +77,7 @@ def device(monkeypatch) -> Device:
                 "name": "test",
                 "address": "192.0.2.1",
                 "platform": "frr",
+                "structured_output": False,
                 "credential": {"username": "test", "password": "test"},
                 "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
             }

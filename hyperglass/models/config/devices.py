@@ -333,9 +333,15 @@ class Device(HyperglassModelWithId, extra="allow"):
         return str(value)
 
     @field_validator("structured_output", mode="before")
-    def validate_structured_output(cls, value: bool, info: ValidationInfo) -> bool:
-        """Require explicit opt-in on every supported platform."""
+    def validate_structured_output(cls, value: t.Optional[bool], info: ValidationInfo) -> bool:
+        """Enable structured output by default on platforms that have a parser.
 
+        Unset or `null` enables it on supported platforms and leaves other platforms on
+        text. `false` always returns text. `true` on an unsupported platform is an error.
+        """
+
+        if value is None:
+            return info.data.get("platform") in SUPPORTED_STRUCTURED_OUTPUT
         if value is True:
             if info.data.get("platform") not in SUPPORTED_STRUCTURED_OUTPUT:
                 raise ConfigError(

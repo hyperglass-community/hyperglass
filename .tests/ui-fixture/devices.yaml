@@ -1,21 +1,25 @@
+# The UI tests use the text query type IDs, so the fixture devices stay on text.
 devices:
   - name: Router One
     address: 192.0.2.1
     group: North America
     credential: {username: test, password: test}
     platform: juniper
+    structured_output: false
     attrs: {source4: 192.0.2.1, source6: "2001:db8::1"}
   - name: Router Two
     address: 192.0.2.2
     group: North America
     credential: {username: test, password: test}
     platform: arista_eos
+    structured_output: false
     attrs: {source4: 192.0.2.2, source6: "2001:db8::2"}
   - name: Router Three
     address: 192.0.2.3
     group: Europe
     credential: {username: test, password: test}
     platform: frr
+    structured_output: false
     attrs: {source4: 192.0.2.3, source6: "2001:db8::3"}
     directives:
       - peer_communities

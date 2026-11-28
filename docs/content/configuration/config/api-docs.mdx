@@ -4,7 +4,7 @@ Hyperglass generates documentation for the REST API from its OpenAPI schema and 
 
 | Parameter          | Type    | Default Value                    | Description                                                                                                                                                                  |
 | :----------------- | :------ | :------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs.enable`      | Boolean | `true`                           | Enable or disable the REST API documentation.                                                                                                                                |
+| `docs.enable`      | Boolean | `false`                          | Enable or disable the REST API documentation. The documentation is off by default because it publishes the API schema; set `true` to serve it at `docs.path`.              |
 | `docs.path`        | String  | /api/docs                        | Path to the REST API documentation.                                                                                                                                          |
 | `docs.title`       | String  | \{site_title\} API Documentation | API docs title. `{site_title}` is replaced with the `site_title` value from the [top level parameters](/configuration/config.mdx#top-level-parameters).                      |
 | `docs.description` | String  |                                  | API docs description. Appears below the title.                                                                                                                               |
@@ -41,7 +41,7 @@ The `devices`, `info`, `queries` and `query` sections each take a `title`, `desc
 
 ```yaml filename="config.yaml"
 docs:
-    enable: true
+    enable: false
     path: /api/docs
     title: "{site_title} API Documentation"
     description: ""

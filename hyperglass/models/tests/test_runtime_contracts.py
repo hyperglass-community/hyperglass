@@ -34,18 +34,18 @@ def device_config(platform, **kwargs):
 
 
 @pytest.mark.parametrize("platform", ["frr", "juniper", "juniper_junos", "arista_eos"])
-def test_original_platforms_require_structured_output_opt_in(platform):
+def test_original_platforms_default_to_structured_output(platform):
     device = Device(**device_config(platform))
-    assert device.structured_output is False
-    assert all("table" not in name for name in device.directive_ids)
-    enabled = Device(**device_config(platform, structured_output=True))
-    assert any("table" in name for name in enabled.directive_ids)
+    assert device.structured_output is True
+    assert any("table" in name for name in device.directive_ids)
+    disabled = Device(**device_config(platform, structured_output=False))
+    assert all("table" not in name for name in disabled.directive_ids)
 
 
 @pytest.mark.parametrize("platform", ["cisco_ios", "huawei", "mikrotik_routeros"])
-def test_additional_platforms_require_structured_output_opt_in(platform):
-    assert Device(**device_config(platform)).structured_output is False
-    assert Device(**device_config(platform, structured_output=True)).structured_output is True
+def test_additional_platforms_default_to_structured_output(platform):
+    assert Device(**device_config(platform)).structured_output is True
+    assert Device(**device_config(platform, structured_output=False)).structured_output is False
     assert platform in SUPPORTED_STRUCTURED_OUTPUT
 
 
@@ -58,7 +58,7 @@ def test_additional_platforms_require_structured_output_opt_in(platform):
 )
 def test_mikrotik_templates_match_formatted_regex(kind, target, pattern):
     state = use_state()
-    state.cache.set("devices", Devices(device_config("mikrotik_routeros")))
+    state.cache.set("devices", Devices(device_config("mikrotik_routeros", structured_output=False)))
     query = Query(
         queryLocation="test", queryType=f"__hyperglass_mikrotik_{kind}__", queryTarget=target
     )
@@ -153,7 +153,25 @@ def test_openapi_uses_configured_server(monkeypatch, base_url, expected):
     from hyperglass.settings import Settings
 
     monkeypatch.setattr(Settings, "disable_ui", True)
-    params = Params(docs={} if base_url is None else {"base_url": base_url})
+    docs = {"enable": True} if base_url is None else {"enable": True, "base_url": base_url}
+    params = Params(docs=docs)
     use_state().cache.set("params", params)
     api = reload(import_module("hyperglass.api"))
     assert api.app.openapi_schema.servers[0].url == expected
+
+
+def test_api_docs_off_by_default(monkeypatch):
+    # Third Party
+    from litestar.testing import TestClient
+
+    # Project
+    from hyperglass.settings import Settings
+
+    monkeypatch.setattr(Settings, "disable_ui", True)
+    assert Params().docs.enable is False
+    use_state().cache.set("params", Params())
+    api = reload(import_module("hyperglass.api"))
+    assert api.app.openapi_config is None
+    with TestClient(app=api.create_app()) as client:
+        assert client.get("/api/docs").status_code == 404
+        assert client.get("/api/docs/openapi.json").status_code == 404

@@ -192,7 +192,7 @@ FortiGate-VM64-KVM 7.6.8 has authentic captures for IPv4 and IPv6 BGP route deta
 
 ### Structured output
 
-Every platform requires `structured_output: true` to enable parsed output, including FRR, Juniper and Arista. Omitted, `null` and `false` settings return text. BGP queries stay text when a platform supports structured traceroute only.
+Parsed output is on by default on every platform that has a parser. Set `structured_output: false` on a device to return text. BGP queries stay text when a platform supports structured traceroute only.
 
 | Platform | Structured BGP source | Limitations |
 | :------- | :-------------------- | :---------- |
@@ -222,7 +222,7 @@ Every platform requires `structured_output: true` to enable parsed output, inclu
 | VyOS 1.4+ | FRR JSON through `vtysh` | AS-path results omit communities and route age. Router RPKI state remains unknown. |
 | VyOS 1.3 | Not supported | Use text BGP results, even with structured traceroute enabled. |
 
-Structured traceroute covers every built-in platform. FRRouting, SONiC and Cumulus Linux share the FRR traceroute parser. Huawei VRP and MikroTik have their own traceroute parsers. Arista EOS, Juniper Junos, Cisco IOS, IOS-XR and NX-OS, Nokia SR OS, BIRD, OpenBGPD, VyOS 1.4+ and 1.3, TNSR, Extreme EXOS and VOSS, HPE Comware 7, IP Infusion OcNOS, Aruba AOS-CX, Dell SmartFabric OS10, FortiGate and PAN-OS use the standard numbered-hop parser. Dell OS9 uses the standard parser after it joins wrapped IPv6 RTT lines. It needs `structured_output: true` on the device, like structured BGP. Set `structured.enable_for_traceroute: false` to return text on every device. Unrecognized formats remain text. Parser support does not mean every hardware version has live validation.
+Structured traceroute covers every built-in platform. FRRouting, SONiC and Cumulus Linux share the FRR traceroute parser. Huawei VRP and MikroTik have their own traceroute parsers. Arista EOS, Juniper Junos, Cisco IOS, IOS-XR and NX-OS, Nokia SR OS, BIRD, OpenBGPD, VyOS 1.4+ and 1.3, TNSR, Extreme EXOS and VOSS, HPE Comware 7, IP Infusion OcNOS, Aruba AOS-CX, Dell SmartFabric OS10, FortiGate and PAN-OS use the standard numbered-hop parser. Dell OS9 uses the standard parser after it joins wrapped IPv6 RTT lines. It is on by default, like structured BGP, and `structured_output: false` on the device turns it off. Set `structured.enable_for_traceroute: false` to return text on every device. Unrecognized formats remain text. Parser support does not mean every hardware version has live validation.
 
 ### VRF queries
 
