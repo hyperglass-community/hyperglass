@@ -14,6 +14,8 @@ from hyperglass.execution.drivers._construct import Construct
 
 
 def _device(**kwargs):
+    # These tests check the text commands; structured output is on by default.
+    kwargs.setdefault("structured_output", False)
     return Device(
         name="exos",
         address="192.0.2.10",

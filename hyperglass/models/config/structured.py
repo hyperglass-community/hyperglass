@@ -78,10 +78,10 @@ class StructuredIpEnrichment(HyperglassModel):
     mode: StructuredIpEnrichmentMode = "inline"
     """Run enrichment before the response or asynchronously after it is returned."""
 
-    enrich_traceroute: bool = False
+    enrich_traceroute: bool = True
     """Enable ASN/org/IP enrichment for traceroute hops using real-time BGP.tools data."""
 
-    enrich_bgproute: bool = False
+    enrich_bgproute: bool = True
     """Enable ASN/org enrichment for BGP routes. Enrichment is inline by default and can be
     deferred with ``mode: async``. When false, enrichment is lazy-loaded when viewing the AS Path."""
 

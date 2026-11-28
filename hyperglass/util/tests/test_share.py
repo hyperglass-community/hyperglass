@@ -102,6 +102,7 @@ def configure_devices(*, retain: bool = True, private: bool = True) -> None:
                 "name": "test",
                 "address": "192.0.2.1",
                 "platform": "frr",
+                "structured_output": False,
                 "credential": {"username": "test", "password": "test"},
                 "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
                 "directives": [PRIVATE] if private else [],
@@ -952,6 +953,7 @@ def test_device_removed_is_404(device):
                 "name": "other",
                 "address": "192.0.2.2",
                 "platform": "frr",
+                "structured_output": False,
                 "credential": {"username": "test", "password": "test"},
                 "attrs": {"source4": "192.0.2.1", "source6": "2001:db8::1"},
             }
@@ -1127,14 +1129,16 @@ def test_redis_outage_while_creating_is_503(device, monkeypatch):
 # Registration
 
 
-def build_app(monkeypatch, **share: t.Any) -> TestClient:
+def build_app(
+    monkeypatch, docs: t.Optional[t.Dict[str, t.Any]] = None, **share: t.Any
+) -> TestClient:
     # Project
     from hyperglass.state import recovery
 
     monkeypatch.setattr(Settings, "disable_ui", True)
     state = use_state()
     configure_devices()
-    configure(share)
+    configure(share, **({"docs": docs} if docs else {}))
     params = state.redis.get("params")
     devices = state.redis.get("devices")
     directives = state.redis.get("directives")
@@ -1332,7 +1336,7 @@ def test_create_requires_json(device, content_type):
 
 
 def test_share_routes_are_not_in_the_openapi_schema(monkeypatch):
-    with build_app(monkeypatch, enable=True) as test_client:
+    with build_app(monkeypatch, docs={"enable": True}, enable=True) as test_client:
         paths = {route.path for route in test_client.app.routes}
         assert "/api/share" in paths
         schema = test_client.app.openapi_schema

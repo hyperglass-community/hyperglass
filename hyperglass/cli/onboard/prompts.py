@@ -83,7 +83,8 @@ def device_prompt(entry: dict) -> dict:
         entry.pop(field, None)
         if value and value != "-":
             entry[field] = value
-    previous_structured = entry.get("structured_output", False)
+    # Unset means on for a supported platform, so the prompt offers yes unless it was false.
+    previous_structured = entry.get("structured_output") is not False
     entry["structured_output"] = False
     if entry["platform"] in SUPPORTED_STRUCTURED_OUTPUT:
         entry["structured_output"] = confirm(

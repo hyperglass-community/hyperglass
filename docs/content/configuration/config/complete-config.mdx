@@ -136,7 +136,7 @@ Controls the automatically generated API documentation. Hyperglass serves it at 
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
-| `docs.enable` | Boolean | `true` | Enable or disable API documentation. |
+| `docs.enable` | Boolean | `false` | Enable or disable API documentation. |
 | `docs.path` | String | `/api/docs` | HTTP path where API documentation is accessible. Must start with `/`. |
 | `docs.title` | String | `{site_title} API Documentation` | API documentation title. `{site_title}` is automatically replaced. |
 | `docs.description` | String | `""` | Description appearing below the API documentation title. |
@@ -346,8 +346,8 @@ Controls how Hyperglass processes and displays structured data from network devi
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
 | `structured.ip_enrichment.mode` | String | `inline` | `inline` enriches before the response. `async` enriches after the response is returned. |
-| `structured.ip_enrichment.enrich_traceroute` | Boolean | `false` | Add ASN, organization and IP data to traceroute hops from real-time BGP.tools lookups. |
-| `structured.ip_enrichment.enrich_bgproute` | Boolean | `false` | Add ASN and organization data to BGP routes. When `false`, the UI loads enrichment when you view the AS path. |
+| `structured.ip_enrichment.enrich_traceroute` | Boolean | `true` | Add ASN, organization and IP data to traceroute hops from real-time BGP.tools lookups. |
+| `structured.ip_enrichment.enrich_bgproute` | Boolean | `true` | Add ASN and organization data to BGP routes. When `false`, the UI loads enrichment when you view the AS path. |
 | `structured.ip_enrichment.whois_host` | String | `bgp.tools` | WHOIS server for ASN, prefix and organization lookups. `/api/aspath/enrich` uses it too. |
 | `structured.ip_enrichment.whois_port` | Integer | `43` | TCP port of the WHOIS server. |
 | `structured.ip_enrichment.whois_timeout` | Float | `10` | Seconds allowed for a single-address WHOIS lookup. |
@@ -361,8 +361,8 @@ Controls how Hyperglass processes and displays structured data from network devi
 
 | Parameter | Type | Default | Description |
 | :-------- | :--- | :------ | :---------- |
-| `structured.enable_for_traceroute` | Boolean | `true` | Set `false` to return text traceroute on every device. Otherwise the device's structured-output setting applies. Every platform requires explicit opt-in. |
-| `structured.enable_for_bgp_route` | Boolean | `true` | Set `false` to return text BGP routes on every device. Otherwise the device's structured-output setting applies. Every platform requires explicit opt-in. |
+| `structured.enable_for_traceroute` | Boolean | `true` | Set `false` to return text traceroute on every device. Otherwise the device's structured-output setting applies, which is on by default on platforms that have a parser. |
+| `structured.enable_for_bgp_route` | Boolean | `true` | Set `false` to return text BGP routes on every device. Otherwise the device's structured-output setting applies, which is on by default on platforms that have a parser. |
 
 #### Example: Structured Output Configuration
 ```yaml filename="config.yaml"
@@ -1040,7 +1040,7 @@ share:
 # ---------------------------------------------------------------------------
 
 docs:
-  # Serve the API documentation. Default: true
+  # Serve the API documentation. Default: false
   enable: true
   # Base URL used in request samples, and published as the OpenAPI server URL.
   # Default: https://lg.example.net (not published unless you set it)
@@ -1210,8 +1210,9 @@ messages:
 # Structured output (tables instead of raw text)
 # ---------------------------------------------------------------------------
 #
-# Structured output is opt-in per device: set structured_output: true on each
-# device in devices.yaml. These settings control what structured results show.
+# Structured output is on by default for every device whose platform has a
+# parser. Set structured_output: false on a device in devices.yaml for text.
+# These settings control what structured results show.
 
 structured:
   # BGP community handling in structured BGP route results.
@@ -1244,19 +1245,19 @@ structured:
   # Add ASN, organisation, prefix and IXP details from BGP.tools (WHOIS, TCP port
   # 43, outbound access required). Lookups are cached in memory per worker.
   # Enrichment sends every public traceroute hop, BGP next hop and ASN to
-  # BGP.tools over plain-text WHOIS, so this sample leaves it off. See "Data Sent
-  # to Third Parties" (/configuration/third-party-data) before enabling it.
+  # BGP.tools over plain-text WHOIS. It is on by default; this sample turns it
+  # off. See "Data Sent to Third Parties" (/configuration/third-party-data).
   ip_enrichment:
     # inline - enrich before returning the result.
     # async  - return the result first, then enrich it in the background; the UI
     #          fetches the enriched result.
     # Default: inline
     mode: "async"
-    # Enrich traceroute hops with ASN, organisation, prefix and IXP. Default: false
+    # Enrich traceroute hops with ASN, organisation, prefix and IXP. Default: true
     enrich_traceroute: false
     # Enrich BGP routes with AS path organisation names and next-hop details when
     # the query runs. When false, the UI loads AS path names when the user opens
-    # the AS path. Default: false
+    # the AS path. Default: true
     enrich_bgproute: false
     # WHOIS server for ASN, prefix and organisation lookups. /api/aspath/enrich
     # (web.aspath_enrichment) uses it too. Default: bgp.tools, port 43

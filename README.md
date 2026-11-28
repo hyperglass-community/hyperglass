@@ -50,7 +50,7 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 | Queries | Ping and traceroute | IPv4 and IPv6, sourced from the device's configured source addresses. |
 | Queries | Custom directives | Publish any device command with its own target rules, fixed-choice select fields, per-platform syntax and version-selected fallback commands. |
 | Queries | VRF queries | Built-in VRF command forms for 16 platforms. Set `vrf` on the device entry. |
-| Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. Explicit opt-in on every supported platform. |
+| Results | Structured BGP tables | Parsed route tables with prefix, next hop, AS path, communities, MED, local preference, weight, age and RPKI state, plus an interactive AS path graph. On by default on every supported platform. |
 | Results | Structured traceroute | Parsed hops with per-probe RTT, loss and best, worst and last statistics per hop. |
 | Results | RPKI validation | Router-reported state, or external validation through Cloudflare or your own Routinator. |
 | Results | IP enrichment | ASN, organisation, country and IXP metadata, inline or asynchronous. Router-provided traceroute hostnames are preserved. Hops without a hostname get a bounded reverse DNS lookup for public addresses. |
@@ -84,7 +84,7 @@ Every command accepts `--json` for scripting. Restart Hyperglass after a save so
 
 ## Supported platforms
 
-Hyperglass ships directives and parsers for these 26 platforms. Netmiko provides the device connectivity, so other Netmiko platforms work with custom directives. Set `structured_output: true` to enable parsed output on each supported device. Omitted, `null` and `false` settings return text on every platform, including FRR, Juniper and Arista.
+Hyperglass ships directives and parsers for these 26 platforms. Netmiko provides the device connectivity, so other Netmiko platforms work with custom directives. Parsed output is on by default on every supported device. Set `structured_output: false` on a device to return text.
 
 | Platform | `platform` key | Structured BGP | Structured traceroute | Built-in VRF queries | Notes |
 | --- | --- | --- | --- | --- | --- |

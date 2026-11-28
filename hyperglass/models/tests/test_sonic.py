@@ -13,6 +13,8 @@ from hyperglass.execution.drivers._construct import Construct
 
 
 def _device(**kwargs):
+    # These tests check the text commands; structured output is on by default.
+    kwargs.setdefault("structured_output", False)
     return Device(
         name="sonic",
         address="192.0.2.10",
@@ -67,7 +69,7 @@ def test_sonic_vrf_commands():
 def test_sonic_device():
     device = _device()
     assert device.get_device_type() == "linux_ssh"
-    assert device.structured_output is not True
+    assert _device(structured_output=None).structured_output is True
     assert {d.id for d in device.directives} >= {
         f"__hyperglass_sonic_{kind}__"
         for kind in ("bgp_route", "bgp_aspath", "bgp_community", "ping", "traceroute")

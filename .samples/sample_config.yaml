@@ -147,7 +147,7 @@ share:
 # ---------------------------------------------------------------------------
 
 docs:
-  # Serve the API documentation. Default: true
+  # Serve the API documentation. Default: false
   enable: true
   # Base URL used in request samples, and published as the OpenAPI server URL.
   # Default: https://lg.example.net (not published unless you set it)
@@ -317,8 +317,9 @@ messages:
 # Structured output (tables instead of raw text)
 # ---------------------------------------------------------------------------
 #
-# Structured output is opt-in per device: set structured_output: true on each
-# device in devices.yaml. These settings control what structured results show.
+# Structured output is on by default for every device whose platform has a
+# parser. Set structured_output: false on a device in devices.yaml for text.
+# These settings control what structured results show.
 
 structured:
   # BGP community handling in structured BGP route results.
@@ -351,19 +352,19 @@ structured:
   # Add ASN, organisation, prefix and IXP details from BGP.tools (WHOIS, TCP port
   # 43, outbound access required). Lookups are cached in memory per worker.
   # Enrichment sends every public traceroute hop, BGP next hop and ASN to
-  # BGP.tools over plain-text WHOIS, so this sample leaves it off. See "Data Sent
-  # to Third Parties" (/configuration/third-party-data) before enabling it.
+  # BGP.tools over plain-text WHOIS. It is on by default; this sample turns it
+  # off. See "Data Sent to Third Parties" (/configuration/third-party-data).
   ip_enrichment:
     # inline - enrich before returning the result.
     # async  - return the result first, then enrich it in the background; the UI
     #          fetches the enriched result.
     # Default: inline
     mode: "async"
-    # Enrich traceroute hops with ASN, organisation, prefix and IXP. Default: false
+    # Enrich traceroute hops with ASN, organisation, prefix and IXP. Default: true
     enrich_traceroute: false
     # Enrich BGP routes with AS path organisation names and next-hop details when
     # the query runs. When false, the UI loads AS path names when the user opens
-    # the AS path. Default: false
+    # the AS path. Default: true
     enrich_bgproute: false
     # WHOIS server for ASN, prefix and organisation lookups. /api/aspath/enrich
     # (web.aspath_enrichment) uses it too. Default: bgp.tools, port 43
