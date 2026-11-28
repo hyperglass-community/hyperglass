@@ -1,0 +1,13 @@
+ BGP local router ID : 10.250.11.1
+ Local AS number : 65011
+ Paths:   1 available, 1 best, 1 select, 0 best-external, 0 add-path
+ BGP routing table entry information of 2001:DB8:100::/48:
+ Route Distinguisher: 65011:100
+ Network route.
+ From: :: (0.0.0.0)
+ Route Duration: 0d00h16m27s
+ Direct Out-interface: NULL0
+ Original nexthop: ::
+ Qos information : 0x0
+ AS-path Nil, origin igp, MED 0, pref-val 0, valid, local, best, select, pre 60
+ Not advertised to any peer yet
